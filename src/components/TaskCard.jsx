@@ -145,7 +145,7 @@ const TaskCard = ({ task, showCampaign = false }) => {
             </button>
           )}
 
-          {task.status === taskStatusEnum.IN_PROGRESS && isAssignedToMe && !isManager && (
+          {task.status === taskStatusEnum.NOT_STARTED && isAssignedToMe && !isManager && (
             <button
               onClick={() => updateTaskStatus(task.id, taskStatusEnum.IN_PROGRESS)}
               className="btn-secondary text-sm flex-1"
