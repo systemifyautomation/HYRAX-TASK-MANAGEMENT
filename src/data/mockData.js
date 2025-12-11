@@ -1,11 +1,12 @@
 // Mock data for the HYRAX task management app
+import { USER_ROLES } from '../constants/roles';
 
 export const users = [
-  { id: 1, name: 'John Doe', role: 'manager', email: 'john@hyrax.com', avatar: 'JD' },
-  { id: 2, name: 'Sarah Smith', role: 'team_member', email: 'sarah@hyrax.com', avatar: 'SS' },
-  { id: 3, name: 'Mike Johnson', role: 'team_member', email: 'mike@hyrax.com', avatar: 'MJ' },
-  { id: 4, name: 'Emily Brown', role: 'team_member', email: 'emily@hyrax.com', avatar: 'EB' },
-  { id: 5, name: 'David Lee', role: 'manager', email: 'david@hyrax.com', avatar: 'DL' },
+  { id: 1, name: 'John Doe', role: USER_ROLES.MANAGER, email: 'john@hyrax.com', avatar: 'JD' },
+  { id: 2, name: 'Sarah Smith', role: USER_ROLES.TEAM_MEMBER, email: 'sarah@hyrax.com', avatar: 'SS' },
+  { id: 3, name: 'Mike Johnson', role: USER_ROLES.TEAM_MEMBER, email: 'mike@hyrax.com', avatar: 'MJ' },
+  { id: 4, name: 'Emily Brown', role: USER_ROLES.TEAM_MEMBER, email: 'emily@hyrax.com', avatar: 'EB' },
+  { id: 5, name: 'David Lee', role: USER_ROLES.MANAGER, email: 'david@hyrax.com', avatar: 'DL' },
 ];
 
 export const campaigns = [
@@ -66,6 +67,36 @@ export const taskStatus = {
   APPROVED: 'approved',
 };
 
+export const taskPriority = {
+  URGENT: 'urgent',
+  HIGH: 'high',
+  NORMAL: 'normal',
+  LOW: 'low',
+};
+
+export const taskTags = [
+  'Social Media',
+  'Paid Ads',
+  'Email',
+  'Design',
+  'Video',
+  'Copywriting',
+  'Research',
+  'Strategy',
+];
+
+// Spreadsheet columns configuration
+export const columns = [
+  { id: 'title', key: 'title', name: 'Title', type: 'text', canDelete: false },
+  { id: 'status', key: 'status', name: 'Status', type: 'dropdown', options: ['not_started', 'in_progress', 'submitted', 'needs_revision', 'approved'], canDelete: false },
+  { id: 'assignedTo', key: 'assignedTo', name: 'Assigned To', type: 'user', canDelete: false },
+  { id: 'campaignId', key: 'campaignId', name: 'Campaign', type: 'campaign', canDelete: false },
+  { id: 'dueDate', key: 'dueDate', name: 'Due Date', type: 'date', canDelete: false },
+  { id: 'priority', key: 'priority', name: 'Priority', type: 'dropdown', options: ['urgent', 'high', 'normal', 'low'], canDelete: false },
+  { id: 'type', key: 'type', name: 'Type', type: 'dropdown', options: ['copy', 'image', 'video', 'script'], canDelete: false },
+  { id: 'description', key: 'description', name: 'Description', type: 'text', canDelete: false },
+];
+
 export const tasks = [
   // Campaign 1 - Summer Sale 2024
   {
@@ -76,11 +107,8 @@ export const tasks = [
     description: 'Write engaging copy for main summer sale ads',
     assignedTo: 2,
     dueDate: '2024-12-13',
-    weekNumber: 50,
     status: taskStatus.SUBMITTED,
-    submittedContent: 'Summer is here! Get up to 50% off on all fashion items. Limited time offer!',
-    submittedAt: '2024-12-11T10:30:00',
-    feedback: null,
+    priority: taskPriority.HIGH,
   },
   {
     id: 2,
@@ -90,13 +118,8 @@ export const tasks = [
     description: 'Create hero banner image for the campaign',
     assignedTo: 3,
     dueDate: '2024-12-14',
-    weekNumber: 50,
     status: taskStatus.APPROVED,
-    submittedContent: 'https://via.placeholder.com/1200x628/0ea5e9/ffffff?text=Summer+Sale+Hero+Image',
-    submittedAt: '2024-12-10T14:20:00',
-    feedback: 'Looks great! Approved.',
-    approvedAt: '2024-12-11T09:00:00',
-    approvedBy: 1,
+    priority: taskPriority.URGENT,
   },
   {
     id: 3,
@@ -106,11 +129,8 @@ export const tasks = [
     description: '30-second product showcase video',
     assignedTo: 4,
     dueDate: '2024-12-15',
-    weekNumber: 50,
     status: taskStatus.IN_PROGRESS,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.HIGH,
   },
   {
     id: 4,
@@ -120,11 +140,8 @@ export const tasks = [
     description: 'Copy for retargeting ads',
     assignedTo: 2,
     dueDate: '2024-12-16',
-    weekNumber: 51,
     status: taskStatus.NOT_STARTED,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.NORMAL,
   },
   {
     id: 5,
@@ -134,13 +151,8 @@ export const tasks = [
     description: 'Create 5 carousel images for Instagram',
     assignedTo: 3,
     dueDate: '2024-12-17',
-    weekNumber: 51,
     status: taskStatus.NEEDS_REVISION,
-    submittedContent: 'https://via.placeholder.com/1080x1080/bae6fd/075985?text=Carousel+Images',
-    submittedAt: '2024-12-10T16:45:00',
-    feedback: 'Please adjust colors to match brand guidelines',
-    reviewedAt: '2024-12-11T11:00:00',
-    reviewedBy: 1,
+    priority: taskPriority.HIGH,
   },
 
   // Campaign 2 - Holiday Campaign
@@ -152,11 +164,8 @@ export const tasks = [
     description: 'Write script for 60-second holiday video',
     assignedTo: 2,
     dueDate: '2024-12-18',
-    weekNumber: 51,
     status: taskStatus.SUBMITTED,
-    submittedContent: 'Scene 1: Family gathering around holiday table...\nScene 2: Unboxing our product...',
-    submittedAt: '2024-12-11T08:15:00',
-    feedback: null,
+    priority: taskPriority.URGENT,
   },
   {
     id: 7,
@@ -166,11 +175,8 @@ export const tasks = [
     description: 'Create 3 variations of holiday ad copy',
     assignedTo: 4,
     dueDate: '2024-12-19',
-    weekNumber: 51,
     status: taskStatus.IN_PROGRESS,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.HIGH,
   },
   {
     id: 8,
@@ -180,11 +186,8 @@ export const tasks = [
     description: 'Design festive banner images',
     assignedTo: 3,
     dueDate: '2024-12-20',
-    weekNumber: 51,
     status: taskStatus.NOT_STARTED,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.NORMAL,
   },
 
   // Campaign 3 - New Product Launch
@@ -196,13 +199,8 @@ export const tasks = [
     description: 'Write copy for product launch announcement',
     assignedTo: 2,
     dueDate: '2024-12-10',
-    weekNumber: 50,
     status: taskStatus.APPROVED,
-    submittedContent: 'Introducing our latest innovation! Revolutionary features that will change everything.',
-    submittedAt: '2024-12-08T13:00:00',
-    feedback: 'Perfect! Approved.',
-    approvedAt: '2024-12-09T09:30:00',
-    approvedBy: 5,
+    priority: taskPriority.URGENT,
   },
   {
     id: 10,
@@ -212,13 +210,8 @@ export const tasks = [
     description: 'Create product demonstration video',
     assignedTo: 4,
     dueDate: '2024-12-12',
-    weekNumber: 50,
     status: taskStatus.APPROVED,
-    submittedContent: 'https://via.placeholder.com/1920x1080/0ea5e9/ffffff?text=Product+Demo+Video',
-    submittedAt: '2024-12-09T10:00:00',
-    feedback: 'Great work!',
-    approvedAt: '2024-12-10T14:00:00',
-    approvedBy: 5,
+    priority: taskPriority.HIGH,
   },
 
   // Campaign 4 - Brand Awareness Q1
@@ -230,11 +223,8 @@ export const tasks = [
     description: 'Outline the content strategy for Q1',
     assignedTo: 2,
     dueDate: '2024-12-25',
-    weekNumber: 52,
     status: taskStatus.NOT_STARTED,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.NORMAL,
   },
   {
     id: 12,
@@ -244,11 +234,8 @@ export const tasks = [
     description: 'Write compelling brand story script',
     assignedTo: 4,
     dueDate: '2024-12-27',
-    weekNumber: 52,
     status: taskStatus.NOT_STARTED,
-    submittedContent: null,
-    submittedAt: null,
-    feedback: null,
+    priority: taskPriority.LOW,
   },
 ];
 

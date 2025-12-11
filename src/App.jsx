@@ -2,10 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import Campaigns from './pages/Campaigns';
-import CampaignDetail from './pages/CampaignDetail';
-import WeeklyView from './pages/WeeklyView';
+import Tasks from './pages/Tasks';
+import CampaignsList from './pages/CampaignsList';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   return (
@@ -15,10 +14,9 @@ function App() {
           <Sidebar />
           <main className="flex-1 overflow-auto">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/campaigns" element={<Campaigns />} />
-              <Route path="/campaigns/:id" element={<CampaignDetail />} />
-              <Route path="/weekly" element={<WeeklyView />} />
+              <Route path="/" element={<Tasks />} />
+              <Route path="/campaigns" element={<CampaignsList />} />
+              <Route path="/users" element={<UserManagement />} />
             </Routes>
           </main>
         </div>

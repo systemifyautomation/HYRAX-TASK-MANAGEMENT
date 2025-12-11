@@ -1,19 +1,17 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FolderOpen, Calendar, User } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isAdmin } from '../constants/roles';
 
 const Sidebar = () => {
-  const { currentUser, getTasksNeedingReview, getMyTasks } = useApp();
-  const isManager = currentUser.role === 'manager';
-  
-  const tasksNeedingReview = isManager ? getTasksNeedingReview().length : 0;
-  const myTasks = !isManager ? getMyTasks().length : 0;
+  const { currentUser } = useApp();
+  const isAdminUser = isAdmin(currentUser.role);
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
+    { to: '/', icon: CheckSquare, label: 'Tasks', end: true },
     { to: '/campaigns', icon: FolderOpen, label: 'Campaigns' },
-    { to: '/weekly', icon: Calendar, label: 'Weekly View' },
+    { to: '/users', icon: Users, label: 'User Management', adminOnly: true },
   ];
 
   return (
@@ -39,7 +37,7 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => (
+        {navItems.filter(item => !item.adminOnly || isAdmin).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -57,21 +55,6 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
-
-      {/* Stats */}
-      <div className="p-4 border-t border-gray-200 space-y-2">
-        {isManager ? (
-          <div className="flex items-center justify-between px-4 py-2 bg-amber-50 rounded-lg">
-            <span className="text-sm text-gray-700">Pending Reviews</span>
-            <span className="text-sm font-bold text-amber-600">{tasksNeedingReview}</span>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between px-4 py-2 bg-blue-50 rounded-lg">
-            <span className="text-sm text-gray-700">My Tasks</span>
-            <span className="text-sm font-bold text-primary-600">{myTasks}</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 };
