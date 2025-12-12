@@ -13,7 +13,9 @@ const CampaignsList = () => {
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/campaigns');
+      // Use relative URL for production (Vercel) or localhost for development
+      const apiUrl = import.meta.env.PROD ? '/api/campaigns' : 'http://localhost:3001/api/campaigns';
+      const response = await fetch(apiUrl);
       const data = await response.json();
       
       if (data.success) {

@@ -100,6 +100,27 @@ npm start
 npm run dev
 ```
 
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+This app is pre-configured for Vercel deployment:
+
+1. **Push to Git repository**
+2. **Import to Vercel** from your Git provider
+3. **Deploy** - Vercel will automatically:
+   - Build the React app
+   - Deploy API as serverless functions
+   - Configure routing and CDN
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for detailed instructions.
+
+### Live API Endpoints
+
+Once deployed, API endpoints will be available at:
+- `https://your-app.vercel.app/api/campaigns`
+- `https://your-app.vercel.app/api/health`
+
 ## 🏗️ Building for Production
 
 To create a production build:
@@ -209,7 +230,7 @@ You can send HTTP requests from n8n to manage campaigns:
 
 **Create Campaign:**
 ```json
-POST http://localhost:3001/api/campaigns
+POST https://your-app.vercel.app/api/campaigns
 {
   "name": "NEW_CAMPAIGN_NAME",
   "slackId": "C123456789"
@@ -218,14 +239,19 @@ POST http://localhost:3001/api/campaigns
 
 **Update Campaign:**
 ```json
-PUT http://localhost:3001/api/campaigns/1
+PUT https://your-app.vercel.app/api/campaigns/1
 {
   "name": "UPDATED_NAME", 
   "slackId": "C987654321"
 }
 ```
 
-See `server/README.md` for complete API documentation.
+**Local Development:**
+```json
+POST http://localhost:3001/api/campaigns
+```
+
+See [`API_ENDPOINTS.md`](API_ENDPOINTS.md) for complete API documentation.
 
 ## 🔄 Future Enhancements
 
