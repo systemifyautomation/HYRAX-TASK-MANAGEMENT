@@ -299,25 +299,42 @@ export const AppProvider = ({ children }) => {
 
   const loadInitialData = async () => {
     try {
-      // Load campaigns from server/data/campaigns.json
-      const campaignsData = [
-        { "id": 1, "name": "001_CCW", "slackId": "C092ZBS0KEK" },
-        { "id": 2, "name": "002-CASH4HOMES", "slackId": "" },
-        { "id": 3, "name": "003-MVA", "slackId": "" },
-        { "id": 4, "name": "004_TRAVEL_RESORTS", "slackId": "C09EQBS2BB3" },
-        { "id": 5, "name": "05-ASSESSMENTS", "slackId": "" },
-        { "id": 6, "name": "005-GLP1TELE", "slackId": "" },
-        { "id": 7, "name": "006-HELOC", "slackId": "" },
-        { "id": 8, "name": "007-HEA", "slackId": "" },
-        { "id": 9, "name": "008-HEARINGAIDS", "slackId": "" },
-        { "id": 10, "name": "009-WINDOWS", "slackId": "" },
-        { "id": 11, "name": "010-PARAQUAT", "slackId": "" },
-        { "id": 12, "name": "011_ROUNDUP", "slackId": "C09DWN18SHM" },
-        { "id": 13, "name": "012_RIDESHARE", "slackId": "" },
-        { "id": 14, "name": "013-TALCUM", "slackId": "" },
-        { "id": 15, "name": "014-AFFF", "slackId": "" },
-        { "id": 16, "name": "015-HAIR", "slackId": "" },
-        { "id": 17, "name": "016-SICKLE-CELL", "slackId": "" },
+      // Get campaigns data from environment or use embedded fallback
+      let campaignsData = [];
+      
+      if (import.meta.env.VITE_CAMPAIGNS_DATA) {
+        try {
+          campaignsData = JSON.parse(import.meta.env.VITE_CAMPAIGNS_DATA);
+        } catch (e) {
+          console.warn('Failed to parse campaigns data from environment');
+        }
+      }
+      
+      // Fallback to embedded campaigns data if environment data not available
+      if (campaignsData.length === 0) {
+        campaignsData = [
+          { "id": 1, "name": "001_CCW", "slackId": "C092ZBS0KEK" },
+          { "id": 2, "name": "002-CASH4HOMES", "slackId": "" },
+          { "id": 3, "name": "003-MVA", "slackId": "" },
+          { "id": 4, "name": "004_TRAVEL_RESORTS", "slackId": "C09EQBS2BB3" },
+          { "id": 5, "name": "05-ASSESSMENTS", "slackId": "" },
+          { "id": 6, "name": "005-GLP1TELE", "slackId": "" },
+          { "id": 7, "name": "006-HELOC", "slackId": "" },
+          { "id": 8, "name": "007-HEA", "slackId": "" },
+          { "id": 9, "name": "008-HEARINGAIDS", "slackId": "" },
+          { "id": 10, "name": "009-WINDOWS", "slackId": "" },
+          { "id": 11, "name": "010-PARAQUAT", "slackId": "" },
+          { "id": 12, "name": "011_ROUNDUP", "slackId": "C09DWN18SHM" },
+          { "id": 13, "name": "012_RIDESHARE", "slackId": "" },
+          { "id": 14, "name": "013-TALCUM", "slackId": "" },
+          { "id": 15, "name": "014-AFFF", "slackId": "" },
+          { "id": 16, "name": "015-HAIR", "slackId": "" },
+          { "id": 17, "name": "016-SICKLE-CELL", "slackId": "" },
+          { "id": 18, "name": "017-CHEMICAL-HAIR", "slackId": "" },
+          { "id": 19, "name": "018_WRONGFUL_DEATH", "slackId": "C09KWGM5U9S" },
+          { "id": 20, "name": "019-3M EARPLUGS", "slackId": "" }
+        ];
+      },
         { "id": 18, "name": "017-TEPEZZA", "slackId": "" },
         { "id": 19, "name": "018-MARYLAND", "slackId": "" },
         { "id": 20, "name": "019-LDS", "slackId": "" },
