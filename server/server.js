@@ -1,17 +1,37 @@
 const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
 const path = require('path');
-const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const CORS_ORIGIN = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'];
+const DATA_DIR = process.env.DATA_DIR || './data';
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Path to campaigns data file
-const campaignsFilePath = path.join(__dirname, 'data', 'campaigns.json');
+// Security middleware
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// API endpoints
+const campaignsFilePath = path.join(__dirname, DATA_DIR, 'campaigns.json');
+const usersFilePath = path.join(__dirname, DATA_DIR, 'users.json');
+const tasksFilePath = path.join(__dirname, DATA_DIR, 'tasks.json');
 
 // Helper function to read campaigns data
 async function readCampaigns() {
@@ -226,7 +246,6 @@ app.delete('/api/campaigns/:id', async (req, res) => {
 });
 
 // Users API endpoints
-const usersFilePath = path.join(__dirname, 'data', 'users.json');
 
 // Helper function to read users data
 async function readUsers() {
@@ -371,7 +390,6 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // Tasks API endpoints
-const tasksFilePath = path.join(__dirname, 'data', 'tasks.json');
 
 // Helper function to read tasks data
 async function readTasks() {
@@ -543,9 +561,19 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Campaign API server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-  console.log(`Campaigns endpoint: http://localhost:${PORT}/api/campaigns`);
+  console.log(`\n🚀 Hyrax Campaign API server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📁 Campaigns endpoint: http://localhost:${PORT}/api/campaigns`);
+  console.log(`👥 Users endpoint: http://localhost:${PORT}/api/users`);
+  console.log(`✅ Tasks endpoint: http://localhost:${PORT}/api/tasks`);
+  console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`⚠️  Production mode: Ensure JWT_SECRET is properly configured`);
+  } else {
+    console.log(`⚠️  Development mode: Using default secrets (change for production)`);
+  }
+  console.log(``);
 });
 
 module.exports = app;

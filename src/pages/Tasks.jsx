@@ -27,11 +27,22 @@ const Tasks = () => {
   };
 
   const handleAddTask = () => {
-    if (Object.keys(newTask).length > 0) {
-      addTask(newTask);
-      setNewTask({});
-      setShowAddRow(false);
-    }
+    const taskToAdd = {
+      ...newTask,
+      title: newTask.title?.trim() || 'New Task',
+      status: newTask.status || 'approved',
+      priority: newTask.priority || 'normal'
+    };
+    addTask(taskToAdd);
+    setNewTask({});
+    setShowAddRow(false);
+  };
+
+  const handleNewTaskFieldChange = (columnKey, value) => {
+    setNewTask(prev => ({
+      ...prev,
+      [columnKey]: value
+    }));
   };
 
   const handleAddColumn = () => {
@@ -180,10 +191,15 @@ const Tasks = () => {
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
+    const isNewTask = task.id === 'new';
     
-    if (!isEditing && !isAdminUser && column.key !== 'title' && column.key !== 'description') {
+    if (!isEditing && !isAdminUser && !isNewTask && column.key !== 'title' && column.key !== 'description') {
       return <span className="text-sm text-gray-700">{formatCellValue(value, column)}</span>;
     }
+
+    const handleChange = isNewTask 
+      ? (newValue) => handleNewTaskFieldChange(column.key, newValue)
+      : (newValue) => handleCellEdit(task.id, column.key, newValue);
 
     switch (column.type) {
       case 'text':
@@ -192,7 +208,7 @@ const Tasks = () => {
           <input
             type="text"
             value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, e.target.value)}
+            onChange={(e) => handleChange(e.target.value)}
             className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
             placeholder={column.name}
           />
@@ -203,7 +219,7 @@ const Tasks = () => {
           <input
             type="number"
             value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, parseFloat(e.target.value) || 0)}
+            onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
             className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
             placeholder={column.name}
           />
@@ -215,7 +231,7 @@ const Tasks = () => {
             <input
               type="checkbox"
               checked={value || false}
-              onChange={(e) => handleCellEdit(task.id, column.key, e.target.checked)}
+              onChange={(e) => handleChange(e.target.checked)}
               className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-all"
             />
           </div>
@@ -226,7 +242,7 @@ const Tasks = () => {
           <div className="relative">
             <select
               value={value || ''}
-              onChange={(e) => handleCellEdit(task.id, column.key, e.target.value)}
+              onChange={(e) => handleChange(e.target.value)}
               className={`w-full px-3 py-2 text-sm rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-opacity-80 cursor-pointer border font-medium shadow-sm ${
                 getCurrentValueColors(column.key, value)
               }`}
@@ -250,7 +266,7 @@ const Tasks = () => {
           <input
             type="date"
             value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, e.target.value)}
+            onChange={(e) => handleChange(e.target.value)}
             className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
           />
         );
@@ -260,7 +276,7 @@ const Tasks = () => {
           <div className="relative">
             <select
               value={value || ''}
-              onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
+              onChange={(e) => handleChange(parseInt(e.target.value))}
               className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 cursor-pointer font-medium text-blue-800 shadow-sm"
             >
               <option value="" className="bg-white text-gray-500">Select user...</option>
@@ -282,7 +298,7 @@ const Tasks = () => {
           <div className="relative">
             <select
               value={value || ''}
-              onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
+              onChange={(e) => handleChange(parseInt(e.target.value))}
               className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 cursor-pointer font-medium text-emerald-800 shadow-sm"
             >
               <option value="" className="bg-white text-gray-500">Select campaign...</option>
@@ -689,8 +705,8 @@ const Tasks = () => {
                     <div className="flex space-x-2">
                       <button 
                         onClick={handleAddTask} 
-                        className="p-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors shadow-sm"
-                        title="Save"
+                        className="p-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors shadow-sm cursor-pointer"
+                        title="Save Task"
                       >
                         <Check className="w-4 h-4" />
                       </button>

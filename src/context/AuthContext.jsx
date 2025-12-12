@@ -160,10 +160,11 @@ export const AppProvider = ({ children }) => {
     }
   ]);
 
-  // API base URL
-  const API_BASE = import.meta.env.PROD 
-    ? `${window.location.origin}/api` 
-    : 'http://localhost:5174/api';
+  // API base URL with environment variable support
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 
+    (import.meta.env.PROD 
+      ? `${window.location.origin}/api` 
+      : 'http://localhost:3001/api');
 
   // Check authentication on mount
   useEffect(() => {
