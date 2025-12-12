@@ -225,6 +225,151 @@ app.delete('/api/campaigns/:id', async (req, res) => {
   }
 });
 
+// Users API endpoints
+const usersFilePath = path.join(__dirname, 'data', 'users.json');
+
+// Helper function to read users data
+async function readUsers() {
+  try {
+    const data = await fs.readFile(usersFilePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error reading users:', error);
+    return [];
+  }
+}
+
+// Helper function to write users data
+async function writeUsers(users) {
+  try {
+    await fs.writeFile(usersFilePath, JSON.stringify(users, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error writing users:', error);
+    return false;
+  }
+}
+
+// POST /api/users - Create new user
+app.post('/api/users', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const newUser = req.body;
+    
+    // Add to users array
+    users.push(newUser);
+    
+    // Write back to file
+    const writeSuccess = await writeUsers(users);
+    
+    if (writeSuccess) {
+      res.status(201).json({
+        success: true,
+        data: newUser,
+        message: 'User created successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save user'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create user',
+      message: error.message
+    });
+  }
+});
+
+// PUT /api/users/:id - Update user
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const userId = parseInt(req.params.id);
+    const updates = req.body;
+    
+    // Find user index
+    const userIndex = users.findIndex(user => user.id === userId);
+    
+    if (userIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Update user
+    users[userIndex] = { ...users[userIndex], ...updates };
+    
+    // Write back to file
+    const writeSuccess = await writeUsers(users);
+    
+    if (writeSuccess) {
+      res.json({
+        success: true,
+        data: users[userIndex],
+        message: 'User updated successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save user changes'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update user',
+      message: error.message
+    });
+  }
+});
+
+// DELETE /api/users/:id - Delete user
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const users = await readUsers();
+    const userId = parseInt(req.params.id);
+    
+    // Find user
+    const userIndex = users.findIndex(user => user.id === userId);
+    
+    if (userIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Remove user
+    const deletedUser = users.splice(userIndex, 1)[0];
+    
+    // Write back to file
+    const writeSuccess = await writeUsers(users);
+    
+    if (writeSuccess) {
+      res.json({
+        success: true,
+        data: deletedUser,
+        message: 'User deleted successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save user deletion'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete user',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({

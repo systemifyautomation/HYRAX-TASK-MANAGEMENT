@@ -340,61 +340,95 @@ export const AppProvider = ({ children }) => {
       
       setCampaigns(campaignsData);
       
-      // Mock tasks data
-      const mockTasks = [
-        {
-          id: 1,
-          title: 'Review Campaign Assets',
-          status: 'pending',
-          priority: 'high',
-          campaign: 'Q1 Marketing Campaign',
-          assignedTo: 'John Doe',
-          dueDate: '2025-01-15',
-          description: 'Review all creative assets for Q1 campaign'
-        },
-        {
-          id: 2,
-          title: 'Update Landing Page',
-          status: 'in-progress',
-          priority: 'medium',
-          campaign: 'Product Launch',
-          assignedTo: 'Jane Smith',
-          dueDate: '2025-01-20',
-          description: 'Update landing page content and design'
-        }
-      ];
-      
-      setTasks(mockTasks);
+      // Load tasks from localStorage or use default data
+      const storedTasks = localStorage.getItem('hyrax_tasks');
+      if (storedTasks) {
+        setTasks(JSON.parse(storedTasks));
+      } else {
+        // Default tasks data
+        const defaultTasks = [
+          {
+            id: 1,
+            priority: "high",
+            mediaType: "IMAGE",
+            scriptAssigned: 1,
+            copyWritten: true,
+            copyLink: "https://docs.google.com/document/d/1abc123",
+            copyApproval: "Approved",
+            assignedTo: 2,
+            campaignId: 1,
+            viewerLink: "https://viewer.example.com/task1",
+            caliVariation: "CA-001",
+            slackPermalink: "https://hyraxhq.slack.com/archives/C123/p1234567890",
+            adStatus: "Complete",
+            adApproval: "Approved",
+            qcSignOff: "Complete",
+            postStatus: "Complete",
+            driveUpload: "Complete",
+            createdAt: "2025-01-15T10:00:00.000Z",
+            updatedAt: "2025-01-15T14:30:00.000Z"
+          },
+          {
+            id: 2,
+            priority: "normal",
+            mediaType: "VIDEO",
+            scriptAssigned: 1,
+            copyWritten: false,
+            copyLink: "",
+            copyApproval: "Needs Review",
+            assignedTo: 3,
+            campaignId: 2,
+            viewerLink: "",
+            caliVariation: "CA-002",
+            slackPermalink: "",
+            adStatus: "In Progress",
+            adApproval: "Needs Review",
+            qcSignOff: "Pending",
+            postStatus: "Incomplete",
+            driveUpload: "Incomplete",
+            createdAt: "2025-01-20T09:00:00.000Z",
+            updatedAt: "2025-01-20T16:45:00.000Z"
+          }
+        ];
+        setTasks(defaultTasks);
+        localStorage.setItem('hyrax_tasks', JSON.stringify(defaultTasks));
+      }
 
-      // Mock users data
-      const mockUsers = [
-        {
-          id: 1,
-          name: 'HYRAX Super Admin',
-          email: 'admin@hyrax.com',
-          role: 'super_admin',
-          avatar: 'HSA',
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: 2,
-          name: 'John Doe',
-          email: 'john@hyrax.com',
-          role: 'manager',
-          avatar: 'JD',
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: 3,
-          name: 'Jane Smith',
-          email: 'jane@hyrax.com',
-          role: 'team_member',
-          avatar: 'JS',
-          createdAt: new Date().toISOString()
-        }
-      ];
-
-      setUsers(mockUsers);
+      // Load users from localStorage or use default data
+      const storedUsers = localStorage.getItem('hyrax_users');
+      if (storedUsers) {
+        setUsers(JSON.parse(storedUsers));
+      } else {
+        // Default users data
+        const defaultUsers = [
+          {
+            id: 1,
+            name: 'HYRAX Super Admin',
+            email: 'admin@hyrax.com',
+            role: 'super_admin',
+            avatar: 'HSA',
+            createdAt: '2025-01-01T00:00:00.000Z'
+          },
+          {
+            id: 2,
+            name: 'John Doe',
+            email: 'john@hyrax.com',
+            role: 'manager',
+            avatar: 'JD',
+            createdAt: '2025-01-02T10:30:00.000Z'
+          },
+          {
+            id: 3,
+            name: 'Jane Smith',
+            email: 'jane@hyrax.com',
+            role: 'team_member',
+            avatar: 'JS',
+            createdAt: '2025-01-03T14:15:00.000Z'
+          }
+        ];
+        setUsers(defaultUsers);
+        localStorage.setItem('hyrax_users', JSON.stringify(defaultUsers));
+      }
     } catch (error) {
       console.error('Failed to load initial data:', error);
     }
@@ -462,27 +496,33 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Task operations (simplified)
+  // Task operations with localStorage persistence
   const addTask = (taskData) => {
     const newTask = {
       ...taskData,
-      id: Date.now(),
+      id: tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setTasks(prev => [...prev, newTask]);
+    const updatedTasks = [...tasks, newTask];
+    setTasks(updatedTasks);
+    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
   };
 
   const updateTask = (taskId, updates) => {
-    setTasks(prev => prev.map(task => 
+    const updatedTasks = tasks.map(task => 
       task.id === taskId 
         ? { ...task, ...updates, updatedAt: new Date().toISOString() }
         : task
-    ));
+    );
+    setTasks(updatedTasks);
+    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
   };
 
   const deleteTask = (taskId) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId));
+    const updatedTasks = tasks.filter(task => task.id !== taskId);
+    setTasks(updatedTasks);
+    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
   };
 
   // Column operations
@@ -506,7 +546,7 @@ export const AppProvider = ({ children }) => {
     setColumns(prev => prev.filter(column => column.id !== columnId));
   };
 
-  // User management functions
+  // User management functions with localStorage persistence
   const addUser = (userData) => {
     const newUser = {
       ...userData,
@@ -514,19 +554,31 @@ export const AppProvider = ({ children }) => {
       avatar: userData.avatar || userData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
       createdAt: new Date().toISOString(),
     };
-    setUsers(prev => [...prev, newUser]);
+    
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
   };
 
   const updateUser = (userId, userData) => {
-    setUsers(prev => prev.map(user =>
+    const updatedData = {
+      ...userData,
+      updatedAt: new Date().toISOString()
+    };
+    
+    const updatedUsers = users.map(user =>
       user.id === userId
-        ? { ...user, ...userData, updatedAt: new Date().toISOString() }
+        ? { ...user, ...updatedData }
         : user
-    ));
+    );
+    setUsers(updatedUsers);
+    localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
   };
 
   const deleteUser = (userId) => {
-    setUsers(prev => prev.filter(user => user.id !== userId));
+    const updatedUsers = users.filter(user => user.id !== userId);
+    setUsers(updatedUsers);
+    localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
   };
 
   const value = {
