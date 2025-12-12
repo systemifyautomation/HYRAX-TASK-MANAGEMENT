@@ -30,6 +30,7 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 
 ## 🛠️ Tech Stack
 
+### Frontend
 - **React 18** - UI library
 - **Vite** - Build tool and dev server
 - **React Router** - Client-side routing
@@ -37,7 +38,15 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 - **Lucide React** - Icon library
 - **date-fns** - Date utility library
 
+### Backend API
+- **Node.js** - Runtime environment
+- **Express.js** - Web framework
+- **CORS** - Cross-origin resource sharing
+- **JSON File Storage** - Campaign data persistence
+
 ## 📦 Installation
+
+### Frontend Setup
 
 1. Clone the repository:
 ```bash
@@ -45,17 +54,51 @@ git clone https://github.com/systemifyautomation/HYRAX-TASK-MANAGEMENT.git
 cd HYRAX-TASK-MANAGEMENT
 ```
 
-2. Install dependencies:
+2. Install frontend dependencies:
 ```bash
 npm install
 ```
 
-3. Start the development server:
+3. Start the frontend development server:
 ```bash
 npm run dev
 ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+4. Open your browser and navigate to `http://localhost:5175`
+
+### Campaign API Setup
+
+1. Navigate to the server directory:
+```bash
+cd server
+```
+
+2. Install server dependencies:
+```bash
+npm install
+```
+
+3. Start the API server:
+```bash
+npm start
+```
+
+The API will be available at `http://localhost:3001`
+
+### Full System
+
+To run both frontend and API:
+
+**Terminal 1 (API Server):**
+```bash
+cd server
+npm start
+```
+
+**Terminal 2 (Frontend):**
+```bash
+npm run dev
+```
 
 ## 🏗️ Building for Production
 
@@ -92,6 +135,13 @@ src/
 ├── App.jsx             # Main app component with routing
 ├── main.jsx            # Application entry point
 └── index.css           # Global styles and Tailwind setup
+
+server/
+├── data/
+│   └── campaigns.json  # Campaign data storage
+├── package.json        # Server dependencies
+├── server.js           # Express API server
+└── README.md           # API documentation
 ```
 
 ## 👥 User Roles
@@ -140,6 +190,42 @@ The application follows modern SaaS design principles:
 - Clear visual hierarchy
 - Responsive design (mobile-friendly)
 - Smooth transitions and interactions
+
+## 🔌 Campaign API Integration
+
+The application includes a RESTful API for campaign management that can be integrated with external tools like n8n:
+
+### API Endpoints
+- **GET** `/api/campaigns` - Retrieve all campaigns
+- **GET** `/api/campaigns/:id` - Get single campaign
+- **POST** `/api/campaigns` - Create new campaign
+- **PUT** `/api/campaigns/:id` - Update existing campaign
+- **DELETE** `/api/campaigns/:id` - Delete campaign
+- **GET** `/api/health` - Health check
+
+### n8n Integration
+
+You can send HTTP requests from n8n to manage campaigns:
+
+**Create Campaign:**
+```json
+POST http://localhost:3001/api/campaigns
+{
+  "name": "NEW_CAMPAIGN_NAME",
+  "slackId": "C123456789"
+}
+```
+
+**Update Campaign:**
+```json
+PUT http://localhost:3001/api/campaigns/1
+{
+  "name": "UPDATED_NAME", 
+  "slackId": "C987654321"
+}
+```
+
+See `server/README.md` for complete API documentation.
 
 ## 🔄 Future Enhancements
 

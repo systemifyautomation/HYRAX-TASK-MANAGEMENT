@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Plus, Settings, Trash2, Check, X } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, getWeek } from 'date-fns';
 import { isAdmin } from '../constants/roles';
 
 const Tasks = () => {
@@ -12,6 +12,9 @@ const Tasks = () => {
   const [newTask, setNewTask] = useState({});
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
+  const [selectedTasks, setSelectedTasks] = useState(new Set());
+  const [currentView, setCurrentView] = useState('all'); // 'all', 'campaigns', 'weekly'
+  const [selectedCampaign, setSelectedCampaign] = useState('');
   
   const [newColumn, setNewColumn] = useState({
     name: '',
@@ -71,6 +74,90 @@ const Tasks = () => {
     }
   };
 
+  // Helper function to get dropdown option colors
+  const getDropdownOptionColors = (columnKey, optionValue) => {
+    if (columnKey === 'status') {
+      const statusColors = {
+        not_started: 'bg-gray-100 text-gray-700 border-gray-200',
+        in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
+        submitted: 'bg-purple-100 text-purple-700 border-purple-200',
+        needs_revision: 'bg-amber-100 text-amber-700 border-amber-200',
+        approved: 'bg-green-100 text-green-700 border-green-200',
+      };
+      return statusColors[optionValue] || 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+    if (columnKey === 'priority') {
+      const priorityColors = {
+        urgent: 'bg-red-100 text-red-700 border-red-200',
+        high: 'bg-orange-100 text-orange-700 border-orange-200',
+        normal: 'bg-blue-100 text-blue-700 border-blue-200',
+        low: 'bg-gray-100 text-gray-700 border-gray-200',
+      };
+      return priorityColors[optionValue] || 'bg-blue-100 text-blue-700 border-blue-200';
+    }
+    // Default colors for custom dropdowns
+    const defaultColors = ['bg-indigo-100 text-indigo-700 border-indigo-200', 'bg-emerald-100 text-emerald-700 border-emerald-200', 'bg-pink-100 text-pink-700 border-pink-200', 'bg-cyan-100 text-cyan-700 border-cyan-200', 'bg-violet-100 text-violet-700 border-violet-200'];
+    const hash = optionValue.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+    return defaultColors[Math.abs(hash) % defaultColors.length];
+  };
+
+  // Helper function to get current value colors for dropdowns
+  const getCurrentValueColors = (columnKey, value) => {
+    if (!value) return 'bg-gray-50 text-gray-500 border-gray-200';
+    return getDropdownOptionColors(columnKey, value);
+  };
+
+  // Task selection handlers
+  const handleSelectTask = (taskId) => {
+    const newSelected = new Set(selectedTasks);
+    if (newSelected.has(taskId)) {
+      newSelected.delete(taskId);
+    } else {
+      newSelected.add(taskId);
+    }
+    setSelectedTasks(newSelected);
+  };
+
+  const handleSelectAllTasks = () => {
+    if (selectedTasks.size === filteredTasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(filteredTasks.map(task => task.id)));
+    }
+  };
+
+  // Filter tasks based on current view
+  const filteredTasks = useMemo(() => {
+    if (currentView === 'campaigns') {
+      if (selectedCampaign) {
+        // Show all tasks for the selected campaign
+        return tasks.filter(task => task.campaignId === parseInt(selectedCampaign));
+      } else {
+        // Show all tasks grouped by campaigns
+        return tasks.filter(task => task.campaignId);
+      }
+    }
+    if (currentView === 'weekly') {
+      // Show all tasks for the current week
+      const currentWeek = getWeek(new Date());
+      return tasks.filter(task => {
+        if (!task.dueDate) return false;
+        const taskWeek = getWeek(new Date(task.dueDate));
+        return taskWeek === currentWeek;
+      });
+    }
+    return tasks; // 'all' view
+  }, [tasks, currentView, selectedCampaign]);
+
+  // Handle view changes with smart defaults
+  const handleViewChange = (view) => {
+    setCurrentView(view);
+    if (view === 'campaigns' && !selectedCampaign && campaigns.length > 0) {
+      // Auto-select first campaign if none selected
+      setSelectedCampaign(campaigns[0].id.toString());
+    }
+  };
+
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
     
@@ -116,16 +203,26 @@ const Tasks = () => {
       
       case 'dropdown':
         return (
-          <select
-            value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
-          >
-            <option value="">Select...</option>
-            {column.options?.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={value || ''}
+              onChange={(e) => handleCellEdit(task.id, column.key, e.target.value)}
+              className={`w-full px-3 py-2 text-sm rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-opacity-80 cursor-pointer border font-medium shadow-sm ${
+                getCurrentValueColors(column.key, value)
+              }`}
+            >
+              <option value="" className="bg-white text-gray-500">Select...</option>
+              {column.options?.map((option) => (
+                <option 
+                  key={option} 
+                  value={option}
+                  className="bg-white text-gray-800 hover:bg-gray-50 py-2 px-3 font-medium"
+                >
+                  {option.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          </div>
         );
       
       case 'date':
@@ -140,30 +237,46 @@ const Tasks = () => {
       
       case 'user':
         return (
-          <select
-            value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
-          >
-            <option value="">Select user...</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{user.name}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={value || ''}
+              onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 cursor-pointer font-medium text-blue-800 shadow-sm"
+            >
+              <option value="" className="bg-white text-gray-500">Select user...</option>
+              {users.map((user) => (
+                <option 
+                  key={user.id} 
+                  value={user.id}
+                  className="bg-white text-gray-800 hover:bg-blue-50 py-2 px-3 font-medium"
+                >
+                  {user.avatar} {user.name}
+                </option>
+              ))}
+            </select>
+          </div>
         );
       
       case 'campaign':
         return (
-          <select
-            value={value || ''}
-            onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
-          >
-            <option value="">Select campaign...</option>
-            {campaigns.map((campaign) => (
-              <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={value || ''}
+              onChange={(e) => handleCellEdit(task.id, column.key, parseInt(e.target.value))}
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 cursor-pointer font-medium text-emerald-800 shadow-sm"
+            >
+              <option value="" className="bg-white text-gray-500">Select campaign...</option>
+              {campaigns.map((campaign) => (
+                <option 
+                  key={campaign.id} 
+                  value={campaign.id}
+                  className="bg-white text-gray-800 hover:bg-emerald-50 py-2 px-3 font-medium"
+                >
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+          </div>
         );
       
       default:
@@ -259,6 +372,53 @@ const Tasks = () => {
               <p className="text-gray-500 mt-2">Manage all tasks in a powerful spreadsheet view</p>
             </div>
             
+            <div className="flex items-center space-x-4">
+              {/* View Selector */}
+              <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1">
+                <button
+                  onClick={() => handleViewChange('all')}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                    currentView === 'all' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  <span>All Tasks</span>
+                </button>
+                <button
+                  onClick={() => handleViewChange('campaigns')}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                    currentView === 'campaigns' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>By Campaign</span>
+                </button>
+                <button
+                  onClick={() => handleViewChange('weekly')}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                    currentView === 'weekly' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Weekly</span>
+                </button>
+              </div>
+
+              {/* Campaign/Week Selector */}
+              {currentView === 'campaigns' && (
+                <select
+                  value={selectedCampaign}
+                  onChange={(e) => setSelectedCampaign(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+                >
+                  <option value="">Select Campaign</option>
+                  {campaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            
             {isAdminUser && (
               <div className="flex space-x-3">
                 <button
@@ -283,24 +443,24 @@ const Tasks = () => {
           <div className="grid grid-cols-4 gap-4 mt-6">
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">Total Tasks</div>
-              <div className="text-2xl font-bold text-gray-900">{tasks.length}</div>
+              <div className="text-2xl font-bold text-gray-900">{filteredTasks.length}</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">In Progress</div>
               <div className="text-2xl font-bold text-blue-600">
-                {tasks.filter(t => t.status === 'in_progress').length}
+                {filteredTasks.filter(t => t.status === 'in_progress').length}
               </div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">Completed</div>
               <div className="text-2xl font-bold text-green-600">
-                {tasks.filter(t => t.status === 'approved').length}
+                {filteredTasks.filter(t => t.status === 'approved').length}
               </div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">Needs Review</div>
               <div className="text-2xl font-bold text-amber-600">
-                {tasks.filter(t => t.status === 'submitted').length}
+                {filteredTasks.filter(t => t.status === 'submitted').length}
               </div>
             </div>
           </div>
@@ -459,23 +619,29 @@ const Tasks = () => {
           <table className="w-full min-w-max">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                {isAdminUser && (
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-10">
-                    Actions
-                  </th>
-                )}
-                {columns.map((column, index) => (
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedTasks.size === filteredTasks.length && filteredTasks.length > 0}
+                    onChange={handleSelectAllTasks}
+                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                  />
+                </th>
+                {columns.map((column) => (
                   <th 
                     key={column.id} 
-                    className={`px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[180px] ${
-                      index === 0 && !isAdminUser ? 'sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-10' : ''
-                    }`}
+                    className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[180px]"
                   >
                     <div className="flex items-center space-x-2">
                       <span>{column.name}</span>
                     </div>
                   </th>
                 ))}
+                {isAdminUser && (
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -483,6 +649,14 @@ const Tasks = () => {
               {showAddRow && isAdminUser && (
                 <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 animate-in fade-in duration-200">
                   <td className="px-6 py-4 sticky left-0 bg-gradient-to-r from-blue-50 to-indigo-50 z-10">
+                    {/* Empty checkbox cell for add row */}
+                  </td>
+                  {columns.map((column) => (
+                    <td key={column.id} className="px-6 py-4 min-w-[180px]">
+                      {renderCell({ id: 'new', ...newTask }, column, true)}
+                    </td>
+                  ))}
+                  <td className="px-6 py-4">
                     <div className="flex space-x-2">
                       <button 
                         onClick={handleAddTask} 
@@ -500,22 +674,33 @@ const Tasks = () => {
                       </button>
                     </div>
                   </td>
-                  {columns.map((column) => (
-                    <td key={column.id} className="px-6 py-4 min-w-[180px]">
-                      {renderCell({ id: 'new', ...newTask }, column, true)}
-                    </td>
-                  ))}
                 </tr>
               )}
               
               {/* Task Rows */}
-              {tasks.map((task) => (
+              {filteredTasks.map((task) => (
                 <tr 
                   key={task.id} 
                   className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150 cursor-pointer"
                 >
+                  <td className="px-6 py-4 sticky left-0 bg-white group-hover:bg-gradient-to-r group-hover:from-gray-50 group-hover:to-blue-50/30 z-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedTasks.has(task.id)}
+                      onChange={() => handleSelectTask(task.id)}
+                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                    />
+                  </td>
+                  {columns.map((column) => (
+                    <td 
+                      key={column.id} 
+                      className="px-6 py-4 min-w-[180px]"
+                    >
+                      {renderCell(task, column, false)}
+                    </td>
+                  ))}
                   {isAdminUser && (
-                    <td className="px-6 py-4 sticky left-0 bg-white group-hover:bg-gradient-to-r group-hover:from-gray-50 group-hover:to-blue-50/30 z-10">
+                    <td className="px-6 py-4">
                       <button
                         onClick={() => deleteTask(task.id)}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
@@ -525,16 +710,6 @@ const Tasks = () => {
                       </button>
                     </td>
                   )}
-                  {columns.map((column, colIndex) => (
-                    <td 
-                      key={column.id} 
-                      className={`px-6 py-4 min-w-[180px] ${
-                        colIndex === 0 && !isAdminUser ? 'sticky left-0 bg-white group-hover:bg-gradient-to-r group-hover:from-gray-50 group-hover:to-blue-50/30 z-10 font-medium' : ''
-                      }`}
-                    >
-                      {renderCell(task, column, false)}
-                    </td>
-                  ))}
                 </tr>
               ))}
             </tbody>
@@ -545,9 +720,14 @@ const Tasks = () => {
         <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
           <div className="flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center space-x-4">
-              <span className="font-medium">Total: {tasks.length} tasks</span>
+              <span className="font-medium">Total: {filteredTasks.length} tasks</span>
               <span className="text-gray-400">•</span>
-              <span>Showing all tasks</span>
+              <span>
+                {currentView === 'all' && 'Showing all tasks'}
+                {currentView === 'campaigns' && selectedCampaign && `Showing all tasks for ${campaigns.find(c => c.id === parseInt(selectedCampaign))?.name}`}
+                {currentView === 'campaigns' && !selectedCampaign && 'Showing all campaign tasks'}
+                {currentView === 'weekly' && `Showing tasks for Week ${getWeek(new Date())} (${format(startOfWeek(new Date()), 'MMM dd')} - ${format(endOfWeek(new Date()), 'MMM dd')})`}
+              </span>
             </div>
             <div className="text-xs text-gray-500">
               Last updated: {new Date().toLocaleTimeString()}
@@ -555,7 +735,7 @@ const Tasks = () => {
           </div>
         </div>
       </div>
-      </div>
+    </div>
     </div>
   );
 };
