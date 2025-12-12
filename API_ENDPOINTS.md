@@ -513,6 +513,108 @@ print(result)
 
 Campaign data is stored in `server/data/campaigns.json`. The file is automatically updated when campaigns are created, updated, or deleted through the API.
 
+User data is stored in `server/data/users.json` and task data is stored in `server/data/tasks.json`. These files are automatically updated through the respective API endpoints.
+
+---
+
+## Task Management
+
+### Create Task
+- **POST** `/api/tasks`
+- **Authentication**: Required (Bearer token)
+- **Body**: Task object with title, description, status, etc.
+
+Example:
+```bash
+curl -X POST http://localhost:3001/api/tasks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "title": "New Marketing Campaign",
+    "description": "Create promotional content for product launch",
+    "status": "not_started",
+    "priority": "high",
+    "assignedTo": 2,
+    "campaignId": 1,
+    "dueDate": "2025-12-25",
+    "mediaType": "VIDEO"
+  }'
+```
+
+### Update Task
+- **PUT** `/api/tasks/:id`
+- **Authentication**: Required (Bearer token)
+- **Body**: Updated task fields
+
+Example:
+```bash
+curl -X PUT http://localhost:3001/api/tasks/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "status": "in_progress",
+    "assignedTo": 3,
+    "copyWritten": true
+  }'
+```
+
+### Delete Task
+- **DELETE** `/api/tasks/:id`
+- **Authentication**: Required (Bearer token)
+
+Example:
+```bash
+curl -X DELETE http://localhost:3001/api/tasks/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+## User Management
+
+### Create User
+- **POST** `/api/users`
+- **Authentication**: Required (Bearer token)
+- **Body**: User object with name, email, role, etc.
+
+Example:
+```bash
+curl -X POST http://localhost:3001/api/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Jane Doe",
+    "email": "jane@hyrax.com", 
+    "role": 3,
+    "avatar": "🔥",
+    "password": "SecurePassword123!"
+  }'
+```
+
+### Update User
+- **PUT** `/api/users/:id`
+- **Authentication**: Required (Bearer token)
+- **Body**: Updated user fields
+
+Example:
+```bash
+curl -X PUT http://localhost:3001/api/users/5 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Jane Smith",
+    "role": 4
+  }'
+```
+
+### Delete User
+- **DELETE** `/api/users/:id`
+- **Authentication**: Required (Bearer token)
+
+Example:
+```bash
+curl -X DELETE http://localhost:3001/api/users/5 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
 ## Server Configuration
 
 The API server runs on port 3001 by default. This can be changed by setting the `PORT` environment variable:

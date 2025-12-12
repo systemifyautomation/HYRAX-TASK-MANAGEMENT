@@ -496,33 +496,71 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Task operations with localStorage persistence
-  const addTask = (taskData) => {
+  // Task operations with localStorage and API persistence
+  const addTask = async (taskData) => {
     const newTask = {
       ...taskData,
       id: tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // Update local state and localStorage immediately
     const updatedTasks = [...tasks, newTask];
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall('/tasks', {
+        method: 'POST',
+        body: newTask,
+      });
+    } catch (error) {
+      console.error('Failed to save task to file:', error);
+    }
   };
 
-  const updateTask = (taskId, updates) => {
+  const updateTask = async (taskId, updates) => {
+    const taskUpdates = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Update local state and localStorage immediately
     const updatedTasks = tasks.map(task => 
       task.id === taskId 
-        ? { ...task, ...updates, updatedAt: new Date().toISOString() }
+        ? { ...task, ...taskUpdates }
         : task
     );
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall(`/tasks/${taskId}`, {
+        method: 'PUT',
+        body: taskUpdates,
+      });
+    } catch (error) {
+      console.error('Failed to update task in file:', error);
+    }
   };
 
-  const deleteTask = (taskId) => {
+  const deleteTask = async (taskId) => {
+    // Update local state and localStorage immediately
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall(`/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete task from file:', error);
+    }
   };
 
   // Column operations

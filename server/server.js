@@ -370,6 +370,151 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 });
 
+// Tasks API endpoints
+const tasksFilePath = path.join(__dirname, 'data', 'tasks.json');
+
+// Helper function to read tasks data
+async function readTasks() {
+  try {
+    const data = await fs.readFile(tasksFilePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error reading tasks:', error);
+    return [];
+  }
+}
+
+// Helper function to write tasks data
+async function writeTasks(tasks) {
+  try {
+    await fs.writeFile(tasksFilePath, JSON.stringify(tasks, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error writing tasks:', error);
+    return false;
+  }
+}
+
+// POST /api/tasks - Create new task
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const tasks = await readTasks();
+    const newTask = req.body;
+    
+    // Add to tasks array
+    tasks.push(newTask);
+    
+    // Write back to file
+    const writeSuccess = await writeTasks(tasks);
+    
+    if (writeSuccess) {
+      res.status(201).json({
+        success: true,
+        data: newTask,
+        message: 'Task created successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save task'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create task',
+      message: error.message
+    });
+  }
+});
+
+// PUT /api/tasks/:id - Update task
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const tasks = await readTasks();
+    const taskId = parseInt(req.params.id);
+    const updates = req.body;
+    
+    // Find task index
+    const taskIndex = tasks.findIndex(task => task.id === taskId);
+    
+    if (taskIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    // Update task
+    tasks[taskIndex] = { ...tasks[taskIndex], ...updates };
+    
+    // Write back to file
+    const writeSuccess = await writeTasks(tasks);
+    
+    if (writeSuccess) {
+      res.json({
+        success: true,
+        data: tasks[taskIndex],
+        message: 'Task updated successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save task changes'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update task',
+      message: error.message
+    });
+  }
+});
+
+// DELETE /api/tasks/:id - Delete task
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const tasks = await readTasks();
+    const taskId = parseInt(req.params.id);
+    
+    // Find task
+    const taskIndex = tasks.findIndex(task => task.id === taskId);
+    
+    if (taskIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found'
+      });
+    }
+    
+    // Remove task
+    const deletedTask = tasks.splice(taskIndex, 1)[0];
+    
+    // Write back to file
+    const writeSuccess = await writeTasks(tasks);
+    
+    if (writeSuccess) {
+      res.json({
+        success: true,
+        data: deletedTask,
+        message: 'Task deleted successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save task deletion'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete task',
+      message: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
