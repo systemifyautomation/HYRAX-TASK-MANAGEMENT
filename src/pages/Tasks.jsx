@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy } from 'lucide-react';
+import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek } from 'date-fns';
 import { isAdmin } from '../constants/roles';
 
@@ -49,6 +49,26 @@ const Tasks = () => {
       
       setNewColumn({ name: '', type: 'text', options: '' });
     }
+  };
+
+  // Task duplication functions
+  const handleDuplicateTask = (task) => {
+    const duplicatedTask = {
+      ...task,
+      id: undefined, // Will be assigned by addTask
+      title: `${task.title} (Copy)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    addTask(duplicatedTask);
+  };
+
+  const handleDuplicateSelectedTasks = () => {
+    const tasksToduplicate = tasks.filter(task => selectedTasks.has(task.id));
+    tasksToduplicate.forEach(task => {
+      handleDuplicateTask(task);
+    });
+    setSelectedTasks(new Set());
   };
 
   const handleEditColumn = (column) => {
@@ -435,6 +455,15 @@ const Tasks = () => {
                   <Settings className="w-4 h-4" />
                   <span>Manage Columns</span>
                 </button>
+                {selectedTasks.size > 0 && (
+                  <button
+                    onClick={handleDuplicateSelectedTasks}
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-lg shadow-lg shadow-blue-500/30 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Duplicate Selected ({selectedTasks.size})</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -701,13 +730,22 @@ const Tasks = () => {
                   ))}
                   {isAdminUser && (
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => deleteTask(task.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                        title="Delete task"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex space-x-1">
+                        <button
+                          onClick={() => handleDuplicateTask(task)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
+                          title="Duplicate task"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteTask(task.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>

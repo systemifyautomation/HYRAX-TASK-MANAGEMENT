@@ -1,13 +1,24 @@
-// Campaign data from environment variables (secure)
-let campaigns = [];
+// Task data from environment variables (secure)
+let tasks = [];
 
-// Initialize campaigns from environment variable
+// Initialize tasks from environment variable
 try {
-  campaigns = JSON.parse(process.env.CAMPAIGNS_DATA || '[]');
+  tasks = JSON.parse(process.env.TASKS_DATA || '[]');
 } catch (error) {
-  console.error('Error parsing CAMPAIGNS_DATA:', error);
-  campaigns = [
-    { "id": 1, "name": "DEMO_CAMPAIGN", "slackId": "" }
+  console.error('Error parsing TASKS_DATA:', error);
+  tasks = [
+    {
+      "id": 1,
+      "title": "Demo Task",
+      "description": "This is a demo task",
+      "status": "pending",
+      "priority": "medium",
+      "assigneeId": 1,
+      "campaignId": 1,
+      "dueDate": "2025-01-15",
+      "createdAt": "2025-01-01",
+      "updatedAt": "2025-01-01"
+    }
   ];
 }
 
@@ -55,136 +66,119 @@ export default function handler(req, res) {
     switch (method) {
       case 'GET':
         if (id) {
-          // Get single campaign
-          const campaign = campaigns.find(c => c.id === parseInt(id));
-          if (!campaign) {
+          // Get single task
+          const task = tasks.find(t => t.id === parseInt(id));
+          if (!task) {
             return res.status(404).json({
               success: false,
-              error: 'Campaign not found'
+              error: 'Task not found'
             });
           }
           return res.json({
             success: true,
-            data: campaign
+            data: task
           });
         } else {
-          // Get all campaigns
+          // Get all tasks
           return res.json({
             success: true,
-            data: campaigns,
-            total: campaigns.length
+            data: tasks,
+            total: tasks.length
           });
         }
 
       case 'POST':
-        const { name, slackId } = req.body;
+        const { title, description, status, priority, assigneeId, campaignId, dueDate } = req.body;
         
-        if (!name) {
+        if (!title) {
           return res.status(400).json({
             success: false,
-            error: 'Campaign name is required'
-          });
-        }
-
-        // Check if campaign name already exists
-        const existingCampaign = campaigns.find(c => c.name === name);
-        if (existingCampaign) {
-          return res.status(400).json({
-            success: false,
-            error: 'Campaign name already exists'
+            error: 'Task title is required'
           });
         }
 
         // Generate new ID
-        const newId = campaigns.length > 0 ? Math.max(...campaigns.map(c => c.id)) + 1 : 1;
+        const newId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
         
-        const newCampaign = {
+        const newTask = {
           id: newId,
-          name,
-          slackId: slackId || ''
+          title,
+          description: description || '',
+          status: status || 'pending',
+          priority: priority || 'medium',
+          assigneeId: assigneeId || null,
+          campaignId: campaignId || null,
+          dueDate: dueDate || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
 
-        campaigns.push(newCampaign);
+        tasks.push(newTask);
         
         return res.status(201).json({
           success: true,
-          data: newCampaign,
-          message: 'Campaign created successfully'
+          data: newTask,
+          message: 'Task created successfully'
         });
 
       case 'PUT':
         if (!id) {
           return res.status(400).json({
             success: false,
-            error: 'Campaign ID is required'
+            error: 'Task ID is required'
           });
         }
 
-        const campaignId = parseInt(id);
-        const { name: updateName, slackId: updateSlackId } = req.body;
+        const taskId = parseInt(id);
+        const updateData = req.body;
         
-        if (!updateName) {
-          return res.status(400).json({
-            success: false,
-            error: 'Campaign name is required'
-          });
-        }
-
-        const campaignIndex = campaigns.findIndex(c => c.id === campaignId);
+        const taskIndex = tasks.findIndex(t => t.id === taskId);
         
-        if (campaignIndex === -1) {
+        if (taskIndex === -1) {
           return res.status(404).json({
             success: false,
-            error: 'Campaign not found'
+            error: 'Task not found'
           });
         }
 
-        // Check if new name conflicts with existing campaigns (except current one)
-        const nameConflict = campaigns.find(c => c.name === updateName && c.id !== campaignId);
-        if (nameConflict) {
-          return res.status(400).json({
-            success: false,
-            error: 'Campaign name already exists'
-          });
-        }
-
-        // Update campaign
-        campaigns[campaignIndex] = {
-          ...campaigns[campaignIndex],
-          name: updateName,
-          slackId: updateSlackId || ''
+        // Update task
+        tasks[taskIndex] = {
+          ...tasks[taskIndex],
+          ...updateData,
+          id: taskId, // Ensure ID doesn't change
+          updatedAt: new Date().toISOString()
         };
 
         return res.json({
           success: true,
-          data: campaigns[campaignIndex],
-          message: 'Campaign updated successfully'
+          data: tasks[taskIndex],
+          message: 'Task updated successfully'
         });
 
       case 'DELETE':
         if (!id) {
           return res.status(400).json({
             success: false,
-            error: 'Campaign ID is required'
+            error: 'Task ID is required'
           });
         }
 
         const deleteId = parseInt(id);
-        const deleteIndex = campaigns.findIndex(c => c.id === deleteId);
+        const deleteIndex = tasks.findIndex(t => t.id === deleteId);
         
         if (deleteIndex === -1) {
           return res.status(404).json({
             success: false,
-            error: 'Campaign not found'
+            error: 'Task not found'
           });
         }
 
-        const deletedCampaign = campaigns.splice(deleteIndex, 1)[0];
+        const deletedTask = tasks.splice(deleteIndex, 1)[0];
         
         return res.json({
           success: true,
-          data: deletedCampaign,
-          message: 'Campaign deleted successfully'
+          data: deletedTask,
+          message: 'Task deleted successfully'
         });
 
       default:
@@ -194,7 +188,7 @@ export default function handler(req, res) {
         });
     }
   } catch (error) {
-    console.error('Campaign API error:', error);
+    console.error('Tasks API error:', error);
     return res.status(500).json({
       success: false,
       error: 'Internal server error',

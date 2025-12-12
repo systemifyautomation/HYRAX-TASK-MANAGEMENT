@@ -2,10 +2,16 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AuthContext';
 import Login from './components/Login';
-import Sidebar from './components/Sidebar';
-import Tasks from './pages/Tasks';
-import CampaignsList from './pages/CampaignsList';
-import UserManagement from './pages/UserManagement';
+
+// Simple Tasks Page for testing
+const SimpleTasksPage = () => {
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold">Tasks Dashboard</h1>
+      <p>Welcome to HYRAX Task Management</p>
+    </div>
+  );
+};
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -27,9 +33,24 @@ const ProtectedRoute = ({ children }) => {
 
 // Main App Layout
 const AppLayout = ({ children }) => {
+  const { currentUser, logout } = useApp();
+  
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
+      <div className="w-64 bg-white border-r border-gray-200">
+        <div className="p-6">
+          <h1 className="text-xl font-bold text-gray-800">HYRAX</h1>
+        </div>
+        <div className="p-4">
+          <p className="text-sm text-gray-600">{currentUser?.name}</p>
+          <button 
+            onClick={logout}
+            className="mt-2 text-sm text-red-600 hover:text-red-800"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
       <main className="flex-1 overflow-auto">
         {children}
       </main>
@@ -64,9 +85,7 @@ const AppRouter = () => {
           <ProtectedRoute>
             <AppLayout>
               <Routes>
-                <Route path="/" element={<Tasks />} />
-                <Route path="/campaigns" element={<CampaignsList />} />
-                <Route path="/users" element={<UserManagement />} />
+                <Route path="/" element={<SimpleTasksPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

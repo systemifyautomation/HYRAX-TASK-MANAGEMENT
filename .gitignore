@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables (SECURITY)
+.env
+.env.local
+.env.production
+.env.development
+
+# Sensitive data files (SECURITY)
+server/data/
+*.secret.json
+private/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# API keys and secrets
+api-keys.txt
+secrets.json
+config/secrets.js

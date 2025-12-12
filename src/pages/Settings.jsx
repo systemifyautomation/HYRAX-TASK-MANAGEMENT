@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import { Save, User, Bell, Lock, Globe, Palette, Database, Shield } from 'lucide-react';
 import { isAdmin } from '../constants/roles';
 

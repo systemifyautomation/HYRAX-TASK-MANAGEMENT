@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderOpen, Calendar, DollarSign } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import { format } from 'date-fns';
 
 const Campaigns = () => {

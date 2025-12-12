@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserPlus, Edit2, Trash2, X, Shield, User as UserIcon } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import { isAdmin, isSuperAdmin, USER_ROLES, ROLE_LABELS } from '../constants/roles';
 
 const UserManagement = () => {
@@ -13,12 +13,13 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     role: 'team_member',
     avatar: '',
   });
 
   // Redirect if not admin
-  if (!isAdmin) {
+  if (!isAdminUser) {
     return (
       <div className="p-8">
         <div className="card text-center py-12">
@@ -31,7 +32,7 @@ const UserManagement = () => {
   }
 
   const handleSubmit = () => {
-    if (formData.name && formData.email) {
+    if (formData.name && formData.email && (!editingUser ? formData.password : true)) {
       const userData = {
         ...formData,
         avatar: formData.avatar || formData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
@@ -50,6 +51,7 @@ const UserManagement = () => {
     setFormData({
       name: '',
       email: '',
+      password: '',
       role: 'team_member',
       avatar: '',
     });
@@ -67,8 +69,12 @@ const UserManagement = () => {
     switch (role) {
       case 'super_admin':
         return 'bg-purple-100 text-purple-700';
+      case 'admin':
+        return 'bg-red-100 text-red-700';
       case 'manager':
         return 'bg-blue-100 text-blue-700';
+      case 'user':
+        return 'bg-green-100 text-green-700';
       case 'team_member':
         return 'bg-gray-100 text-gray-700';
       default:
@@ -77,14 +83,14 @@ const UserManagement = () => {
   };
 
   const getRoleLabel = (role) => {
-    return role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    return ROLE_LABELS[role] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   const canEditUser = (user) => {
     // Super admin can edit anyone
-    if (isSuperAdmin) return true;
+    if (isSuperAdminUser) return true;
     // Regular admin can only edit team members
-    if (isAdmin && user.role === 'team_member') return true;
+    if (isAdminUser && user.role === 'team_member') return true;
     return false;
   };
 
@@ -202,21 +208,40 @@ const UserManagement = () => {
                 />
               </div>
 
+              {!editingUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="Enter a secure password"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Password is required for new users
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  disabled={!isSuperAdmin && editingUser?.role !== 'team_member'}
+                  disabled={!isSuperAdminUser && editingUser?.role !== 'team_member'}
                 >
                   <option value="team_member">Team Member</option>
+                  <option value="user">User</option>
                   <option value="manager">Manager</option>
-                  {isSuperAdmin && <option value="super_admin">Super Admin</option>}
+                  {isSuperAdminUser && <option value="admin">Admin</option>}
+                  {isSuperAdminUser && <option value="super_admin">Super Admin</option>}
                 </select>
-                {!isSuperAdmin && (
+                {!isSuperAdminUser && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Only Super Admins can assign Manager or Super Admin roles
+                    Only Super Admins can assign Admin and Super Admin roles
                   </p>
                 )}
               </div>

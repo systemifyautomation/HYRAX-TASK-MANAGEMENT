@@ -157,12 +157,14 @@ src/
 ├── main.jsx            # Application entry point
 └── index.css           # Global styles and Tailwind setup
 
-server/
-├── data/
-│   └── campaigns.json  # Campaign data storage
-├── package.json        # Server dependencies
-├── server.js           # Express API server
-└── README.md           # API documentation
+api/
+├── campaigns.js        # Campaign API (serverless)
+├── tasks.js           # Tasks API (serverless)
+└── health.js          # Health check endpoint
+
+# Security Files (NOT in repository)
+.env                   # Environment variables
+SECURITY.md           # Security configuration guide
 ```
 
 ## 👥 User Roles

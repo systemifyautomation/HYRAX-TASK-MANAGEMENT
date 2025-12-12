@@ -8,7 +8,12 @@ http://localhost:3001/api
 ```
 
 ## Authentication
-Currently no authentication is required. All endpoints are publicly accessible.
+All endpoints require authentication using Bearer tokens. You must first obtain a token by logging in with valid credentials.
+
+**Authentication Header:**
+```
+Authorization: Bearer <your-jwt-token>
+```
 
 ## Response Format
 All responses follow this standard format:
@@ -24,7 +29,75 @@ All responses follow this standard format:
 
 ---
 
-## Endpoints
+## Authentication Endpoints
+
+### Login
+
+**Endpoint:** `POST /auth/login`
+
+**Description:** Authenticate user and obtain access token
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "admin@hyrax.com",
+  "password": "HyraxAdmin2024!SecurePass"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": 1,
+      "email": "admin@hyrax.com",
+      "name": "HYRAX Super Admin",
+      "role": "super_admin"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  },
+  "message": "Login successful"
+}
+```
+
+**Error Response (401):**
+```json
+{
+  "success": false,
+  "error": "Invalid credentials"
+}
+```
+
+### Logout
+
+**Endpoint:** `POST /auth/logout`
+
+**Description:** Invalidate current session token
+
+**Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Logout successful"
+}
+```
+
+---
+
+## Campaign Endpoints
 
 ### 1. Health Check
 
@@ -50,6 +123,11 @@ All responses follow this standard format:
 **Endpoint:** `GET /campaigns`
 
 **Description:** Retrieve all campaigns
+
+**Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+```
 
 **Request:** No parameters required
 
@@ -80,6 +158,11 @@ All responses follow this standard format:
 **Endpoint:** `GET /campaigns/:id`
 
 **Description:** Retrieve a specific campaign by ID
+
+**Headers:**
+```
+Authorization: Bearer <your-jwt-token>
+```
 
 **Parameters:**
 - `id` (number) - Campaign ID in URL path
@@ -114,6 +197,7 @@ All responses follow this standard format:
 
 **Headers:**
 ```
+Authorization: Bearer <your-jwt-token>
 Content-Type: application/json
 ```
 
@@ -173,6 +257,7 @@ Content-Type: application/json
 
 **Headers:**
 ```
+Authorization: Bearer <your-jwt-token>
 Content-Type: application/json
 ```
 
@@ -256,10 +341,12 @@ Content-Type: application/json
 ## Error Codes
 
 | Status Code | Description |
-|-------------|-------------|
+|-------------|-----------|
 | 200 | Success |
 | 201 | Created |
 | 400 | Bad Request |
+| 401 | Unauthorized |
+| 403 | Forbidden |
 | 404 | Not Found |
 | 500 | Internal Server Error |
 
@@ -269,14 +356,23 @@ Content-Type: application/json
 
 ### cURL Examples
 
+**Login to get token:**
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@hyrax.com", "password": "HyraxAdmin2024!SecurePass"}'
+```
+
 **Get all campaigns:**
 ```bash
-curl -X GET http://localhost:3001/api/campaigns
+curl -X GET http://localhost:3001/api/campaigns \
+  -H "Authorization: Bearer <your-jwt-token>"
 ```
 
 **Create a campaign:**
 ```bash
 curl -X POST http://localhost:3001/api/campaigns \
+  -H "Authorization: Bearer <your-jwt-token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "TEST_CAMPAIGN", "slackId": "C123456789"}'
 ```
@@ -284,13 +380,21 @@ curl -X POST http://localhost:3001/api/campaigns \
 **Update a campaign:**
 ```bash
 curl -X PUT http://localhost:3001/api/campaigns/1 \
+  -H "Authorization: Bearer <your-jwt-token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "UPDATED_CAMPAIGN", "slackId": "C987654321"}'
 ```
 
 **Delete a campaign:**
 ```bash
-curl -X DELETE http://localhost:3001/api/campaigns/1
+curl -X DELETE http://localhost:3001/api/campaigns/1 \
+  -H "Authorization: Bearer <your-jwt-token>"
+```
+
+**Logout:**
+```bash
+curl -X POST http://localhost:3001/api/auth/logout \
+  -H "Authorization: Bearer <your-jwt-token>"
 ```
 
 ---
@@ -299,11 +403,30 @@ curl -X DELETE http://localhost:3001/api/campaigns/1
 
 ### n8n HTTP Request Node
 
+**Step 1 - Login Node:**
+**Method:** POST
+**URL:** `http://localhost:3001/api/auth/login`
+**Headers:**
+```json
+{
+  "Content-Type": "application/json"
+}
+```
+**Body:**
+```json
+{
+  "email": "admin@hyrax.com",
+  "password": "HyraxAdmin2024!SecurePass"
+}
+```
+
+**Step 2 - Create Campaign Node:**
 **Method:** POST
 **URL:** `http://localhost:3001/api/campaigns`
 **Headers:**
 ```json
 {
+  "Authorization": "Bearer {{ $('Login').first().json.data.token }}",
   "Content-Type": "application/json"
 }
 ```
@@ -318,10 +441,26 @@ curl -X DELETE http://localhost:3001/api/campaigns/1
 ### JavaScript/Fetch
 
 ```javascript
-// Create campaign
+// Login first to get token
+const loginResponse = await fetch('http://localhost:3001/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'admin@hyrax.com',
+    password: 'HyraxAdmin2024!SecurePass'
+  })
+});
+
+const loginResult = await loginResponse.json();
+const token = loginResult.data.token;
+
+// Create campaign with token
 const response = await fetch('http://localhost:3001/api/campaigns', {
   method: 'POST',
   headers: {
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
@@ -339,8 +478,25 @@ console.log(result);
 ```python
 import requests
 
-# Create campaign
+# Login first to get token
+login_response = requests.post('http://localhost:3001/api/auth/login', 
+  json={
+    'email': 'admin@hyrax.com',
+    'password': 'HyraxAdmin2024!SecurePass'
+  }
+)
+
+login_result = login_response.json()
+token = login_result['data']['token']
+
+# Create campaign with token
+headers = {
+  'Authorization': f'Bearer {token}',
+  'Content-Type': 'application/json'
+}
+
 response = requests.post('http://localhost:3001/api/campaigns', 
+  headers=headers,
   json={
     'name': 'NEW_CAMPAIGN',
     'slackId': 'C123456789'

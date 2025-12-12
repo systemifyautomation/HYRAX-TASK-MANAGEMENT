@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FolderOpen, Calendar, DollarSign } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import TaskCard from '../components/TaskCard';
 import { format } from 'date-fns';
 

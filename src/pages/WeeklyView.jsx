@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import TaskCard from '../components/TaskCard';
 import { getCurrentWeekNumber } from '../data/mockData';
 

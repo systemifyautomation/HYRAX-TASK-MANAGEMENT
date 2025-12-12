@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/AuthContext';
 import TaskCard from '../components/TaskCard';
 import { taskStatus } from '../data/mockData';
 
