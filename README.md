@@ -1,6 +1,21 @@
-# HYRAX Task Management System
+# 🦏 HYRAX Task Management System
+
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://hyrax-task-management-930nysxiz-yassirs-projects-fb5f6561.vercel.app)
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-7.2-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 A premium SaaS application for managing approval workflows for HYRAX's Facebook ad campaigns. This comprehensive task management system helps project managers, admins, and team members collaborate efficiently on campaign content creation, review, and approval processes.
+
+## 🔗 Live Application
+
+**Production URL:** [https://hyrax-task-management-930nysxiz-yassirs-projects-fb5f6561.vercel.app](https://hyrax-task-management-930nysxiz-yassirs-projects-fb5f6561.vercel.app)
+
+### 🔐 Login Credentials
+```
+Email:    admin@wearehyrax.com
+Password: HyraxAdmin2024!SecurePass
+```
 
 ## 🚀 Key Features
 
@@ -160,8 +175,22 @@ npm run dev
 5. **Access the application:**
    - Open your browser to `http://localhost:5174`
    - Login with default credentials:
-     - **Super Admin**: `admin@hyrax.com` / `HyraxAdmin2024!SecurePass`
-     - **Test User**: `test@hyrax.com` / `password123`
+     - **Super Admin**: `admin@wearehyrax.com` / `HyraxAdmin2024!SecurePass`
+
+### Setup Data Files
+
+If data files don't exist, create them from templates:
+
+```bash
+# Create data files
+npm run setup-data
+
+# Or manually:
+Copy-Item server/data/*.json.template server/data/
+Get-ChildItem server/data/*.json.template | ForEach-Object { 
+  Rename-Item $_.FullName $_.Name.Replace('.template', '') -Force 
+}
+```
 
 ### Development Workflow
 
@@ -178,16 +207,84 @@ npm run dev
 
 ### Default User Credentials
 
-The system comes with pre-configured users in `server/data/users.json`:
+The system comes with a default admin user in `server/data/users.json.template`:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Super Admin | admin@hyrax.com | HyraxAdmin2024!SecurePass |
-| Team Member | test@hyrax.com | password123 |
+| Super Admin | admin@wearehyrax.com | HyraxAdmin2024!SecurePass |
 
-*Note: Additional users can be added through the User Management interface or by editing the users.json file directly.*
+*Note: Additional users can be added through the User Management interface.*
 
-## 🏗️ Building & Deployment
+## 🚀 Deployment
+
+### Deploying to Vercel
+
+#### Prerequisites
+- Vercel account ([sign up at vercel.com](https://vercel.com))
+- GitHub repository connected to Vercel
+- Vercel CLI installed: `npm install -g vercel`
+
+#### Deployment Steps
+
+1. **Build the project:**
+```bash
+npm run build
+```
+
+2. **Deploy to Vercel:**
+```bash
+vercel deploy --prod
+```
+
+3. **Configure Environment Variables** (in Vercel Dashboard):
+```
+JWT_SECRET=your_secure_jwt_secret_here
+SUPER_ADMIN_EMAIL=admin@wearehyrax.com
+SUPER_ADMIN_PASSWORD=HyraxAdmin2024!SecurePass
+```
+
+4. **Access your deployed app:**
+   - Production URL will be provided after deployment
+   - Current: `https://hyrax-task-management-930nysxiz-yassirs-projects-fb5f6561.vercel.app`
+
+#### Automatic Deployments
+
+Connect your GitHub repository to Vercel for automatic deployments:
+1. Push code to `main` branch
+2. Vercel automatically builds and deploys
+3. Preview deployments for pull requests
+
+### Updating the App Without Affecting Data
+
+Data files (`users.json`, `tasks.json`, `campaigns.json`) are **excluded from Git** to protect production data.
+
+**To update code only:**
+```bash
+# 1. Make your code changes
+# 2. Commit and push (data files are ignored)
+git add .
+git commit -m "Your update message"
+git push
+
+# 3. Deploy to Vercel
+vercel deploy --prod
+```
+
+**Data files remain untouched!** ✅
+
+See [`DEPLOYMENT-WORKFLOW.md`](DEPLOYMENT-WORKFLOW.md) for detailed information.
+
+### Important: Data Persistence on Vercel
+
+⚠️ **Vercel Limitation**: Serverless functions have read-only filesystems.
+
+- ✅ **Local development**: Data persists in JSON files
+- ⚠️ **Vercel production**: Data resets on cold starts
+- 💡 **Solution**: Migrate to a database for production
+
+See [`DATABASE-MIGRATION.md`](DATABASE-MIGRATION.md) for database migration options (PostgreSQL, MongoDB, Supabase, etc.).
+
+## 🏗️ Building for Production
 
 ### Production Build
 
@@ -197,52 +294,54 @@ Create an optimized production build:
 npm run build
 ```
 
-Output: `dist/` directory with optimized assets
-- Minified JavaScript and CSS
-- Asset optimization and compression
-- Source maps for debugging
+**Build Output:**
+- Directory: `dist/`
+- Bundle: ~307 KB JavaScript (gzipped: ~93 KB)
+- Assets: Optimized images and fonts
+- Build time: ~3-4 seconds
 
-### Preview Production Build
+### Preview Production Build Locally
 
-Test the production build locally:
+Test the production build before deploying:
 
 ```bash
 npm run preview
 ```
 
-### Vercel Deployment (Recommended)
+Runs at: `http://localhost:4173`
 
-**Automatic Deployment:**
-1. Push code to GitHub repository
-2. Connect repository to Vercel
-3. Automatic builds and deployments on every commit
+### Build Optimization Features
 
-**Manual Deployment:**
-```bash
-npm install -g vercel
-vercel --prod
+- ✅ Code splitting and tree shaking
+- ✅ Minification and compression
+- ✅ Asset optimization
+- ✅ Source maps for debugging
+- ✅ Modern ES module output
+- ✅ Automatic vendor chunking
+
+### Vercel Configuration
+
+The project includes `vercel.json` for optimal serverless deployment:
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
+}
 ```
 
-**Environment Variables:**
-Configure in Vercel dashboard:
-- `VITE_USE_API=true` (enable API in production)
-- `VITE_API_BASE_URL=https://your-app.vercel.app/api`
-- `JWT_SECRET=your_secure_jwt_secret`
-
-### Build Optimization
-
-Current build performance:
-- **Bundle Size**: ~307 KB (gzipped: ~93 KB)
-- **Build Time**: ~2.6 seconds
-- **Modules**: 2000+ optimized modules
-- **Assets**: Automatically optimized images and fonts
-
-### Production Features
-
-- **API Fallback**: Works without backend (embedded data mode)
-- **Offline Support**: localStorage persistence for reliability
-- **CDN Distribution**: Vercel Edge Network for global performance
-- **Serverless Functions**: Automatic scaling for API endpoints
+**Features:**
+- API route rewrites for serverless functions
+- SPA fallback to `index.html`
+- Optimized memory and duration settings
 
 ## 📁 Project Architecture
 
@@ -405,19 +504,109 @@ The application follows modern SaaS design principles:
 
 ## 🔌 API Endpoints & Integration
 
+### Base URLs
+- **Local Development**: `http://localhost:3001/api`
+- **Production (Vercel)**: `https://hyrax-task-management-930nysxiz-yassirs-projects-fb5f6561.vercel.app/api`
+
 ### Authentication API
+
+#### Login
 ```http
-POST /api/auth/login     # User login with email/password
-POST /api/auth/verify    # Token verification
-POST /api/auth/logout    # User logout
+POST /api/auth
+Content-Type: application/json
+
+{
+  "action": "login",
+  "email": "admin@wearehyrax.com",
+  "password": "HyraxAdmin2024!SecurePass"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "id": 1,
+    "email": "admin@wearehyrax.com",
+    "name": "HYRAX Super Admin",
+    "role": "SUPER_ADMIN",
+    "avatar": "HSA",
+    "permissions": ["all"]
+  },
+  "token": "base64_encoded_token"
+}
+```
+
+#### Verify Token
+```http
+POST /api/auth
+Content-Type: application/json
+
+{
+  "action": "verify",
+  "token": "your_jwt_token"
+}
 ```
 
 ### User Management API
+
+#### Get All Users
 ```http
-GET    /api/users        # Get all users
-POST   /api/users        # Create new user
-PUT    /api/users/:id    # Update existing user
-DELETE /api/users/:id    # Delete user
+GET /api/users
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "users": [
+    {
+      "id": 1,
+      "name": "HYRAX Super Admin",
+      "email": "admin@wearehyrax.com",
+      "role": "super_admin",
+      "avatar": "HSA",
+      "status": "active",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "lastLogin": "2025-12-12T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+#### Create User
+```http
+POST /api/users
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@wearehyrax.com",
+  "role": "team_member",
+  "password": "SecurePass123!",
+  "avatar": "JD"
+}
+```
+
+#### Update User
+```http
+PUT /api/users?id=2
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "John Updated",
+  "role": "manager"
+}
+```
+
+#### Delete User
+```http
+DELETE /api/users?id=2
+Authorization: Bearer {token}
 ```
 
 ### Campaign Management API
@@ -438,51 +627,39 @@ PUT    /api/tasks/:id         # Update task
 DELETE /api/tasks/:id         # Delete task
 ```
 
-### Health & Monitoring
+### Health Check
 ```http
-GET /api/health          # API health check
+GET /api/health
+
+Response: { "status": "ok", "timestamp": "..." }
 ```
 
-### Integration Examples
+### API Authentication
 
-**Create User (Admin):**
+All protected endpoints require Bearer token authentication:
+
+```http
+Authorization: Bearer {your_jwt_token}
+```
+
+Get token by calling `/api/auth` with valid credentials.
+
+### Error Responses
+
 ```json
-POST /api/users
 {
-  "name": "John Doe",
-  "email": "john@hyrax.com",
-  "role": "team_member",
-  "password": "password123"
+  "success": false,
+  "message": "Error description"
 }
 ```
 
-**Create Campaign:**
-```json
-POST /api/campaigns
-{
-  "name": "NEW_CAMPAIGN_001",
-  "slackId": "C123456789"
-}
-```
-
-**Authentication:**
-```json
-POST /api/auth/login
-{
-  "email": "admin@hyrax.com",
-  "password": "HyraxAdmin2024!SecurePass"
-}
-```
-
-### Development vs Production
-
-**Local Development:**
-- Frontend: `http://localhost:5174`
-- Backend API: `http://localhost:3001/api`
-
-**Production (Vercel):**
-- Frontend: `https://your-app.vercel.app`
-- API: `https://your-app.vercel.app/api`
+**Common Status Codes:**
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request
+- `401` - Unauthorized
+- `404` - Not Found
+- `500` - Server Error
 
 ## 🔄 Future Enhancements
 
@@ -491,6 +668,7 @@ POST /api/auth/login
 - **File Upload System**: Direct image/video upload with cloud storage
 - **Advanced Reporting**: Analytics dashboard with performance metrics
 - **Notification System**: Email and in-app notifications for task updates
+- **Database Integration**: PostgreSQL/MongoDB for persistent storage
 
 ### Phase 3 Features
 - **Calendar Integration**: Deadline tracking and scheduling
@@ -503,6 +681,16 @@ POST /api/auth/login
 - **Google Drive**: Seamless file storage and sharing
 - **Figma/Adobe**: Design tool integration for creative workflows
 - **n8n Webhooks**: Advanced automation workflows
+
+## 📚 Additional Documentation
+
+- **[QUICK-START.md](QUICK-START.md)** - Quick reference for login and basic operations
+- **[USER-MANAGEMENT.md](USER-MANAGEMENT.md)** - Complete user system documentation
+- **[DEPLOYMENT-WORKFLOW.md](DEPLOYMENT-WORKFLOW.md)** - Safe deployment without data loss
+- **[DATABASE-MIGRATION.md](DATABASE-MIGRATION.md)** - Guide for migrating to persistent database
+- **[IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md)** - Technical implementation details
+- **[API_ENDPOINTS.md](API_ENDPOINTS.md)** - Complete API reference
+- **[SECURITY.md](SECURITY.md)** - Security guidelines and best practices
 
 ## 📈 Performance & Security
 
