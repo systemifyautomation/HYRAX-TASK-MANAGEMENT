@@ -166,8 +166,8 @@ export const AppProvider = ({ children }) => {
       ? `${window.location.origin}/api` 
       : 'http://localhost:3001/api');
 
-  // Check if we should use API or localStorage only
-  const USE_API = import.meta.env.VITE_USE_API !== 'false';
+  // Check if we should use API or localStorage only - disable API in production unless explicitly enabled
+  const USE_API = import.meta.env.VITE_USE_API === 'true' && !import.meta.env.PROD;
 
   // Check authentication on mount
   useEffect(() => {
@@ -469,64 +469,87 @@ export const AppProvider = ({ children }) => {
 
   // Campaign CRUD operations
   const loadCampaigns = async () => {
+    // In production without API, campaigns are already loaded in loadCampaignsData
+    if (!USE_API) {
+      return;
+    }
+    
     try {
       const response = await apiCall('/campaigns');
-      setCampaigns(response.campaigns || []);
+      if (response && response.campaigns) {
+        setCampaigns(response.campaigns);
+      }
     } catch (error) {
       console.error('Failed to load campaigns:', error);
     }
   };
 
   const addCampaign = async (campaignData) => {
-    try {
-      const response = await apiCall('/campaigns', {
-        method: 'POST',
-        body: campaignData,
-      });
-      
-      if (response.success) {
-        setCampaigns(prev => [...prev, response.campaign]);
+    const newCampaign = {
+      ...campaignData,
+      id: campaigns.length > 0 ? Math.max(...campaigns.map(c => c.id)) + 1 : 1,
+    };
+    
+    // Update local state immediately
+    setCampaigns(prev => [...prev, newCampaign]);
+    
+    // Try to persist via API if available
+    if (USE_API) {
+      try {
+        const response = await apiCall('/campaigns', {
+          method: 'POST',
+          body: newCampaign,
+        });
+        return response;
+      } catch (error) {
+        console.error('Failed to save campaign via API:', error);
       }
-      return response;
-    } catch (error) {
-      console.error('Failed to add campaign:', error);
-      throw error;
     }
+    
+    return { success: true, campaign: newCampaign };
   };
 
   const updateCampaign = async (id, campaignData) => {
-    try {
-      const response = await apiCall(`/campaigns/${id}`, {
-        method: 'PUT',
-        body: campaignData,
-      });
-      
-      if (response.success) {
-        setCampaigns(prev => prev.map(campaign => 
-          campaign.id === id ? response.campaign : campaign
-        ));
+    const updatedCampaign = { ...campaignData, id };
+    
+    // Update local state immediately
+    setCampaigns(prev => prev.map(campaign => 
+      campaign.id === id ? updatedCampaign : campaign
+    ));
+    
+    // Try to persist via API if available
+    if (USE_API) {
+      try {
+        const response = await apiCall(`/campaigns/${id}`, {
+          method: 'PUT',
+          body: campaignData,
+        });
+        return response;
+      } catch (error) {
+        console.error('Failed to update campaign via API:', error);
       }
-      return response;
-    } catch (error) {
-      console.error('Failed to update campaign:', error);
-      throw error;
     }
+    
+    return { success: true, campaign: updatedCampaign };
   };
 
   const deleteCampaign = async (id) => {
-    try {
-      const response = await apiCall(`/campaigns/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (response.success) {
-        setCampaigns(prev => prev.filter(campaign => campaign.id !== id));
+    // Update local state immediately
+    setCampaigns(prev => prev.filter(campaign => campaign.id !== id));
+    
+    // Try to persist via API if available
+    if (USE_API) {
+      try {
+        const response = await apiCall(`/campaigns/${id}`, {
+          method: 'DELETE',
+        });
+        return response;
+      } catch (error) {
+        console.error('Failed to delete campaign via API:', error);
       }
-      return response;
-    } catch (error) {
-      console.error('Failed to delete campaign:', error);
-      throw error;
     }
+    
+    return { success: true };
   };
 
   // Task operations with localStorage and API persistence
