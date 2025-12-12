@@ -8,11 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "vercel-build": "npm run build",
-    "setup-data": "powershell -ExecutionPolicy Bypass -File ./setup-data.ps1"
+    "vercel-build": "npm run build"
   },
   "dependencies": {
-    "@vercel/kv": "^3.0.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.560.0",
     "node-fetch": "^3.3.2",
