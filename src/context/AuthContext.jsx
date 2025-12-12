@@ -168,6 +168,13 @@ export const AppProvider = ({ children }) => {
 
   // Check if we should use API or localStorage only - disable API in production unless explicitly enabled
   const USE_API = import.meta.env.VITE_USE_API === 'true' && !import.meta.env.PROD;
+  
+  // Debug logging
+  console.log('Environment check:', {
+    VITE_USE_API: import.meta.env.VITE_USE_API,
+    PROD: import.meta.env.PROD,
+    USE_API: USE_API
+  });
 
   // Check authentication on mount
   useEffect(() => {
@@ -255,8 +262,9 @@ export const AppProvider = ({ children }) => {
 
   // API helper function
   const apiCall = async (endpoint, options = {}) => {
-    // If API is disabled, skip API calls
+    // If API is disabled, skip API calls completely
     if (!USE_API) {
+      console.log('API calls disabled in production mode');
       return { success: true, data: null };
     }
 
