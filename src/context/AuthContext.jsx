@@ -646,6 +646,11 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
   };
 
+  // Helper function to get tasks by campaign
+  const getTasksByCampaign = (campaignId) => {
+    return tasks.filter(task => task.campaignId === campaignId);
+  };
+
   const value = {
     // Authentication
     isAuthenticated,
@@ -675,6 +680,7 @@ export const AppProvider = ({ children }) => {
     addUser,
     updateUser,
     deleteUser,
+    getTasksByCampaign,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
