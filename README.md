@@ -31,44 +31,46 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 - **Real-time Updates**: Live data synchronization across all users
 - **Performance Optimized**: Fast loading with efficient state management
 
-## 📸 Screenshots
+## 📸 Application Overview
 
-> **Note**: Screenshots are being updated to reflect the latest interface. Current screenshots available:
+### 🔐 Beautiful Login Experience
+- Gradient background with glassmorphism effects
+- Secure authentication with email/password
+- Professional branding with HYRAX logo
+- Responsive design for all devices
 
-### 🔐 Login Interface
-*Beautiful gradient login screen with role-based authentication*
-![Login Screen](screenshots/login.png)
+### 📊 Role-Based Dashboards
+- **Super Admin Dashboard**: Complete system overview with user management access
+- **Manager Dashboard**: Campaign tracking and team performance metrics  
+- **Team Member Dashboard**: Personal task list and progress tracking
+- Clean, modern interface with intuitive navigation
 
-### 📊 Dashboard Views
-*Role-based dashboards with personalized content*
-![Admin Dashboard](screenshots/dashboard-admin.png)
-![Manager Dashboard](screenshots/dashboard-manager.png)
-![Team Member Dashboard](screenshots/dashboard-member.png)
+### 👥 User Management Interface
+- Complete user administration panel (Admin+ roles)
+- Add, edit, delete users with role assignments
+- Real-time user data from JSON backend
+- Professional data tables with search and filtering
 
-### 👥 User Management
-*Complete user administration interface*
-![User Management](screenshots/user-management.png)
-![Add User Modal](screenshots/add-user.png)
+### 📋 Campaign & Task Management
+- Comprehensive campaign listing with status indicators
+- Detailed campaign views with task breakdowns
+- Task tracking across multiple workflow stages
+- Priority and assignment management
 
-### 📋 Campaign Management
-*Campaign listing and detailed views*
-![Campaigns List](screenshots/campaigns-list.png)
-![Campaign Detail](screenshots/campaign-detail.png)
+### 📅 Weekly Planning View
+- Calendar-style task organization
+- Week-by-week navigation
+- Visual progress indicators
+- Focus on upcoming deadlines
 
-### 📅 Weekly Planning
-*Task organization by week*
-![Weekly View](screenshots/weekly-view.png)
+### 🎨 Modern SaaS Design
+- **Color Scheme**: Professional purple/blue gradients with dark theme
+- **Typography**: Clean, readable fonts with proper hierarchy
+- **Layout**: Card-based design with consistent spacing
+- **Interactions**: Smooth animations and hover effects
+- **Mobile-First**: Fully responsive across all device sizes
 
-### 📱 Mobile Responsive
-*Optimized for mobile and tablet devices*
-![Mobile Interface](screenshots/mobile-view.png)
-
-> **Screenshots will be updated with the latest interface changes. The application features a modern, professional SaaS design with:**
-> - Gradient backgrounds and glassmorphism effects
-> - Clean card-based layouts
-> - Responsive design for all screen sizes
-> - Intuitive navigation and user experience
-> - Role-based interface customization
+> 📷 **Live Screenshots Available**: Contact the development team for current interface screenshots and demo access.
 
 ## 🛠️ Tech Stack
 
