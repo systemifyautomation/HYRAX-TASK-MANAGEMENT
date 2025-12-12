@@ -46,16 +46,7 @@ const UserManagement = () => {
     }
   };
 
-  const handleClearCacheAndRefresh = async () => {
-    setLoading(true);
-    try {
-      await refreshUsersFromServer();
-    } catch (error) {
-      console.error('Failed to refresh users from server:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+ 
 
   // Redirect if not admin
   if (!isAdminUser) {
