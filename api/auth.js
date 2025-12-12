@@ -1,6 +1,45 @@
 import fs from 'fs';
 import path from 'path';
 
+// Helper function to read users from users.json
+function readUsersFromFile() {
+  try {
+    const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+    const usersData = fs.readFileSync(usersFilePath, 'utf8');
+    return JSON.parse(usersData);
+  } catch (error) {
+    console.error('Error reading users.json:', error);
+    // Fallback to hardcoded admin if file read fails
+    return [{
+      id: 1,
+      email: 'admin@wearehyrax.com',
+      name: 'HYRAX Super Admin',
+      role: 'super_admin',
+      password: 'HyraxAdmin2024!SecurePass',
+      avatar: 'HSA',
+      status: 'active',
+      createdAt: '2025-01-01T00:00:00.000Z'
+    }];
+  }
+}
+
+// Helper function to update last login
+function updateUserLastLogin(userId) {
+  try {
+    const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+    const users = readUsersFromFile();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex !== -1) {
+      users[userIndex].lastLogin = new Date().toISOString();
+      fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
+    }
+  } catch (error) {
+    console.error('Error updating last login:', error);
+    // Non-critical error, don't fail the login
+  }
+}
+
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,27 +57,7 @@ export default async function handler(req, res) {
 
       if (action === 'login') {
         // Read users from users.json file
-        let users = [];
-        try {
-          const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
-          const usersData = fs.readFileSync(usersFilePath, 'utf8');
-          users = JSON.parse(usersData);
-        } catch (error) {
-          console.error('Error reading users.json:', error);
-          // Fallback to environment variables if file read fails
-          const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@hyrax.com';
-          const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'HyraxAdmin2024!SecurePass';
-          const superAdminName = process.env.SUPER_ADMIN_NAME || 'HYRAX Super Admin';
-          
-          users = [{
-            id: 1,
-            email: superAdminEmail,
-            name: superAdminName,
-            role: 'super_admin',
-            password: superAdminPassword,
-            avatar: 'HSA'
-          }];
-        }
+        const users = readUsersFromFile();
 
         // Find user by email (case insensitive)
         const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -50,7 +69,15 @@ export default async function handler(req, res) {
           });
         }
 
-        // Check password
+        // Check if user is active
+        if (user.status && user.status !== 'active') {
+          return res.status(401).json({
+            success: false,
+            message: 'Account is not active'
+          });
+        }
+
+        // Check password (plain text comparison - in production use hashing)
         if (user.password !== password) {
           return res.status(401).json({
             success: false,
@@ -58,8 +85,11 @@ export default async function handler(req, res) {
           });
         }
 
+        // Update last login timestamp
+        updateUserLastLogin(user.id);
+
         // Create simple token (in production, use proper JWT library)
-        const token = Buffer.from(`${email}:${Date.now()}:${jwtSecret}`).toString('base64');
+        const token = Buffer.from(`${user.id}:${email}:${Date.now()}:${jwtSecret}`).toString('base64');
         
         return res.status(200).json({
           success: true,
@@ -84,26 +114,41 @@ export default async function handler(req, res) {
 
         try {
           const decoded = Buffer.from(token, 'base64').toString('utf-8');
-          const [tokenEmail, timestamp, tokenSecret] = decoded.split(':');
+          const [userId, tokenEmail, timestamp, tokenSecret] = decoded.split(':');
           
           // Check if token is valid and not too old (24 hours)
           const tokenAge = Date.now() - parseInt(timestamp);
           const maxAge = 24 * 60 * 60 * 1000; // 24 hours
           
-          if (tokenEmail === superAdminEmail && tokenSecret === jwtSecret && tokenAge < maxAge) {
-            return res.status(200).json({
-              success: true,
-              user: {
-                email: superAdminEmail,
-                name: superAdminName,
-                role: 'SUPER_ADMIN',
-                permissions: ['all']
-              }
-            });
-          } else {
+          if (tokenSecret !== jwtSecret || tokenAge >= maxAge) {
             return res.status(401).json({ success: false, message: 'Invalid or expired token' });
           }
+
+          // Verify user still exists and is active
+          const users = readUsersFromFile();
+          const user = users.find(u => u.id === parseInt(userId) && u.email.toLowerCase() === tokenEmail.toLowerCase());
+          
+          if (!user) {
+            return res.status(401).json({ success: false, message: 'User not found' });
+          }
+
+          if (user.status && user.status !== 'active') {
+            return res.status(401).json({ success: false, message: 'Account is not active' });
+          }
+
+          return res.status(200).json({
+            success: true,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role.toUpperCase(),
+              avatar: user.avatar,
+              permissions: user.role === 'super_admin' ? ['all'] : ['read', 'write']
+            }
+          });
         } catch (error) {
+          console.error('Token verification error:', error);
           return res.status(401).json({ success: false, message: 'Invalid token format' });
         }
       }

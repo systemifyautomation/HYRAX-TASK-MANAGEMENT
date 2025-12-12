@@ -1,0 +1,5 @@
+# Don't ignore the data directory - we need users.json
+!server/data/
+!server/data/users.json
+!server/data/tasks.json
+!server/data/campaigns.json

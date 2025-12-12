@@ -311,37 +311,38 @@ export const AppProvider = ({ children }) => {
       console.log('=== LOGIN ATTEMPT ===');
       console.log('Email:', email);
       console.log('Password length:', password.length);
-      console.log('USE_API:', USE_API);
       
-      // Simple hardcoded users - matches users.json exactly
-      const validUsers = [
-        {
-          id: 1,
-          name: 'HYRAX Super Admin',
-          email: 'admin@hyrax.com',
-          role: 'super_admin',
-          password: 'HyraxAdmin2024!SecurePass',
-          avatar: 'HSA'
-        },
-        {
-          id: 2,
-          name: 'Test User',
-          email: 'test@hyrax.com',
-          role: 'team_member',
-          password: 'password123',
-          avatar: 'TU'
+      // ALWAYS have hardcoded admin as fallback (for first-time deployment)
+      const HARDCODED_ADMIN = {
+        id: 1,
+        name: 'HYRAX Super Admin',
+        email: 'admin@wearehyrax.com',
+        role: 'super_admin',
+        password: 'HyraxAdmin2024!SecurePass',
+        avatar: 'HSA'
+      };
+      
+      let user = null;
+      
+      // First, try to find user in loaded users (from API or localStorage)
+      if (users.length > 0) {
+        user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (user) {
+          console.log('✓ User found in loaded users:', user.email);
         }
-      ];
+      }
       
-      // Find user by email (case insensitive)
-      const user = validUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      // If not found and it's the admin email, use hardcoded admin
+      if (!user && email.toLowerCase() === HARDCODED_ADMIN.email.toLowerCase()) {
+        user = HARDCODED_ADMIN;
+        console.log('✓ Using hardcoded admin user');
+      }
       
       if (!user) {
         console.error('❌ User not found');
         return false;
       }
       
-      console.log('✓ User found:', user.email);
       console.log('Checking password...');
       console.log('Expected:', user.password);
       console.log('Received:', password);
@@ -522,7 +523,7 @@ export const AppProvider = ({ children }) => {
         if (storedUsers) {
           setUsers(JSON.parse(storedUsers));
         } else {
-          // Default users data as final fallback
+          // Default users data as final fallback - matches users.json
           const defaultUsers = [
             {
               id: 1,
@@ -535,39 +536,12 @@ export const AppProvider = ({ children }) => {
             },
             {
               id: 2,
-              name: 'John Doe',
-              email: 'john@hyrax.com',
-              role: 'manager',
-              password: 'password123',
-              avatar: 'JD',
-              createdAt: '2025-01-02T10:30:00.000Z'
-            },
-            {
-              id: 3,
-              name: 'Jane Smith',
-              email: 'jane@hyrax.com',
+              name: 'Test User',
+              email: 'test@hyrax.com',
               role: 'team_member',
               password: 'password123',
-              avatar: 'JS',
-              createdAt: '2025-01-03T14:15:00.000Z'
-            },
-            {
-              id: 4,
-              name: 'Mike Johnson',
-              email: 'mike@hyrax.com',
-              role: 'admin',
-              password: 'password123',
-              avatar: 'MJ',
-              createdAt: '2025-01-04T09:45:00.000Z'
-            },
-            {
-              id: 5,
-              name: 'Sarah Wilson',
-              email: 'sarah@hyrax.com',
-              role: 'user',
-              password: 'password123',
-              avatar: 'SW',
-              createdAt: '2025-01-05T16:20:00.000Z'
+              avatar: 'TU',
+              createdAt: '2025-01-02T10:00:00.000Z'
             }
           ];
           setUsers(defaultUsers);
@@ -784,11 +758,13 @@ export const AppProvider = ({ children }) => {
     const defaultAdminUser = {
       id: 1,
       name: 'HYRAX Super Admin',
-      email: 'admin@hyrax.com',
+      email: 'admin@wearehyrax.com',
       role: 'super_admin',
       password: 'HyraxAdmin2024!SecurePass',
       avatar: 'HSA',
-      createdAt: '2025-01-01T00:00:00.000Z'
+      status: 'active',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      lastLogin: null
     };
     
     setUsers([defaultAdminUser]);
@@ -821,7 +797,7 @@ export const AppProvider = ({ children }) => {
   const addUser = async (userData) => {
     const newUser = {
       ...userData,
-      id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
+      id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 2, // Start from 2 (admin is 1)
       password: userData.password || 'password123', // Default password if not provided
       avatar: userData.avatar || userData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
       createdAt: new Date().toISOString(),
@@ -832,14 +808,30 @@ export const AppProvider = ({ children }) => {
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
     
-    // Persist to JSON file via API
-    try {
-      await apiCall('/users', {
-        method: 'POST',
-        body: newUser,
-      });
-    } catch (error) {
-      console.error('Failed to save user to file:', error);
+    console.log('Adding user:', newUser.email);
+    
+    // Persist to JSON file via API when available
+    if (USE_API) {
+      try {
+        const response = await fetch(`${API_BASE}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(newUser)
+        });
+        
+        if (response.ok) {
+          console.log('✓ User saved to users.json');
+        } else {
+          console.warn('⚠ Failed to save to users.json, saved locally only');
+        }
+      } catch (error) {
+        console.warn('⚠ API not available, user saved locally only:', error.message);
+      }
+    } else {
+      console.log('✓ User saved locally (API disabled)');
     }
   };
 
@@ -858,14 +850,28 @@ export const AppProvider = ({ children }) => {
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
     
-    // Persist to JSON file via API
-    try {
-      await apiCall(`/users/${userId}`, {
-        method: 'PUT',
-        body: updatedData,
-      });
-    } catch (error) {
-      console.error('Failed to update user in file:', error);
+    console.log('Updating user:', userId);
+    
+    // Persist to JSON file via API when available
+    if (USE_API) {
+      try {
+        const response = await fetch(`${API_BASE}/users?id=${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(updatedData)
+        });
+        
+        if (response.ok) {
+          console.log('✓ User updated in users.json');
+        } else {
+          console.warn('⚠ Failed to update in users.json');
+        }
+      } catch (error) {
+        console.warn('⚠ API not available, user updated locally only:', error.message);
+      }
     }
   };
 
@@ -875,6 +881,31 @@ export const AppProvider = ({ children }) => {
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
     
+    console.log('Deleting user:', userId);
+    
+    // Persist to JSON file via API when available
+    if (USE_API) {
+      try {
+        const response = await fetch(`${API_BASE}/users?id=${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          console.log('✓ User deleted from users.json');
+        } else {
+          console.warn('⚠ Failed to delete from users.json');
+        }
+      } catch (error) {
+        console.warn('⚠ API not available, user deleted locally only:', error.message);
+      }
+    }
+  };
+
+  // Helper function for old deleteUser calls
+  const oldDeleteUser = async (userId) => {
     // Persist to JSON file via API
     try {
       await apiCall(`/users/${userId}`, {
