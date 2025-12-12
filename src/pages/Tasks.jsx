@@ -202,6 +202,45 @@ const Tasks = () => {
       : (newValue) => handleCellEdit(task.id, column.key, newValue);
 
     switch (column.type) {
+      case 'array':
+        // Handle array of URLs
+        const arrayValue = Array.isArray(value) ? value : [];
+        return (
+          <div className="space-y-1">
+            {arrayValue.map((item, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={item || ''}
+                  onChange={(e) => {
+                    const newArray = [...arrayValue];
+                    newArray[index] = e.target.value;
+                    handleChange(newArray);
+                  }}
+                  className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder={`${column.name} ${index + 1}`}
+                />
+                <button
+                  onClick={() => {
+                    const newArray = arrayValue.filter((_, i) => i !== index);
+                    handleChange(newArray);
+                  }}
+                  className="text-red-500 hover:text-red-700 p-1"
+                  title="Remove"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => handleChange([...arrayValue, ''])}
+              className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center space-x-1"
+            >
+              <span>+ Add {column.name}</span>
+            </button>
+          </div>
+        );
+      
       case 'text':
       case 'url':
         return (
@@ -324,6 +363,27 @@ const Tasks = () => {
     if (!value) return <span className="text-gray-400">-</span>;
     
     switch (column.type) {
+      case 'array':
+        // Handle array of URLs
+        const arrayValue = Array.isArray(value) ? value.filter(item => item) : [];
+        if (arrayValue.length === 0) return <span className="text-gray-400">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {arrayValue.map((item, index) => (
+              <a
+                key={index}
+                href={item}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-2 py-1 text-xs bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-md font-medium hover:underline"
+                title={item}
+              >
+                Link {index + 1} →
+              </a>
+            ))}
+          </div>
+        );
+      
       case 'user':
         const user = users.find(u => u.id === value);
         return user ? (
@@ -541,6 +601,7 @@ const Tasks = () => {
                   <option value="text">Text</option>
                   <option value="number">Number</option>
                   <option value="url">URL</option>
+                  <option value="array">Array (Multiple URLs)</option>
                   <option value="date">Date</option>
                   <option value="checkbox">Checkbox</option>
                   <option value="dropdown">Dropdown</option>
