@@ -305,32 +305,79 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Mock authentication - check against environment credentials
-      const validEmail = 'admin@hyrax.com';
-      const validPassword = 'HyraxAdmin2024!SecurePass';
+      // Check against users in the system
+      let foundUser = null;
       
-      if (email === validEmail && password === validPassword) {
-        // Create mock user and token
-        const user = {
-          id: 1,
-          email: validEmail,
-          name: 'HYRAX Super Admin',
-          role: 'super_admin',
-          permissions: ['all']
-        };
+      // Try to find user from current users state first
+      if (users.length > 0) {
+        foundUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
+      }
+      
+      // If users not loaded yet, check default users directly
+      if (!foundUser) {
+        const defaultUsers = [
+          {
+            id: 1,
+            name: 'HYRAX Super Admin',
+            email: 'admin@hyrax.com',
+            role: 'super_admin',
+            password: 'HyraxAdmin2024!SecurePass',
+            avatar: 'HSA',
+            createdAt: '2025-01-01T00:00:00.000Z'
+          },
+          {
+            id: 2,
+            name: 'John Doe',
+            email: 'john@hyrax.com',
+            role: 'manager',
+            password: 'password123',
+            avatar: 'JD',
+            createdAt: '2025-01-02T10:30:00.000Z'
+          },
+          {
+            id: 3,
+            name: 'Jane Smith',
+            email: 'jane@hyrax.com',
+            role: 'team_member',
+            password: 'password123',
+            avatar: 'JS',
+            createdAt: '2025-01-03T14:15:00.000Z'
+          }
+        ];
+        foundUser = defaultUsers.find(user => user.email.toLowerCase() === email.toLowerCase());
+      }
+      
+      if (foundUser) {
+        // Check password (default to 'password123' if no password field exists)
+        const userPassword = foundUser.password || 'password123';
         
-        const token = btoa(`${email}:${Date.now()}:mock_token`);
-        
-        setAuthToken(token);
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-        localStorage.setItem('auth_token', token);
-        
-        // Load mock data
-        await loadInitialData();
-        return true;
+        if (password === userPassword) {
+          // Create authenticated user object
+          const authenticatedUser = {
+            id: foundUser.id,
+            email: foundUser.email,
+            name: foundUser.name,
+            role: foundUser.role,
+            avatar: foundUser.avatar,
+            permissions: foundUser.role === 'super_admin' ? ['all'] : ['read', 'write']
+          };
+          
+          const token = btoa(`${email}:${Date.now()}:mock_token`);
+          
+          setAuthToken(token);
+          setCurrentUser(authenticatedUser);
+          setIsAuthenticated(true);
+          localStorage.setItem('auth_token', token);
+          
+          // Load app data
+          await loadInitialData();
+          return true;
+        } else {
+          setError('Invalid email or password');
+          return false;
+        }
       } else {
-        setError('Invalid email or password');
+        setError('User not found');
         return false;
       }
     } catch (error) {
@@ -356,16 +403,40 @@ export const AppProvider = ({ children }) => {
     try {
       // Mock token verification
       if (token && token.includes('mock_token')) {
-        const user = {
-          id: 1,
-          email: 'admin@hyrax.com',
-          name: 'HYRAX Super Admin', 
-          role: 'super_admin',
-          permissions: ['all']
+        // Extract email from token to find the user
+        const tokenParts = atob(token).split(':');
+        const userEmail = tokenParts[0];
+        
+        // Find the user from stored data or defaults
+        let foundUser = null;
+        const storedUsers = localStorage.getItem('hyrax_users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
+          foundUser = parsedUsers.find(user => user.email === userEmail);
+        }
+        
+        // Fallback to default admin if not found
+        if (!foundUser) {
+          foundUser = {
+            id: 1,
+            email: 'admin@hyrax.com',
+            name: 'HYRAX Super Admin', 
+            role: 'super_admin',
+            avatar: 'HSA'
+          };
+        }
+        
+        const authenticatedUser = {
+          id: foundUser.id,
+          email: foundUser.email,
+          name: foundUser.name,
+          role: foundUser.role,
+          avatar: foundUser.avatar,
+          permissions: foundUser.role === 'super_admin' ? ['all'] : ['read', 'write']
         };
         
         setAuthToken(token);
-        setCurrentUser(user);
+        setCurrentUser(authenticatedUser);
         setIsAuthenticated(true);
         await loadInitialData();
       } else {
@@ -447,6 +518,7 @@ export const AppProvider = ({ children }) => {
             name: 'HYRAX Super Admin',
             email: 'admin@hyrax.com',
             role: 'super_admin',
+            password: 'HyraxAdmin2024!SecurePass',
             avatar: 'HSA',
             createdAt: '2025-01-01T00:00:00.000Z'
           },
@@ -455,6 +527,7 @@ export const AppProvider = ({ children }) => {
             name: 'John Doe',
             email: 'john@hyrax.com',
             role: 'manager',
+            password: 'password123',
             avatar: 'JD',
             createdAt: '2025-01-02T10:30:00.000Z'
           },
@@ -463,6 +536,7 @@ export const AppProvider = ({ children }) => {
             name: 'Jane Smith',
             email: 'jane@hyrax.com',
             role: 'team_member',
+            password: 'password123',
             avatar: 'JS',
             createdAt: '2025-01-03T14:15:00.000Z'
           }
@@ -653,6 +727,7 @@ export const AppProvider = ({ children }) => {
     const newUser = {
       ...userData,
       id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
+      password: userData.password || 'password123', // Default password if not provided
       avatar: userData.avatar || userData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
       createdAt: new Date().toISOString(),
     };
