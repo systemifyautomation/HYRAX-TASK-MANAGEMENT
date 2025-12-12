@@ -166,6 +166,9 @@ export const AppProvider = ({ children }) => {
       ? `${window.location.origin}/api` 
       : 'http://localhost:3001/api');
 
+  // Check if we should use API or localStorage only
+  const USE_API = import.meta.env.VITE_USE_API !== 'false';
+
   // Check authentication on mount
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -178,31 +181,41 @@ export const AppProvider = ({ children }) => {
 
   // API helper function
   const apiCall = async (endpoint, options = {}) => {
-    const url = `${API_BASE}${endpoint}`;
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    if (config.body && typeof config.body === 'object') {
-      config.body = JSON.stringify(config.body);
+    // If API is disabled, skip API calls
+    if (!USE_API) {
+      return { success: true, data: null };
     }
 
-    const response = await fetch(url, config);
-    const data = await response.json();
+    try {
+      const url = `${API_BASE}${endpoint}`;
+      const config = {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+          ...options.headers,
+        },
+        ...options,
+      };
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        logout();
+      if (config.body && typeof config.body === 'object') {
+        config.body = JSON.stringify(config.body);
       }
-      throw new Error(data.message || 'API call failed');
-    }
 
-    return data;
+      const response = await fetch(url, config);
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          logout();
+        }
+        throw new Error(data.message || 'API call failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.warn('API call failed, using localStorage only:', error.message);
+      return { success: true, data: null };
+    }
   };
 
   // Authentication functions
