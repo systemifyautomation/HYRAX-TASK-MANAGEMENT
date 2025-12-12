@@ -181,6 +181,9 @@ export const AppProvider = ({ children }) => {
     // Always load initial campaigns data, regardless of auth state
     loadCampaignsData();
     
+    // Load users data immediately
+    loadUsers();
+    
     const token = localStorage.getItem('auth_token');
     if (token) {
       verifyToken(token);
@@ -305,46 +308,45 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Check against users in the system
+      // Always fetch fresh user data from users.json file via API
       let foundUser = null;
+      let allUsers = [];
       
-      // Try to find user from current users state first
-      if (users.length > 0) {
+      try {
+        // First, try to get users from the API (users.json file)
+        const response = await apiCall('/users');
+        if (response && response.users) {
+          allUsers = response.users;
+          console.log('Login: Fetched users from users.json via API:', allUsers.length);
+          foundUser = allUsers.find(user => user.email.toLowerCase() === email.toLowerCase());
+          if (foundUser) {
+            console.log('Login: Found user in users.json:', foundUser.email);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to fetch users from API during login:', error);
+      }
+      
+      // If API call failed or no user found, fallback to current users state
+      if (!foundUser && users.length > 0) {
         foundUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
       }
       
-      // If users not loaded yet, check default users directly
+      // If still no user found, fallback to default admin user only
       if (!foundUser) {
-        const defaultUsers = [
-          {
-            id: 1,
-            name: 'HYRAX Super Admin',
-            email: 'admin@hyrax.com',
-            role: 'super_admin',
-            password: 'HyraxAdmin2024!SecurePass',
-            avatar: 'HSA',
-            createdAt: '2025-01-01T00:00:00.000Z'
-          },
-          {
-            id: 2,
-            name: 'John Doe',
-            email: 'john@hyrax.com',
-            role: 'manager',
-            password: 'password123',
-            avatar: 'JD',
-            createdAt: '2025-01-02T10:30:00.000Z'
-          },
-          {
-            id: 3,
-            name: 'Jane Smith',
-            email: 'jane@hyrax.com',
-            role: 'team_member',
-            password: 'password123',
-            avatar: 'JS',
-            createdAt: '2025-01-03T14:15:00.000Z'
-          }
-        ];
-        foundUser = defaultUsers.find(user => user.email.toLowerCase() === email.toLowerCase());
+        const defaultAdminUser = {
+          id: 1,
+          name: 'HYRAX Super Admin',
+          email: 'admin@hyrax.com',
+          role: 'super_admin',
+          password: 'HyraxAdmin2024!SecurePass',
+          avatar: 'HSA',
+          createdAt: '2025-01-01T00:00:00.000Z'
+        };
+        
+        if (email.toLowerCase() === defaultAdminUser.email.toLowerCase()) {
+          foundUser = defaultAdminUser;
+        }
       }
       
       if (foundUser) {
@@ -758,16 +760,45 @@ export const AppProvider = ({ children }) => {
   // User CRUD operations  
   const loadUsers = async () => {
     try {
+      // First try to load from API (users.json file)
       const response = await apiCall('/users');
       if (response && response.users) {
         setUsers(response.users);
         localStorage.setItem('hyrax_users', JSON.stringify(response.users));
-        console.log('Users loaded from API:', response.users.length);
+        console.log('Users loaded from API (users.json):', response.users.length);
+        return;
       }
     } catch (error) {
       console.error('Failed to load users from API:', error);
-      // If API fails, keep using localStorage data
     }
+    
+    // Fallback to localStorage if API fails
+    try {
+      const storedUsers = localStorage.getItem('hyrax_users');
+      if (storedUsers) {
+        const parsedUsers = JSON.parse(storedUsers);
+        setUsers(parsedUsers);
+        console.log('Users loaded from localStorage:', parsedUsers.length);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to parse stored users:', error);
+    }
+    
+    // Final fallback to default admin user only
+    const defaultAdminUser = {
+      id: 1,
+      name: 'HYRAX Super Admin',
+      email: 'admin@hyrax.com',
+      role: 'super_admin',
+      password: 'HyraxAdmin2024!SecurePass',
+      avatar: 'HSA',
+      createdAt: '2025-01-01T00:00:00.000Z'
+    };
+    
+    setUsers([defaultAdminUser]);
+    localStorage.setItem('hyrax_users', JSON.stringify([defaultAdminUser]));
+    console.log('Users loaded from fallback (admin only)');
   };
 
   // Force refresh users from server (clears cache)
