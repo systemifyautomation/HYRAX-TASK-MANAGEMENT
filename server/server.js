@@ -269,6 +269,25 @@ async function writeUsers(users) {
   }
 }
 
+// GET /api/users - Get all users
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await readUsers();
+    res.json({ 
+      success: true, 
+      users: users,
+      message: `Retrieved ${users.length} users`
+    });
+  } catch (error) {
+    console.error('Error reading users:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to read users',
+      message: error.message 
+    });
+  }
+});
+
 // POST /api/users - Create new user
 app.post('/api/users', async (req, res) => {
   try {

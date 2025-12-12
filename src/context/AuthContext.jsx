@@ -167,7 +167,7 @@ export const AppProvider = ({ children }) => {
       : 'http://localhost:3001/api');
 
   // Check if we should use API or localStorage only - disable API in production unless explicitly enabled
-  const USE_API = import.meta.env.VITE_USE_API === 'true' && !import.meta.env.PROD;
+  const USE_API = (import.meta.env.VITE_USE_API === 'true') || (!import.meta.env.PROD && import.meta.env.VITE_USE_API !== 'false');
   
   // Debug logging
   console.log('Environment check:', {
@@ -506,43 +506,76 @@ export const AppProvider = ({ children }) => {
         localStorage.setItem('hyrax_tasks', JSON.stringify(defaultTasks));
       }
 
-      // Load users from localStorage or use default data
-      const storedUsers = localStorage.getItem('hyrax_users');
-      if (storedUsers) {
-        setUsers(JSON.parse(storedUsers));
-      } else {
-        // Default users data
-        const defaultUsers = [
-          {
-            id: 1,
-            name: 'HYRAX Super Admin',
-            email: 'admin@hyrax.com',
-            role: 'super_admin',
-            password: 'HyraxAdmin2024!SecurePass',
-            avatar: 'HSA',
-            createdAt: '2025-01-01T00:00:00.000Z'
-          },
-          {
-            id: 2,
-            name: 'John Doe',
-            email: 'john@hyrax.com',
-            role: 'manager',
-            password: 'password123',
-            avatar: 'JD',
-            createdAt: '2025-01-02T10:30:00.000Z'
-          },
-          {
-            id: 3,
-            name: 'Jane Smith',
-            email: 'jane@hyrax.com',
-            role: 'team_member',
-            password: 'password123',
-            avatar: 'JS',
-            createdAt: '2025-01-03T14:15:00.000Z'
+      // Load users from API first, then localStorage, then default data
+      try {
+        if (USE_API) {
+          const usersResponse = await apiCall('/users');
+          if (usersResponse && usersResponse.users && usersResponse.users.length > 0) {
+            setUsers(usersResponse.users);
+            localStorage.setItem('hyrax_users', JSON.stringify(usersResponse.users));
+          } else {
+            throw new Error('No users from API');
           }
-        ];
-        setUsers(defaultUsers);
-        localStorage.setItem('hyrax_users', JSON.stringify(defaultUsers));
+        } else {
+          throw new Error('API disabled');
+        }
+      } catch (error) {
+        // Fallback to localStorage
+        const storedUsers = localStorage.getItem('hyrax_users');
+        if (storedUsers) {
+          setUsers(JSON.parse(storedUsers));
+        } else {
+          // Default users data as final fallback
+          const defaultUsers = [
+            {
+              id: 1,
+              name: 'HYRAX Super Admin',
+              email: 'admin@hyrax.com',
+              role: 'super_admin',
+              password: 'HyraxAdmin2024!SecurePass',
+              avatar: 'HSA',
+              createdAt: '2025-01-01T00:00:00.000Z'
+            },
+            {
+              id: 2,
+              name: 'John Doe',
+              email: 'john@hyrax.com',
+              role: 'manager',
+              password: 'password123',
+              avatar: 'JD',
+              createdAt: '2025-01-02T10:30:00.000Z'
+            },
+            {
+              id: 3,
+              name: 'Jane Smith',
+              email: 'jane@hyrax.com',
+              role: 'team_member',
+              password: 'password123',
+              avatar: 'JS',
+              createdAt: '2025-01-03T14:15:00.000Z'
+            },
+            {
+              id: 4,
+              name: 'Mike Johnson',
+              email: 'mike@hyrax.com',
+              role: 'admin',
+              password: 'password123',
+              avatar: 'MJ',
+              createdAt: '2025-01-04T09:45:00.000Z'
+            },
+            {
+              id: 5,
+              name: 'Sarah Wilson',
+              email: 'sarah@hyrax.com',
+              role: 'user',
+              password: 'password123',
+              avatar: 'SW',
+              createdAt: '2025-01-05T16:20:00.000Z'
+            }
+          ];
+          setUsers(defaultUsers);
+          localStorage.setItem('hyrax_users', JSON.stringify(defaultUsers));
+        }
       }
     } catch (error) {
       console.error('Failed to load initial data:', error);
@@ -722,8 +755,44 @@ export const AppProvider = ({ children }) => {
     setColumns(prev => prev.filter(column => column.id !== columnId));
   };
 
+  // User CRUD operations  
+  const loadUsers = async () => {
+    try {
+      const response = await apiCall('/users');
+      if (response && response.users) {
+        setUsers(response.users);
+        localStorage.setItem('hyrax_users', JSON.stringify(response.users));
+        console.log('Users loaded from API:', response.users.length);
+      }
+    } catch (error) {
+      console.error('Failed to load users from API:', error);
+      // If API fails, keep using localStorage data
+    }
+  };
+
+  // Force refresh users from server (clears cache)
+  const refreshUsersFromServer = async () => {
+    try {
+      // Clear localStorage cache
+      localStorage.removeItem('hyrax_users');
+      console.log('Cleared users cache');
+      
+      // Force load from API
+      const response = await apiCall('/users');
+      if (response && response.users) {
+        setUsers(response.users);
+        localStorage.setItem('hyrax_users', JSON.stringify(response.users));
+        console.log('Users refreshed from server:', response.users.length);
+        return response.users;
+      }
+    } catch (error) {
+      console.error('Failed to refresh users from server:', error);
+      throw error;
+    }
+  };
+
   // User management functions with localStorage persistence
-  const addUser = (userData) => {
+  const addUser = async (userData) => {
     const newUser = {
       ...userData,
       id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
@@ -732,17 +801,29 @@ export const AppProvider = ({ children }) => {
       createdAt: new Date().toISOString(),
     };
     
+    // Update local state and localStorage immediately
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall('/users', {
+        method: 'POST',
+        body: newUser,
+      });
+    } catch (error) {
+      console.error('Failed to save user to file:', error);
+    }
   };
 
-  const updateUser = (userId, userData) => {
+  const updateUser = async (userId, userData) => {
     const updatedData = {
       ...userData,
       updatedAt: new Date().toISOString()
     };
     
+    // Update local state and localStorage immediately
     const updatedUsers = users.map(user =>
       user.id === userId
         ? { ...user, ...updatedData }
@@ -750,12 +831,32 @@ export const AppProvider = ({ children }) => {
     );
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall(`/users/${userId}`, {
+        method: 'PUT',
+        body: updatedData,
+      });
+    } catch (error) {
+      console.error('Failed to update user in file:', error);
+    }
   };
 
-  const deleteUser = (userId) => {
+  const deleteUser = async (userId) => {
+    // Update local state and localStorage immediately
     const updatedUsers = users.filter(user => user.id !== userId);
     setUsers(updatedUsers);
     localStorage.setItem('hyrax_users', JSON.stringify(updatedUsers));
+    
+    // Persist to JSON file via API
+    try {
+      await apiCall(`/users/${userId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete user from file:', error);
+    }
   };
 
   // Helper function to get tasks by campaign
@@ -789,6 +890,8 @@ export const AppProvider = ({ children }) => {
     addColumn,
     updateColumn,
     deleteColumn,
+    loadUsers,
+    refreshUsersFromServer,
     addUser,
     updateUser,
     deleteUser,
