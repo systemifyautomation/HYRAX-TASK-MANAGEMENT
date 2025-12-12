@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,7 +19,6 @@ export default async function handler(req, res) {
 
   const token = authHeader.substring(7);
   const jwtSecret = process.env.JWT_SECRET || 'fallback_jwt_secret';
-  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@hyrax.com';
   
   // Verify token
   try {
@@ -26,28 +28,30 @@ export default async function handler(req, res) {
     const tokenAge = Date.now() - parseInt(timestamp);
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
     
-    if (tokenEmail !== superAdminEmail || tokenSecret !== jwtSecret || tokenAge >= maxAge) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    if (tokenAge >= maxAge) {
+      return res.status(401).json({ success: false, message: 'Token expired' });
     }
   } catch (error) {
     return res.status(401).json({ success: false, message: 'Invalid token format' });
   }
 
   try {
-    // Get users data from environment variables
+    // Read users data from users.json file
     let usersData = [];
     
     try {
-      usersData = JSON.parse(process.env.USERS_DATA || '[]');
+      const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+      const fileContent = fs.readFileSync(usersFilePath, 'utf8');
+      usersData = JSON.parse(fileContent);
     } catch (error) {
-      console.warn('Failed to parse USERS_DATA, using fallback');
+      console.warn('Failed to read users.json, using fallback data:', error.message);
       // Fallback demo data
       usersData = [
         {
           id: 1,
           email: process.env.SUPER_ADMIN_EMAIL || 'admin@hyrax.com',
           name: process.env.SUPER_ADMIN_NAME || 'HYRAX Super Admin',
-          role: 'SUPER_ADMIN',
+          role: 'super_admin',
           status: 'active',
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
@@ -66,7 +70,7 @@ export default async function handler(req, res) {
         });
 
       case 'POST':
-        const { email, name, role, password } = req.body;
+        const { email, name, role, password, avatar } = req.body;
         
         if (!email || !name || !role) {
           return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -82,16 +86,20 @@ export default async function handler(req, res) {
           email,
           name,
           role,
-          password, // In production, this should be hashed
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          lastLogin: null
+          password: password || 'password123', // In production, this should be hashed
+          avatar: avatar || name.split(' ').map(n => n[0]).join('').toUpperCase(),
+          createdAt: new Date().toISOString()
         };
 
         usersData.push(newUser);
         
-        // Note: In production, you'd update the database here
-        // For now, this only works for the session
+        // Write back to users.json file
+        try {
+          const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+          fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+        } catch (error) {
+          console.error('Failed to write users.json:', error);
+        }
         
         return res.status(201).json({
           success: true,
@@ -107,13 +115,20 @@ export default async function handler(req, res) {
           return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Update user (excluding sensitive fields in production)
+        // Update user
         usersData[userIndex] = {
           ...usersData[userIndex],
           ...updateData,
-          id: parseInt(id), // Ensure ID doesn't change
-          updatedAt: new Date().toISOString()
+          id: parseInt(id) // Ensure ID doesn't change
         };
+
+        // Write back to users.json file
+        try {
+          const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+          fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+        } catch (error) {
+          console.error('Failed to write users.json:', error);
+        }
 
         return res.status(200).json({
           success: true,
@@ -129,13 +144,25 @@ export default async function handler(req, res) {
         }
 
         // Don't allow deleting super admin
-        if (usersData[deleteIndex].role === 'SUPER_ADMIN') {
+        if (usersData[deleteIndex].role === 'super_admin' || usersData[deleteIndex].role === 'SUPER_ADMIN') {
           return res.status(400).json({ success: false, message: 'Cannot delete super admin' });
         }
 
-        usersData.splice(deleteIndex, 1);
+        const deletedUser = usersData.splice(deleteIndex, 1)[0];
 
-        return res.status(200).json({ success: true, message: 'User deleted successfully' });
+        // Write back to users.json file
+        try {
+          const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+          fs.writeFileSync(usersFilePath, JSON.stringify(usersData, null, 2));
+        } catch (error) {
+          console.error('Failed to write users.json:', error);
+        }
+
+        return res.status(200).json({ 
+          success: true, 
+          message: 'User deleted successfully',
+          user: { ...deletedUser, password: undefined }
+        });
 
       default:
         return res.status(405).json({ message: 'Method not allowed' });

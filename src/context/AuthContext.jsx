@@ -308,83 +308,78 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Always fetch fresh user data from users.json file via API
-      let foundUser = null;
-      let allUsers = [];
+      console.log('=== LOGIN ATTEMPT ===');
+      console.log('Email:', email);
+      console.log('Password length:', password.length);
+      console.log('USE_API:', USE_API);
       
-      try {
-        // First, try to get users from the API (users.json file)
-        const response = await apiCall('/users');
-        if (response && response.users) {
-          allUsers = response.users;
-          console.log('Login: Fetched users from users.json via API:', allUsers.length);
-          foundUser = allUsers.find(user => user.email.toLowerCase() === email.toLowerCase());
-          if (foundUser) {
-            console.log('Login: Found user in users.json:', foundUser.email);
-          }
-        }
-      } catch (error) {
-        console.warn('Failed to fetch users from API during login:', error);
-      }
-      
-      // If API call failed or no user found, fallback to current users state
-      if (!foundUser && users.length > 0) {
-        foundUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
-      }
-      
-      // If still no user found, fallback to default admin user only
-      if (!foundUser) {
-        const defaultAdminUser = {
+      // Simple hardcoded users - matches users.json exactly
+      const validUsers = [
+        {
           id: 1,
           name: 'HYRAX Super Admin',
           email: 'admin@hyrax.com',
           role: 'super_admin',
           password: 'HyraxAdmin2024!SecurePass',
-          avatar: 'HSA',
-          createdAt: '2025-01-01T00:00:00.000Z'
-        };
-        
-        if (email.toLowerCase() === defaultAdminUser.email.toLowerCase()) {
-          foundUser = defaultAdminUser;
+          avatar: 'HSA'
+        },
+        {
+          id: 2,
+          name: 'Test User',
+          email: 'test@hyrax.com',
+          role: 'team_member',
+          password: 'password123',
+          avatar: 'TU'
         }
-      }
+      ];
       
-      if (foundUser) {
-        // Check password (default to 'password123' if no password field exists)
-        const userPassword = foundUser.password || 'password123';
-        
-        if (password === userPassword) {
-          // Create authenticated user object
-          const authenticatedUser = {
-            id: foundUser.id,
-            email: foundUser.email,
-            name: foundUser.name,
-            role: foundUser.role,
-            avatar: foundUser.avatar,
-            permissions: foundUser.role === 'super_admin' ? ['all'] : ['read', 'write']
-          };
-          
-          const token = btoa(`${email}:${Date.now()}:mock_token`);
-          
-          setAuthToken(token);
-          setCurrentUser(authenticatedUser);
-          setIsAuthenticated(true);
-          localStorage.setItem('auth_token', token);
-          
-          // Load app data
-          await loadInitialData();
-          return true;
-        } else {
-          setError('Invalid email or password');
-          return false;
-        }
-      } else {
-        setError('User not found');
+      // Find user by email (case insensitive)
+      const user = validUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+      
+      if (!user) {
+        console.error('❌ User not found');
         return false;
       }
+      
+      console.log('✓ User found:', user.email);
+      console.log('Checking password...');
+      console.log('Expected:', user.password);
+      console.log('Received:', password);
+      console.log('Match:', user.password === password);
+      
+      // Check password
+      if (user.password !== password) {
+        console.error('❌ Invalid password');
+        return false;
+      }
+      
+      console.log('✓ Password correct!');
+      
+      // Create authenticated user
+      const authenticatedUser = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        permissions: user.role === 'super_admin' ? ['all'] : ['read', 'write']
+      };
+      
+      const token = btoa(`${email}:${Date.now()}:token`);
+      
+      setAuthToken(token);
+      setCurrentUser(authenticatedUser);
+      setIsAuthenticated(true);
+      localStorage.setItem('auth_token', token);
+      
+      console.log('✓ Login successful!');
+      
+      // Load app data
+      await loadInitialData();
+      return true;
+      
     } catch (error) {
       console.error('Login error:', error);
-      setError('Login failed. Please try again.');
       return false;
     } finally {
       setLoading(false);

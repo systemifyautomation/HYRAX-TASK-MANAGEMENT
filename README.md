@@ -31,46 +31,63 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 - **Real-time Updates**: Live data synchronization across all users
 - **Performance Optimized**: Fast loading with efficient state management
 
-## 📸 Application Overview
+## 📸 Application Screenshots
 
-### 🔐 Beautiful Login Experience
-- Gradient background with glassmorphism effects
-- Secure authentication with email/password
-- Professional branding with HYRAX logo
-- Responsive design for all devices
+### 🔐 Login Interface
+*Secure authentication with beautiful gradient design*
 
-### 📊 Role-Based Dashboards
-- **Super Admin Dashboard**: Complete system overview with user management access
-- **Manager Dashboard**: Campaign tracking and team performance metrics  
-- **Team Member Dashboard**: Personal task list and progress tracking
-- Clean, modern interface with intuitive navigation
+![HYRAX Login Screen](https://via.placeholder.com/800x600/1a1b23/ffffff?text=HYRAX+Login+Screen%0A%0ABeautiful+gradient+login%0Awith+glassmorphism+effects%0A%0AEmail%2FPassword+authentication%0AHYRAX+branding)
+
+---
+
+### 📊 Super Admin Dashboard
+*Complete system overview with user management access*
+
+![Super Admin Dashboard](https://via.placeholder.com/1200x800/1a1b23/ffffff?text=SUPER+ADMIN+DASHBOARD%0A%0AUser+Management+%7C+System+Overview%0ACampaigns%3A+49+Active%0AUsers%3A+12+Active%0ATasks%3A+156+In+Progress%0A%0ARecent+Activity+%7C+Performance+Metrics)
+
+---
 
 ### 👥 User Management Interface
-- Complete user administration panel (Admin+ roles)
-- Add, edit, delete users with role assignments
-- Real-time user data from JSON backend
-- Professional data tables with search and filtering
+*Professional user administration panel*
 
-### 📋 Campaign & Task Management
-- Comprehensive campaign listing with status indicators
-- Detailed campaign views with task breakdowns
-- Task tracking across multiple workflow stages
-- Priority and assignment management
+![User Management](https://via.placeholder.com/1200x800/1a1b23/ffffff?text=USER+MANAGEMENT%0A%0A%5B+Add+User+%5D%0A%0AName+%7C+Email+%7C+Role+%7C+Actions%0AHYRAX+Super+Admin+%7C+admin%40hyrax.com+%7C+Super+Admin%0ATest+User+%7C+test%40hyrax.com+%7C+Team+Member%0A%0ACRUD+Operations+%7C+Role+Management)
+
+---
+
+### 📋 Campaigns Management
+*Campaign tracking with task breakdowns*
+
+![Campaigns List](https://via.placeholder.com/1200x800/1a1b23/ffffff?text=CAMPAIGNS+MANAGEMENT%0A%0A001_CCW+%7C+002_CASH4HOMES+%7C+003_MVA%0A004_TRAVEL_RESORTS+%7C+005_ASSESSMENTS%0A%0ATask+Status%3A+Complete+%7C+In+Progress+%7C+Pending%0APriority%3A+Urgent+%7C+High+%7C+Normal+%7C+Low%0A%0A49+Active+Campaigns)
+
+---
 
 ### 📅 Weekly Planning View
-- Calendar-style task organization
-- Week-by-week navigation
-- Visual progress indicators
-- Focus on upcoming deadlines
+*Calendar-style task organization*
 
-### 🎨 Modern SaaS Design
-- **Color Scheme**: Professional purple/blue gradients with dark theme
-- **Typography**: Clean, readable fonts with proper hierarchy
-- **Layout**: Card-based design with consistent spacing
-- **Interactions**: Smooth animations and hover effects
-- **Mobile-First**: Fully responsive across all device sizes
+![Weekly View](https://via.placeholder.com/1200x800/1a1b23/ffffff?text=WEEKLY+PLANNING+VIEW%0A%0ADecember+9-15%2C+2025%0A%0AMon+%7C+Tue+%7C+Wed+%7C+Thu+%7C+Fri%0A%0AScript+Tasks+%7C+Copy+Review%0ACreative+QC+%7C+Publishing%0A%0AWeek+Navigation+%7C+Task+Filtering)
 
-> 📷 **Live Screenshots Available**: Contact the development team for current interface screenshots and demo access.
+---
+
+### 📱 Mobile Responsive Design
+*Optimized for all device sizes*
+
+![Mobile Interface](https://via.placeholder.com/400x800/1a1b23/ffffff?text=MOBILE+INTERFACE%0A%0A%E2%98%B0+HYRAX%0A%0ADashboard%0ACampaigns%0ATasks%0AUsers%0A%0AResponsive+Design%0ATouch+Optimized%0A%0ATask+Cards%0ANavigation)
+
+---
+
+## 🎨 Interface Highlights
+
+- **Modern SaaS Design**: Professional purple/blue gradients with glassmorphism
+- **Role-Based UI**: Different interfaces based on user permissions  
+- **Responsive Layout**: Perfect on desktop, tablet, and mobile
+- **Intuitive Navigation**: Clean sidebar with contextual menus
+- **Real-time Updates**: Live data synchronization across all views
+
+> 📷 **To capture your own screenshots**: 
+> 1. Navigate to `http://localhost:5174`
+> 2. Login with: `admin@hyrax.com` / `HyraxAdmin2024!SecurePass`  
+> 3. Explore different sections (Dashboard, Users, Campaigns, Weekly)
+> 4. Replace placeholder images above with actual screenshots
 
 ## 🛠️ Tech Stack
 

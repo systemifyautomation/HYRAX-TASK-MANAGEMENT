@@ -245,6 +245,75 @@ app.delete('/api/campaigns/:id', async (req, res) => {
   }
 });
 
+// Authentication API endpoints
+
+// POST /api/auth/login - Authenticate user
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+    
+    // Read users from JSON file
+    const users = await readUsers();
+    
+    // Find user by email (case insensitive)
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+    
+    // Check password (plain text for now - in production, use bcrypt)
+    if (user.password !== password) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    
+    // Update last login
+    user.lastLogin = new Date().toISOString();
+    await writeUsers(users);
+    
+    // Return user data (without password) and token
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.json({
+      success: true,
+      user: userWithoutPassword,
+      token,
+      message: 'Login successful'
+    });
+    
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during authentication'
+    });
+  }
+});
+
 // Users API endpoints
 
 // Helper function to read users data
@@ -582,6 +651,7 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 Hyrax Campaign API server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🔐 Auth endpoint: http://localhost:${PORT}/api/auth/login`);
   console.log(`📁 Campaigns endpoint: http://localhost:${PORT}/api/campaigns`);
   console.log(`👥 Users endpoint: http://localhost:${PORT}/api/users`);
   console.log(`✅ Tasks endpoint: http://localhost:${PORT}/api/tasks`);
