@@ -217,7 +217,7 @@ const Tasks = () => {
                     newArray[index] = e.target.value;
                     handleChange(newArray);
                   }}
-                  className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  className="flex-1 px-2 py-1 text-xs bg-white text-black border border-gray-200 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                   placeholder={`${column.name} ${index + 1}`}
                 />
                 <button
@@ -375,7 +375,7 @@ const Tasks = () => {
                 href={item}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-2 py-1 text-xs bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-md font-medium hover:underline"
+                className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-black hover:bg-gray-200 rounded-md font-medium hover:underline"
                 title={item}
               >
                 Link {index + 1} →
