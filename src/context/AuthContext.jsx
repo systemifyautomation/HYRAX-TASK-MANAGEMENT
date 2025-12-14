@@ -164,8 +164,9 @@ export const AppProvider = ({ children }) => {
   ]);
 
   // API base URL with environment variable support
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 
-    (import.meta.env.PROD 
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim() !== '') 
+    ? import.meta.env.VITE_API_BASE_URL
+    : (import.meta.env.PROD 
       ? `${window.location.origin}/api` 
       : 'http://localhost:3001/api');
 
