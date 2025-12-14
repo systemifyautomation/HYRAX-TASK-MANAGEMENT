@@ -164,9 +164,8 @@ export const AppProvider = ({ children }) => {
   ]);
 
   // API base URL with environment variable support
-  const API_BASE = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim() !== '') 
-    ? import.meta.env.VITE_API_BASE_URL
-    : (import.meta.env.PROD 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 
+    (import.meta.env.PROD 
       ? `${window.location.origin}/api` 
       : 'http://localhost:3001/api');
 
@@ -314,34 +313,43 @@ export const AppProvider = ({ children }) => {
       
       console.log('=== LOGIN ATTEMPT ===');
       console.log('Email:', email);
+      console.log('Password length:', password.length);
       
-      // Load users from the JSON file
-      let usersFromFile = [];
-      try {
-        const response = await fetch('/server/data/users.json');
-        if (response.ok) {
-          usersFromFile = await response.json();
-          console.log('✓ Loaded users from file:', usersFromFile.length);
+      // ALWAYS have hardcoded admin as fallback (for first-time deployment)
+      const HARDCODED_ADMIN = {
+        id: 1,
+        name: 'HYRAX Super Admin',
+        email: 'admin@wearehyrax.com',
+        role: 'super_admin',
+        password: 'HyraxAdmin2024!SecurePass',
+        avatar: 'HSA'
+      };
+      
+      let user = null;
+      
+      // First, try to find user in loaded users (from API or localStorage)
+      if (users.length > 0) {
+        user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (user) {
+          console.log('✓ User found in loaded users:', user.email);
         }
-      } catch (error) {
-        console.error('❌ Failed to load users.json:', error);
       }
       
-      // Find user by email (case insensitive)
-      const user = usersFromFile.find(u => u.email.toLowerCase() === email.toLowerCase());
+      // If not found and it's the admin email, use hardcoded admin
+      if (!user && email.toLowerCase() === HARDCODED_ADMIN.email.toLowerCase()) {
+        user = HARDCODED_ADMIN;
+        console.log('✓ Using hardcoded admin user');
+      }
       
       if (!user) {
         console.error('❌ User not found');
         return false;
       }
       
-      console.log('✓ User found:', user.email);
-      
-      // Check if user is active
-      if (user.status && user.status !== 'active') {
-        console.error('❌ Account is not active');
-        return false;
-      }
+      console.log('Checking password...');
+      console.log('Expected:', user.password);
+      console.log('Received:', password);
+      console.log('Match:', user.password === password);
       
       // Check password
       if (user.password !== password) {
