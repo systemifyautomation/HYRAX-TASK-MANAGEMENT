@@ -33,6 +33,9 @@ dist-ssr
 # Database and data files
 server/data/*.json
 !server/data/.gitkeep
+!server/data/campaigns.json
+!server/data/users.json
+!server/data/tasks.json
 
 # Build outputs
 build/
