@@ -313,77 +313,57 @@ export const AppProvider = ({ children }) => {
       
       console.log('=== LOGIN ATTEMPT ===');
       console.log('Email:', email);
-      console.log('Password length:', password.length);
+      console.log('API Base:', API_BASE);
       
-      // ALWAYS have hardcoded admin as fallback (for first-time deployment)
-      const HARDCODED_ADMIN = {
-        id: 1,
-        name: 'HYRAX Super Admin',
-        email: 'admin@wearehyrax.com',
-        role: 'super_admin',
-        password: 'HyraxAdmin2024!SecurePass',
-        avatar: 'HSA'
-      };
-      
-      let user = null;
-      
-      // First, try to find user in loaded users (from API or localStorage)
-      if (users.length > 0) {
-        user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (user) {
-          console.log('✓ User found in loaded users:', user.email);
+      // Try to authenticate via API (which reads from /server/data/users.json)
+      try {
+        const response = await fetch(`${API_BASE}/auth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            action: 'login'
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          console.log('✓ Login successful via API');
+          
+          const authenticatedUser = {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            role: data.user.role,
+            avatar: data.user.avatar,
+            permissions: data.user.permissions
+          };
+          
+          setAuthToken(data.token);
+          setCurrentUser(authenticatedUser);
+          setIsAuthenticated(true);
+          
+          // Store both token and user data in localStorage
+          localStorage.setItem('auth_token', data.token);
+          localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
+          
+          // Load app data
+          await loadInitialData();
+          return true;
+        } else {
+          console.error('❌ API login failed:', data.message);
+          return false;
         }
-      }
-      
-      // If not found and it's the admin email, use hardcoded admin
-      if (!user && email.toLowerCase() === HARDCODED_ADMIN.email.toLowerCase()) {
-        user = HARDCODED_ADMIN;
-        console.log('✓ Using hardcoded admin user');
-      }
-      
-      if (!user) {
-        console.error('❌ User not found');
+      } catch (apiError) {
+        console.error('❌ API call failed:', apiError);
+        // If API fails, show error - don't fall back to local auth
+        // This ensures we always check the JSON file
         return false;
       }
-      
-      console.log('Checking password...');
-      console.log('Expected:', user.password);
-      console.log('Received:', password);
-      console.log('Match:', user.password === password);
-      
-      // Check password
-      if (user.password !== password) {
-        console.error('❌ Invalid password');
-        return false;
-      }
-      
-      console.log('✓ Password correct!');
-      
-      // Create authenticated user
-      const authenticatedUser = {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
-        permissions: user.role === 'super_admin' ? ['all'] : ['read', 'write']
-      };
-      
-      const token = btoa(`${email}:${Date.now()}:token`);
-      
-      setAuthToken(token);
-      setCurrentUser(authenticatedUser);
-      setIsAuthenticated(true);
-      
-      // Store both token and user data in localStorage
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
-      
-      console.log('✓ Login successful!');
-      
-      // Load app data
-      await loadInitialData();
-      return true;
       
     } catch (error) {
       console.error('Login error:', error);
@@ -406,19 +386,63 @@ export const AppProvider = ({ children }) => {
 
   const verifyToken = async (token) => {
     try {
-      // Check if we have a stored user
-      const storedUser = localStorage.getItem('current_user');
-      
-      if (token && storedUser) {
-        const authenticatedUser = JSON.parse(storedUser);
+      // Try to verify token via API
+      try {
+        const response = await fetch(`${API_BASE}/auth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token,
+            action: 'verify'
+          }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          console.log('✓ Token verified via API');
+          
+          const authenticatedUser = {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            role: data.user.role,
+            avatar: data.user.avatar,
+            permissions: data.user.permissions
+          };
+          
+          setAuthToken(token);
+          setCurrentUser(authenticatedUser);
+          setIsAuthenticated(true);
+          
+          // Update stored user data
+          localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
+          
+          await loadInitialData();
+        } else {
+          console.warn('Token verification failed, clearing session');
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('current_user');
+        }
+      } catch (apiError) {
+        console.error('API verification failed:', apiError);
+        // Fallback to stored user if API is not available
+        const storedUser = localStorage.getItem('current_user');
         
-        setAuthToken(token);
-        setCurrentUser(authenticatedUser);
-        setIsAuthenticated(true);
-        await loadInitialData();
-      } else {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('current_user');
+        if (storedUser) {
+          console.log('⚠ API unavailable, using cached user');
+          const authenticatedUser = JSON.parse(storedUser);
+          
+          setAuthToken(token);
+          setCurrentUser(authenticatedUser);
+          setIsAuthenticated(true);
+          await loadInitialData();
+        } else {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('current_user');
+        }
       }
     } catch (error) {
       console.error('Token verification error:', error);
