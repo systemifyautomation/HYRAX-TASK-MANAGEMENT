@@ -47,20 +47,20 @@ const Settings = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-black">
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold text-red-600">
             Settings
           </h1>
-          <p className="text-gray-500 mt-2">Manage your account and preferences</p>
+          <p className="text-white mt-2">Manage your account and preferences</p>
         </div>
 
         <div className="flex gap-6">
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
+            <div className="bg-gray-900 border border-red-600/30 rounded-xl shadow-lg p-2" style={{ boxShadow: '0 0 20px rgba(220, 38, 38, 0.2)' }}>
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -69,8 +69,8 @@ const Settings = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-150 ${
                       activeTab === tab.id
-                        ? 'bg-gradient-to-r from-primary-500 to-blue-600 text-white shadow-md'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-600/50'
+                        : 'text-white hover:bg-gray-800'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -83,56 +83,56 @@ const Settings = () => {
 
           {/* Main Content */}
           <div className="flex-1">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+            <div className="bg-black border border-red-600 rounded-xl shadow-2xl p-8" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4)' }}>
               
               {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Profile Information</h2>
-                    <p className="text-gray-500">Update your personal information and avatar</p>
+                    <h2 className="text-2xl font-bold text-red-600 mb-2">Profile Information</h2>
+                    <p className="text-white">Update your personal information and avatar</p>
                   </div>
 
                   <div className="flex items-center space-x-6">
-                    <div className="w-24 h-24 bg-gradient-to-br from-primary-500 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                    <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-red-600/50">
                       {formData.avatar}
                     </div>
                     <div>
-                      <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">
+                      <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg shadow-red-600/50">
                         Change Avatar
                       </button>
-                      <p className="text-sm text-gray-500 mt-2">Click to update your avatar emoji</p>
+                      <p className="text-sm text-gray-400 mt-2">Click to update your avatar emoji</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                      <label className="block text-sm font-medium text-white mb-2">Full Name</label>
                       <input
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                      <label className="block text-sm font-medium text-white mb-2">Email Address</label>
                       <input
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <label className="block text-sm font-medium text-white mb-2">Role</label>
                     <input
                       type="text"
                       value={currentUser.role.replace(/_/g, ' ').toUpperCase()}
                       disabled
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-400"
                     />
                   </div>
                 </div>
@@ -142,15 +142,15 @@ const Settings = () => {
               {activeTab === 'notifications' && (
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Notification Preferences</h2>
-                    <p className="text-gray-500">Choose how you want to be notified</p>
+                    <h2 className="text-2xl font-bold text-red-600 mb-2">Notification Preferences</h2>
+                    <p className="text-white">Choose how you want to be notified</p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Email Notifications</p>
-                        <p className="text-sm text-gray-500">Receive notifications via email</p>
+                        <p className="font-medium text-white">Email Notifications</p>
+                        <p className="text-sm text-gray-400">Receive notifications via email</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -162,14 +162,14 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Push Notifications</p>
-                        <p className="text-sm text-gray-500">Receive push notifications in browser</p>
+                        <p className="font-medium text-white">Push Notifications</p>
+                        <p className="text-sm text-gray-400">Receive push notifications in browser</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -181,14 +181,14 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Task Assigned</p>
-                        <p className="text-sm text-gray-500">When a task is assigned to you</p>
+                        <p className="font-medium text-white">Task Assigned</p>
+                        <p className="text-sm text-gray-400">When a task is assigned to you</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -200,14 +200,14 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Campaign Updates</p>
-                        <p className="text-sm text-gray-500">Updates about campaigns you're part of</p>
+                        <p className="font-medium text-white">Campaign Updates</p>
+                        <p className="text-sm text-gray-400">Updates about campaigns you're part of</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -219,7 +219,7 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
                   </div>
@@ -230,12 +230,12 @@ const Settings = () => {
               {activeTab === 'appearance' && (
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Appearance Settings</h2>
-                    <p className="text-gray-500">Customize how the app looks</p>
+                    <h2 className="text-2xl font-bold text-red-600 mb-2">Appearance Settings</h2>
+                    <p className="text-white">Customize how the app looks</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Theme</label>
+                    <label className="block text-sm font-medium text-white mb-3">Theme</label>
                     <div className="grid grid-cols-3 gap-4">
                       {['light', 'dark', 'auto'].map((theme) => (
                         <button
@@ -243,12 +243,12 @@ const Settings = () => {
                           onClick={() => setFormData({ ...formData, appearance: { ...formData.appearance, theme } })}
                           className={`p-4 rounded-lg border-2 transition-all ${
                             formData.appearance.theme === theme
-                              ? 'border-primary-500 bg-primary-50'
-                              : 'border-gray-200 hover:border-gray-300'
+                              ? 'border-red-600 bg-gray-900 shadow-lg shadow-red-600/30'
+                              : 'border-gray-700 bg-gray-900 hover:border-red-600/50'
                           }`}
                         >
                           <div className="text-center">
-                            <p className="font-medium text-gray-900 capitalize">{theme}</p>
+                            <p className="font-medium text-white capitalize">{theme}</p>
                           </div>
                         </button>
                       ))}
@@ -256,10 +256,10 @@ const Settings = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Compact Mode</p>
-                        <p className="text-sm text-gray-500">Use smaller spacing and elements</p>
+                        <p className="font-medium text-white">Compact Mode</p>
+                        <p className="text-sm text-gray-400">Use smaller spacing and elements</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -271,14 +271,14 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Show Avatars</p>
-                        <p className="text-sm text-gray-500">Display user avatars in lists and tables</p>
+                        <p className="font-medium text-white">Show Avatars</p>
+                        <p className="text-sm text-gray-400">Display user avatars in lists and tables</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -290,7 +290,7 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
                   </div>
@@ -301,15 +301,15 @@ const Settings = () => {
               {activeTab === 'privacy' && (
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Privacy Settings</h2>
-                    <p className="text-gray-500">Control your privacy and visibility</p>
+                    <h2 className="text-2xl font-bold text-red-600 mb-2">Privacy Settings</h2>
+                    <p className="text-white">Control your privacy and visibility</p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Profile Visible</p>
-                        <p className="text-sm text-gray-500">Allow others to view your profile</p>
+                        <p className="font-medium text-white">Profile Visible</p>
+                        <p className="text-sm text-gray-400">Allow others to view your profile</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -321,14 +321,14 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Activity Visible</p>
-                        <p className="text-sm text-gray-500">Show your recent activity to team members</p>
+                        <p className="font-medium text-white">Activity Visible</p>
+                        <p className="text-sm text-gray-400">Show your recent activity to team members</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -340,7 +340,7 @@ const Settings = () => {
                           })}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
                       </label>
                     </div>
                   </div>
@@ -351,30 +351,30 @@ const Settings = () => {
               {activeTab === 'workspace' && isAdmin && (
                 <div className="space-y-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Workspace Settings</h2>
-                    <p className="text-gray-500">Manage workspace-wide settings</p>
+                    <h2 className="text-2xl font-bold text-red-600 mb-2">Workspace Settings</h2>
+                    <p className="text-white">Manage workspace-wide settings</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Workspace Name</label>
+                    <label className="block text-sm font-medium text-white mb-2">Workspace Name</label>
                     <input
                       type="text"
                       defaultValue="Hyrax Task Management"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Default Role for New Users</label>
-                    <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <label className="block text-sm font-medium text-white mb-2">Default Role for New Users</label>
+                    <select className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white focus:ring-2 focus:ring-red-600 focus:border-red-600">
                       <option value="team_member">Team Member</option>
                       <option value="manager">Manager</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Time Zone</label>
-                    <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <label className="block text-sm font-medium text-white mb-2">Time Zone</label>
+                    <select className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white focus:ring-2 focus:ring-red-600 focus:border-red-600">
                       <option value="UTC">UTC</option>
                       <option value="America/New_York">Eastern Time</option>
                       <option value="America/Chicago">Central Time</option>
@@ -464,10 +464,10 @@ const Settings = () => {
               )}
 
               {/* Save Button */}
-              <div className="pt-6 border-t border-gray-200 mt-8">
+              <div className="pt-6 border-t border-red-600/30 mt-8">
                 <button
                   onClick={handleSave}
-                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-blue-600 hover:from-primary-700 hover:to-blue-700 text-white font-medium rounded-lg shadow-lg shadow-primary-500/30 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-lg shadow-red-600/50 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
                 >
                   <Save className="w-5 h-5" />
                   <span>Save Changes</span>
