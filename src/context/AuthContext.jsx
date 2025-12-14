@@ -374,7 +374,10 @@ export const AppProvider = ({ children }) => {
       setAuthToken(token);
       setCurrentUser(authenticatedUser);
       setIsAuthenticated(true);
+      
+      // Store both token and user data in localStorage
       localStorage.setItem('auth_token', token);
+      localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
       
       console.log('✓ Login successful!');
       
@@ -398,43 +401,16 @@ export const AppProvider = ({ children }) => {
     setTasks([]);
     setUsers([]);
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('current_user');
   };
 
   const verifyToken = async (token) => {
     try {
-      // Mock token verification
-      if (token && token.includes('mock_token')) {
-        // Extract email from token to find the user
-        const tokenParts = atob(token).split(':');
-        const userEmail = tokenParts[0];
-        
-        // Find the user from stored data or defaults
-        let foundUser = null;
-        const storedUsers = localStorage.getItem('hyrax_users');
-        if (storedUsers) {
-          const parsedUsers = JSON.parse(storedUsers);
-          foundUser = parsedUsers.find(user => user.email === userEmail);
-        }
-        
-        // Fallback to default admin if not found
-        if (!foundUser) {
-          foundUser = {
-            id: 1,
-            email: 'admin@hyrax.com',
-            name: 'HYRAX Super Admin', 
-            role: 'super_admin',
-            avatar: 'HSA'
-          };
-        }
-        
-        const authenticatedUser = {
-          id: foundUser.id,
-          email: foundUser.email,
-          name: foundUser.name,
-          role: foundUser.role,
-          avatar: foundUser.avatar,
-          permissions: foundUser.role === 'super_admin' ? ['all'] : ['read', 'write']
-        };
+      // Check if we have a stored user
+      const storedUser = localStorage.getItem('current_user');
+      
+      if (token && storedUser) {
+        const authenticatedUser = JSON.parse(storedUser);
         
         setAuthToken(token);
         setCurrentUser(authenticatedUser);
@@ -442,10 +418,12 @@ export const AppProvider = ({ children }) => {
         await loadInitialData();
       } else {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('current_user');
       }
     } catch (error) {
       console.error('Token verification error:', error);
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('current_user');
     } finally {
       setLoading(false);
     }
