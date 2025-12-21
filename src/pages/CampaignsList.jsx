@@ -36,9 +36,9 @@ const CampaignsList = () => {
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">
+              <h1 className="page-title">
                 Campaigns
               </h1>
               <p className="text-gray-500 mt-2">All campaign information and Slack channel IDs</p>

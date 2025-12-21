@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy } from 'lucide-react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { format, startOfWeek, endOfWeek, getWeek } from 'date-fns';
+import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { isAdmin } from '../constants/roles';
 
 const Tasks = () => {
@@ -13,8 +13,11 @@ const Tasks = () => {
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
-  const [currentView, setCurrentView] = useState('all'); // 'all', 'campaigns', 'weekly'
+  const [currentView, setCurrentView] = useState('weekly'); // 'all', 'weekly' - default is weekly
   const [selectedCampaign, setSelectedCampaign] = useState('');
+  const [selectedUser, setSelectedUser] = useState(''); // Filter by user
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0); // 0 = current week, -1 = last week, 1 = next week
+  const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
   
   const [newColumn, setNewColumn] = useState({
     name: '',
@@ -31,7 +34,8 @@ const Tasks = () => {
       ...newTask,
       title: newTask.title?.trim() || 'New Task',
       status: newTask.status || 'approved',
-      priority: newTask.priority || 'normal'
+      priority: newTask.priority || 'normal',
+      createdAt: new Date().toISOString()
     };
     addTask(taskToAdd);
     setNewTask({});
@@ -159,34 +163,67 @@ const Tasks = () => {
 
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
-    if (currentView === 'campaigns') {
-      if (selectedCampaign) {
-        // Show all tasks for the selected campaign
-        return tasks.filter(task => task.campaignId === parseInt(selectedCampaign));
-      } else {
-        // Show all tasks grouped by campaigns
-        return tasks.filter(task => task.campaignId);
-      }
-    }
+    let filtered = tasks;
+
+    // Apply view-based filtering (weekly or all)
     if (currentView === 'weekly') {
-      // Show all tasks for the current week
-      const currentWeek = getWeek(new Date());
-      return tasks.filter(task => {
-        if (!task.dueDate) return false;
-        const taskWeek = getWeek(new Date(task.dueDate));
-        return taskWeek === currentWeek;
+      // Show all tasks for the selected week based on createdAt
+      const targetDate = addWeeks(new Date(), currentWeekOffset);
+      const weekStart = startOfWeek(targetDate, { weekStartsOn: 0 }); // Sunday
+      const weekEnd = endOfWeek(targetDate, { weekStartsOn: 0 }); // Saturday
+      
+      filtered = filtered.filter(task => {
+        if (!task.createdAt) return false;
+        const taskDate = new Date(task.createdAt);
+        return isWithinInterval(taskDate, { start: weekStart, end: weekEnd });
       });
     }
-    return tasks; // 'all' view
-  }, [tasks, currentView, selectedCampaign]);
+
+    // Apply campaign filter (works across all views)
+    if (selectedCampaign) {
+      filtered = filtered.filter(task => task.campaignId === parseInt(selectedCampaign));
+    }
+
+    // Apply user filter (works across all views)
+    if (selectedUser) {
+      filtered = filtered.filter(task => task.assignedTo === parseInt(selectedUser));
+    }
+
+    return filtered;
+  }, [tasks, currentView, selectedCampaign, currentWeekOffset, selectedUser]);
 
   // Handle view changes with smart defaults
   const handleViewChange = (view) => {
     setCurrentView(view);
-    if (view === 'campaigns' && !selectedCampaign && campaigns.length > 0) {
-      // Auto-select first campaign if none selected
-      setSelectedCampaign(campaigns[0].id.toString());
+    if (view === 'weekly') {
+      // Reset to current week when switching to weekly view
+      setCurrentWeekOffset(0);
     }
+  };
+
+  // Week navigation handlers
+  const handlePreviousWeek = () => {
+    setCurrentWeekOffset(prev => prev - 1);
+  };
+
+  const handleNextWeek = () => {
+    setCurrentWeekOffset(prev => prev + 1);
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentWeekOffset(0);
+  };
+
+  // Get current week date range for display
+  const getCurrentWeekRange = () => {
+    const targetDate = addWeeks(new Date(), currentWeekOffset);
+    const weekStart = startOfWeek(targetDate, { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(targetDate, { weekStartsOn: 0 });
+    return {
+      start: weekStart,
+      end: weekEnd,
+      weekNumber: getWeek(targetDate)
+    };
   };
 
   const renderCell = (task, column, isEditing) => {
@@ -460,89 +497,10 @@ const Tasks = () => {
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">
-                Tasks
-              </h1>
-              <p className="text-gray-500 mt-2">Manage all tasks in a powerful spreadsheet view</p>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* View Selector */}
-              <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1">
-                <button
-                  onClick={() => handleViewChange('all')}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                    currentView === 'all' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  <span>All Tasks</span>
-                </button>
-                <button
-                  onClick={() => handleViewChange('campaigns')}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                    currentView === 'campaigns' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  <span>By Campaign</span>
-                </button>
-                <button
-                  onClick={() => handleViewChange('weekly')}
-                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                    currentView === 'weekly' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>Weekly</span>
-                </button>
-              </div>
-
-              {/* Campaign/Week Selector */}
-              {currentView === 'campaigns' && (
-                <select
-                  value={selectedCampaign}
-                  onChange={(e) => setSelectedCampaign(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-                >
-                  <option value="">Select Campaign</option>
-                  {campaigns.map((campaign) => (
-                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-            
-            {isAdminUser && (
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowAddRow(!showAddRow)}
-                  className="px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium rounded-lg shadow-lg shadow-primary-500/30 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Task</span>
-                </button>
-                <button
-                  onClick={() => setShowColumnManager(!showColumnManager)}
-                  className="px-5 py-2.5 bg-white border-2 border-gray-200 hover:border-primary-300 text-gray-700 hover:text-primary-700 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 hover:shadow-md"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Manage Columns</span>
-                </button>
-                {selectedTasks.size > 0 && (
-                  <button
-                    onClick={handleDuplicateSelectedTasks}
-                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-lg shadow-lg shadow-blue-500/30 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
-                  >
-                    <Copy className="w-4 h-4" />
-                    <span>Duplicate Selected ({selectedTasks.size})</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          <h1 className="page-title">
+            Tasks
+          </h1>
+          <p className="text-gray-600 mt-2">Manage all tasks in a powerful spreadsheet view</p>
           
           {/* Stats Bar */}
           <div className="grid grid-cols-4 gap-4 mt-6">
@@ -719,6 +677,121 @@ const Tasks = () => {
         </div>
       )}
 
+      {/* Toolbar - Buttons above table */}
+      <div className="mb-4 flex items-center justify-between">
+        {/* Left side - View Toggle */}
+        <div className="flex items-center space-x-3">
+          {/* View Toggle - Weekly / All */}
+          <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+            <button
+              onClick={() => handleViewChange('weekly')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                currentView === 'weekly' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Weekly</span>
+            </button>
+            <button
+              onClick={() => handleViewChange('all')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                currentView === 'all' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Grid3X3 className="w-4 h-4" />
+              <span>View All</span>
+            </button>
+          </div>
+
+          {/* Filter Button with Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm ${
+                (selectedCampaign || selectedUser) ? 'border-primary-500 bg-primary-50' : ''
+              }`}
+              title="Filters"
+            >
+              <Filter className="w-4 h-4 text-gray-700" />
+            </button>
+            
+            {/* Filter Dropdown */}
+            {showFilters && (
+              <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-20 min-w-[250px]">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by Campaign</label>
+                    <select
+                      value={selectedCampaign}
+                      onChange={(e) => setSelectedCampaign(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
+                    >
+                      <option value="">All Campaigns</option>
+                      {campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Filter by User</label>
+                    <select
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
+                    >
+                      <option value="">All Users</option>
+                      {users.map((user) => (
+                        <option key={user.id} value={user.id}>{user.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {(selectedCampaign || selectedUser) && (
+                    <button
+                      onClick={() => {
+                        setSelectedCampaign('');
+                        setSelectedUser('');
+                      }}
+                      className="w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right side - Action Buttons */}
+        {isAdminUser && (
+          <div className="flex items-center space-x-3">
+            {selectedTasks.size > 0 && (
+              <button
+                onClick={handleDuplicateSelectedTasks}
+                className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Duplicate ({selectedTasks.size})</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowAddRow(!showAddRow)}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Task</span>
+            </button>
+            <button
+              onClick={() => setShowColumnManager(!showColumnManager)}
+              className="px-4 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Manage Columns</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Spreadsheet Table */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden backdrop-blur-sm">
         <div className="overflow-x-auto max-w-full">
@@ -836,17 +909,40 @@ const Tasks = () => {
           <div className="flex items-center justify-between text-sm text-gray-600">
             <div className="flex items-center space-x-4">
               <span className="font-medium">Total: {filteredTasks.length} tasks</span>
-              <span className="text-gray-400">•</span>
-              <span>
-                {currentView === 'all' && 'Showing all tasks'}
-                {currentView === 'campaigns' && selectedCampaign && `Showing all tasks for ${campaigns.find(c => c.id === parseInt(selectedCampaign))?.name}`}
-                {currentView === 'campaigns' && !selectedCampaign && 'Showing all campaign tasks'}
-                {currentView === 'weekly' && `Showing tasks for Week ${getWeek(new Date())} (${format(startOfWeek(new Date()), 'MMM dd')} - ${format(endOfWeek(new Date()), 'MMM dd')})`}
-              </span>
+              {(selectedCampaign || selectedUser) && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-xs">
+                    {selectedCampaign && `Campaign: ${campaigns.find(c => c.id === parseInt(selectedCampaign))?.name}`}
+                    {selectedCampaign && selectedUser && ' | '}
+                    {selectedUser && `User: ${users.find(u => u.id === parseInt(selectedUser))?.name}`}
+                  </span>
+                </>
+              )}
             </div>
-            <div className="text-xs text-gray-500">
-              Last updated: {new Date().toLocaleTimeString()}
-            </div>
+            
+            {/* Simple Week Navigation - Only show in weekly view */}
+            {currentView === 'weekly' && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handlePreviousWeek}
+                  className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+                  title="Previous Week"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                <span className="text-xs font-medium text-gray-700 min-w-[100px] text-center">
+                  Week {getCurrentWeekRange().weekNumber}
+                </span>
+                <button
+                  onClick={handleNextWeek}
+                  className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+                  title="Next Week"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -129,8 +129,8 @@ const UserManagement = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
-          <p className="text-gray-600">Manage team members and their roles</p>
+          <h1 className="page-title">User Management</h1>
+          <p className="text-gray-600 mt-2">Manage team members and their roles</p>
           {loading && (
             <div className="flex items-center space-x-2 mt-2">
               <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>

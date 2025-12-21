@@ -61,7 +61,7 @@ const CampaignDetail = () => {
               <FolderOpen className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{campaign.name}</h1>
+              <h1 className="page-title">{campaign.name}</h1>
               <p className="text-gray-600">{campaign.client}</p>
             </div>
           </div>

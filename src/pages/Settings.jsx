@@ -51,7 +51,7 @@ const Settings = () => {
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-red-600">
+          <h1 className="page-title">
             Settings
           </h1>
           <p className="text-white mt-2">Manage your account and preferences</p>
