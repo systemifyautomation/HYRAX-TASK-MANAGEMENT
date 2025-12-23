@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { isAdmin } from '../constants/roles';
+import { DateRangePicker } from 'react-date-range';
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
 
 const Tasks = () => {
   const { currentUser, tasks, users, campaigns, addTask, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn } = useApp();
@@ -24,6 +27,13 @@ const Tasks = () => {
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
   const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
   const [dateRangeEnd, setDateRangeEnd] = useState(''); // End date for date range filter
+  const [showDatePicker, setShowDatePicker] = useState(false); // Show custom date picker
+  const [dateRange, setDateRange] = useState([{
+    startDate: new Date(),
+    endDate: new Date(),
+    key: 'selection'
+  }]);
+  const [selectedQuickFilter, setSelectedQuickFilter] = useState('all');
   
   const [newColumn, setNewColumn] = useState({
     name: '',
@@ -75,6 +85,43 @@ const Tasks = () => {
       currentFeedback: task[feedbackKey] || '',
       readOnly: true
     });
+  };
+
+  // Date picker helper functions
+  const handleQuickFilter = (filter) => {
+    setSelectedQuickFilter(filter);
+    const today = new Date();
+    
+    switch(filter) {
+      case 'all':
+        setDateRangeStart('');
+        setDateRangeEnd('');
+        setShowDatePicker(false);
+        break;
+      case 'today':
+        setDateRange([{ startDate: today, endDate: today, key: 'selection' }]);
+        break;
+      case 'yesterday':
+        const yesterday = subDays(today, 1);
+        setDateRange([{ startDate: yesterday, endDate: yesterday, key: 'selection' }]);
+        break;
+      case 'last7':
+        setDateRange([{ startDate: subDays(today, 7), endDate: today, key: 'selection' }]);
+        break;
+      case 'last30':
+        setDateRange([{ startDate: subDays(today, 30), endDate: today, key: 'selection' }]);
+        break;
+    }
+  };
+
+  const applyDateFilter = () => {
+    setDateRangeStart(format(dateRange[0].startDate, 'yyyy-MM-dd'));
+    setDateRangeEnd(format(dateRange[0].endDate, 'yyyy-MM-dd'));
+    setShowDatePicker(false);
+  };
+
+  const cancelDateFilter = () => {
+    setShowDatePicker(false);
   };
 
   const handleAddTask = () => {
@@ -1022,42 +1069,83 @@ const Tasks = () => {
                   
                   {/* Date Range Filter */}
                   <div className="border-t-2 border-red-500/20 pt-4 mt-2">
-                    <label className="block text-sm font-bold text-red-500 mb-3 uppercase tracking-wider flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      Date Range
-                    </label>
-                    <div className="space-y-3">
-                      <div className="relative group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="relative bg-gradient-to-br from-gray-800/80 to-black/80 p-3 rounded-lg border-2 border-red-500/40 shadow-lg backdrop-blur-sm transition-all group-hover:border-red-500/60">
-                          <label className="block text-xs font-semibold text-red-300 mb-2 uppercase tracking-wide flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-                            Start Date
-                          </label>
-                          <input
-                            type="date"
-                            value={dateRangeStart}
-                            onChange={(e) => setDateRangeStart(e.target.value)}
-                            className="w-full px-3 py-2.5 text-sm border-2 border-red-500/50 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black text-white font-medium shadow-inner transition-all hover:border-red-500 cursor-pointer [color-scheme:dark]"
-                          />
+                    <button
+                      onClick={() => {
+                        setShowDatePicker(!showDatePicker);
+                      }}
+                      className="w-full text-left block text-sm font-bold text-red-500 mb-3 uppercase tracking-wider flex items-center justify-between gap-2 hover:text-red-400 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Date Range
+                      </span>
+                      {(dateRangeStart || dateRangeEnd) && (
+                        <span className="text-xs text-red-300 normal-case font-normal">
+                          {dateRangeStart && dateRangeEnd ? `${format(new Date(dateRangeStart), 'MMM d')} - ${format(new Date(dateRangeEnd), 'MMM d')}` : 
+                           dateRangeStart ? `From ${format(new Date(dateRangeStart), 'MMM d')}` :
+                           `Until ${format(new Date(dateRangeEnd), 'MMM d')}`}
+                        </span>
+                      )}
+                    </button>
+                    
+                    {showDatePicker && (
+                      <div className="mt-3 bg-gradient-to-br from-gray-950 to-black border-2 border-red-500/40 rounded-xl overflow-hidden shadow-2xl shadow-red-500/20">
+                        <div className="flex">
+                          {/* Quick Filters */}
+                          <div className="w-32 bg-black/50 border-r border-red-500/30 p-3">
+                            <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-2">Quick</div>
+                            {[
+                              { label: 'All Dates', value: 'all' },
+                              { label: 'Today', value: 'today' },
+                              { label: 'Yesterday', value: 'yesterday' },
+                              { label: 'Last 7 Days', value: 'last7' },
+                              { label: 'Last 30 Days', value: 'last30' }
+                            ].map(option => (
+                              <button
+                                key={option.value}
+                                onClick={() => handleQuickFilter(option.value)}
+                                className={`w-full text-left px-2 py-1.5 text-xs rounded mb-1 transition-all ${
+                                  selectedQuickFilter === option.value 
+                                    ? 'bg-red-600 text-white font-semibold' 
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          
+                          {/* Date Range Picker */}
+                          <div className="flex-1 date-range-picker-custom">
+                            <DateRangePicker
+                              ranges={dateRange}
+                              onChange={item => setDateRange([item.selection])}
+                              months={1}
+                              direction="horizontal"
+                              showSelectionPreview={true}
+                              moveRangeOnFirstSelection={false}
+                              rangeColors={['#dc2626']}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Apply/Cancel Buttons */}
+                        <div className="flex gap-2 p-3 bg-black/30 border-t border-red-500/30">
+                          <button
+                            onClick={cancelDateFilter}
+                            className="flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 rounded-lg transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={applyDateFilter}
+                            className="flex-1 px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg transition-all shadow-lg shadow-red-500/30"
+                          >
+                            Apply
+                          </button>
                         </div>
                       </div>
-                      <div className="relative group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="relative bg-gradient-to-br from-gray-800/80 to-black/80 p-3 rounded-lg border-2 border-red-500/40 shadow-lg backdrop-blur-sm transition-all group-hover:border-red-500/60">
-                          <label className="block text-xs font-semibold text-red-300 mb-2 uppercase tracking-wide flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-                            End Date
-                          </label>
-                          <input
-                            type="date"
-                            value={dateRangeEnd}
-                            onChange={(e) => setDateRangeEnd(e.target.value)}
-                            className="w-full px-3 py-2.5 text-sm border-2 border-red-500/50 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black text-white font-medium shadow-inner transition-all hover:border-red-500 cursor-pointer [color-scheme:dark]"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                   
                   {/* Clear Filters Button */}

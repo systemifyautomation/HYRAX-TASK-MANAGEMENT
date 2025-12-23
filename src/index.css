@@ -29,6 +29,173 @@
   .page-title {
     @apply text-4xl font-bold text-red-600 leading-tight pb-1;
   }
+  
+  /* Custom React Date Range Styles */
+  .date-range-picker-custom .rdrCalendarWrapper {
+    background: transparent !important;
+    color: white !important;
+  }
+  
+  .date-range-picker-custom .rdrDateDisplayWrapper {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 8px !important;
+    margin-bottom: 12px !important;
+  }
+  
+  .date-range-picker-custom .rdrDateDisplay {
+    margin: 0 !important;
+  }
+  
+  .date-range-picker-custom .rdrDateDisplayItem {
+    background: black !important;
+    border: 2px solid rgba(220, 38, 38, 0.4) !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+  }
+  
+  .date-range-picker-custom .rdrDateDisplayItem input {
+    color: white !important;
+    font-weight: 600 !important;
+  }
+  
+  .date-range-picker-custom .rdrDateDisplayItemActive {
+    border-color: #dc2626 !important;
+  }
+  
+  .date-range-picker-custom .rdrMonthAndYearWrapper {
+    background: transparent !important;
+    padding-top: 0 !important;
+    height: 50px !important;
+  }
+  
+  .date-range-picker-custom .rdrMonthAndYearPickers {
+    font-weight: 700 !important;
+    color: white !important;
+  }
+  
+  .date-range-picker-custom .rdrMonthPicker select,
+  .date-range-picker-custom .rdrYearPicker select {
+    background: black !important;
+    color: white !important;
+    border: 2px solid rgba(220, 38, 38, 0.4) !important;
+    border-radius: 6px !important;
+    padding: 4px 8px !important;
+    font-weight: 600 !important;
+  }
+  
+  .date-range-picker-custom .rdrNextPrevButton {
+    background: rgba(220, 38, 38, 0.2) !important;
+    border-radius: 6px !important;
+    transition: all 0.2s !important;
+  }
+  
+  .date-range-picker-custom .rdrNextPrevButton:hover {
+    background: rgba(220, 38, 38, 0.4) !important;
+  }
+  
+  .date-range-picker-custom .rdrNextPrevButton i {
+    border-color: #dc2626 !important;
+  }
+  
+  .date-range-picker-custom .rdrMonths {
+    background: transparent !important;
+  }
+  
+  .date-range-picker-custom .rdrMonth {
+    background: transparent !important;
+    padding: 0 12px 12px 12px !important;
+  }
+  
+  .date-range-picker-custom .rdrWeekDays {
+    background: transparent !important;
+  }
+  
+  .date-range-picker-custom .rdrWeekDay {
+    color: #ef4444 !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+  }
+  
+  .date-range-picker-custom .rdrDays {
+    background: transparent !important;
+  }
+  
+  .date-range-picker-custom .rdrDay {
+    color: white !important;
+  }
+  
+  .date-range-picker-custom .rdrDayNumber span {
+    color: white !important;
+    font-weight: 500 !important;
+  }
+  
+  .date-range-picker-custom .rdrDayPassive .rdrDayNumber span {
+    color: #4b5563 !important;
+  }
+  
+  .date-range-picker-custom .rdrDayToday .rdrDayNumber span::after {
+    background: #dc2626 !important;
+  }
+  
+  .date-range-picker-custom .rdrDayHovered .rdrDayNumber span {
+    color: white !important;
+  }
+  
+  .date-range-picker-custom .rdrDayStartPreview,
+  .date-range-picker-custom .rdrDayInPreview,
+  .date-range-picker-custom .rdrDayEndPreview {
+    border: none !important;
+    background: rgba(220, 38, 38, 0.15) !important;
+  }
+  
+  .date-range-picker-custom .rdrDayStartOfMonth .rdrInRange,
+  .date-range-picker-custom .rdrDayStartOfWeek .rdrInRange {
+    border-top-left-radius: 8px !important;
+    border-bottom-left-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrDayEndOfMonth .rdrInRange,
+  .date-range-picker-custom .rdrDayEndOfWeek .rdrInRange {
+    border-top-right-radius: 8px !important;
+    border-bottom-right-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrDayStartOfMonth .rdrStartEdge,
+  .date-range-picker-custom .rdrDayStartOfWeek .rdrStartEdge {
+    border-top-left-radius: 8px !important;
+    border-bottom-left-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrDayEndOfMonth .rdrEndEdge,
+  .date-range-picker-custom .rdrDayEndOfWeek .rdrEndEdge {
+    border-top-right-radius: 8px !important;
+    border-bottom-right-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrInRange {
+    background: rgba(220, 38, 38, 0.15) !important;
+    color: white !important;
+  }
+  
+  .date-range-picker-custom .rdrStartEdge,
+  .date-range-picker-custom .rdrEndEdge {
+    background: #dc2626 !important;
+    color: white !important;
+    border-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrSelected {
+    background: #dc2626 !important;
+  }
+  
+  .date-range-picker-custom .rdrDayStartEdge,
+  .date-range-picker-custom .rdrDayEndEdge {
+    border-radius: 8px !important;
+  }
+  
+  .date-range-picker-custom .rdrDefinedRangesWrapper {
+    display: none !important;
+  }
 }
 
 body {
