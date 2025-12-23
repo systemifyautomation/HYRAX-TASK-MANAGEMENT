@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -10,6 +10,7 @@ import 'react-date-range/dist/theme/default.css';
 const Tasks = () => {
   const { currentUser, tasks, users, campaigns, addTask, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
+  const filtersRef = useRef(null);
   
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [newTask, setNewTask] = useState({});
@@ -123,6 +124,23 @@ const Tasks = () => {
   const cancelDateFilter = () => {
     setShowDatePicker(false);
   };
+
+  // Click outside handler to close filters dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filtersRef.current && !filtersRef.current.contains(event.target)) {
+        setShowFilters(false);
+      }
+    };
+
+    if (showFilters) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFilters]);
 
   const handleAddTask = () => {
     const taskToAdd = {
@@ -1025,7 +1043,7 @@ const Tasks = () => {
             
             {/* Filter Dropdown */}
             {showFilters && (
-              <div className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-20 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
+              <div ref={filtersRef} className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-20 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
                 <div className="space-y-4">
                   {/* Campaign Filter */}
                   <div>
