@@ -421,9 +421,9 @@ const Tasks = () => {
                       className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-500 cursor-pointer"
                       title="Manager approval"
                     />
-                    <div className="relative group">
+                    <div className="relative">
                       <div 
-                        className={`w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
+                        className={`peer w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
                           isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : feedbackArray[index] ? 'cursor-help' : 'opacity-30 cursor-not-allowed'
                         }`}
                         onClick={() => isAdminUser && handleArrayFeedback(index)}
@@ -431,7 +431,7 @@ const Tasks = () => {
                         <AlertCircle className={`w-3.5 h-3.5 ${feedbackArray[index] ? 'text-red-600' : 'text-gray-400'}`} />
                       </div>
                       {feedbackArray[index] && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 pointer-events-none">
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden peer-hover:block z-50 pointer-events-none">
                           <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-xs whitespace-pre-wrap border border-gray-700">
                             <div className="font-semibold mb-1 text-red-400">Feedback:</div>
                             {feedbackArray[index]}
@@ -521,16 +521,16 @@ const Tasks = () => {
               ))}
             </select>
             {hasFeedback && (
-              <div className="relative group">
+              <div className="relative">
                 <div 
-                  className={`w-6 h-6 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
+                  className={`peer w-6 h-6 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
                     isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : 'cursor-help'
                   }`}
                   onClick={() => isAdminUser && handleShowFeedback(task, column.key)}
                 >
                   <AlertCircle className="w-4 h-4 text-red-600" />
                 </div>
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 pointer-events-none">
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden peer-hover:block z-50 pointer-events-none">
                   <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-xs whitespace-pre-wrap border border-gray-700">
                     <div className="font-semibold mb-1 text-red-400">Feedback:</div>
                     {feedbackText}
