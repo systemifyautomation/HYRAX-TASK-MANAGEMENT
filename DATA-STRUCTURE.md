@@ -1,0 +1,409 @@
+# Data Structure Documentation
+
+## Overview
+This document describes the complete data structure for the HYRAX Task Management System, including all entities, fields, relationships, and business logic.
+
+---
+
+## User Entity
+
+### Structure
+```javascript
+{
+  id: number,                    // Unique identifier
+  name: string,                  // User's full name
+  email: string,                 // Email (unique, used for login)
+  password: string,              // Hashed password (bcrypt)
+  role: string,                  // Role code (see Role Hierarchy)
+  department: string,            // Department assignment
+  status: string,                // Account status (active/inactive)
+  lastLogin: string             // ISO 8601 timestamp
+}
+```
+
+### Role Hierarchy
+- `super_admin` (5) - Full system access, can manage all users
+- `admin` (4) - Can manage users and campaigns
+- `manager` (3) - Can view and edit tasks
+- `team_lead` (2) - Can edit assigned tasks
+- `team_member` (1) - Basic task access
+
+### Department Types
+- **Media Buyers** - Handles script assignment and copy review
+- **Video Editors** - Works on VIDEO media type tasks
+- **Designers** - Works on IMAGE media type tasks
+
+### Business Rules
+- Email must be unique across all users
+- Super admin cannot be deleted
+- Department determines which tasks appear in cards view
+- Only admins can edit feedback on approval fields
+
+---
+
+## Campaign Entity
+
+### Structure
+```javascript
+{
+  id: number,                    // Unique identifier
+  name: string,                  // Campaign name (e.g., "001_CCW")
+  client: string,                // Client name
+  startDate: string,             // ISO 8601 date (YYYY-MM-DD)
+  endDate: string,               // ISO 8601 date (YYYY-MM-DD)
+  status: string,                // Campaign status
+  budget: string,                // Budget amount (formatted string)
+  platform: string,              // Platform (e.g., "Facebook & Instagram")
+  slackId: string               // Slack channel ID (optional)
+}
+```
+
+### Status Values
+- `active` - Currently running campaign
+- `completed` - Finished campaign
+- `planning` - In planning phase
+- `paused` - Temporarily stopped
+
+---
+
+## Task Entity
+
+### Core Fields
+```javascript
+{
+  id: number,                    // Unique identifier
+  campaignId: number,            // Foreign key to Campaign
+  title: string,                 // Task title (optional, auto-generated if missing)
+  createdAt: string,             // ISO 8601 timestamp
+  updatedAt: string              // ISO 8601 timestamp
+}
+```
+
+### Assignment Fields
+```javascript
+{
+  scriptAssigned: number,        // User ID - Media Buyer assigned to script
+  assignedTo: number,            // User ID - Copy/creative assigned user
+  mediaType: string,             // "IMAGE" or "VIDEO"
+  priority: string               // Task priority level
+}
+```
+
+### Priority Values
+- `Critical` - Highest priority
+- `High` - High priority
+- `Normal` - Standard priority
+- `Low` - Low priority
+- `Paused` - On hold
+
+### Copy Management Fields
+```javascript
+{
+  copyWritten: boolean,          // Whether copy is completed
+  copyLink: string,              // Link to copy document
+  copyApproval: string,          // Approval status for copy
+  copyApprovalFeedback: string   // Admin feedback for copy approval
+}
+```
+
+### Approval Status Values
+- `Approved` - Approved and ready
+- `Needs Review` - Requires review
+- `Left feedback` - Feedback provided (shows feedback icon)
+- `Unchecked` - Not yet reviewed
+- `Revisit Later` - Marked for later review
+
+### Array Fields with Approvals
+Each array field has corresponding approval and feedback arrays:
+
+```javascript
+{
+  // Viewer Links
+  viewerLink: string[],          // Array of viewer URLs
+  viewerLinkApproval: boolean[], // Approval status for each link
+  viewerLinkFeedback: string[],  // Feedback for each link
+
+  // Cali Variations
+  caliVariation: string[],       // Array of variation codes
+  caliVariationApproval: boolean[],
+  caliVariationFeedback: string[],
+
+  // Slack Permalinks
+  slackPermalink: string[],      // Array of Slack thread URLs
+  slackPermalinkApproval: boolean[],
+  slackPermalinkFeedback: string[]
+}
+```
+
+### Hidden Status Fields
+These fields exist in the data structure but are hidden in the UI (visible: false):
+
+```javascript
+{
+  adStatus: string,              // Ad status tracking
+  adApproval: string,            // Ad approval status
+  adApprovalFeedback: string,    // Feedback for ad approval
+  qcSignOff: string,             // QC sign-off text
+  postStatus: string,            // Post status
+  driveUpload: string            // Drive upload status
+}
+```
+
+---
+
+## Column Configuration Entity
+
+### Structure
+```javascript
+{
+  id: string,                    // Unique column identifier
+  name: string,                  // Display name
+  key: string,                   // Data field key
+  type: string,                  // Column type (see types below)
+  width: number,                 // Column width in pixels
+  visible: boolean,              // Whether column shows in table
+  options: string[]              // Options for dropdown type (optional)
+}
+```
+
+### Column Types
+- `text` - Plain text input
+- `url` - URL input with validation
+- `dropdown` - Select from predefined options
+- `user` - User selection dropdown (filtered by department)
+- `campaign` - Campaign selection dropdown
+- `checkbox` - Boolean checkbox
+- `date` - Date picker
+- `array` - Array of values with add/remove functionality
+
+### Department-Based Filtering
+When rendering user dropdowns:
+
+**Script Assigned:**
+- Only shows users with department = "Media Buyers"
+
+**Assigned To:**
+- For VIDEO mediaType: Shows "Video Editors"
+- For IMAGE mediaType: Shows "Designers"
+
+---
+
+## View State Management
+
+### Time-Based Filter
+```javascript
+currentView: 'weekly' | 'all'    // Filter tasks by time
+currentWeekOffset: number        // Week offset from current (0 = this week)
+```
+
+### Display Type
+```javascript
+displayType: 'list' | 'cards'    // View mode
+```
+
+### Card-Specific State
+```javascript
+cardCampaignFilters: {           // Campaign filter per user card
+  [userId: number]: campaignId   // Each user can have different filter
+}
+
+expandedCards: {                 // Track expanded "Show More" state
+  [taskId: number]: boolean      // True if card is expanded
+}
+```
+
+---
+
+## Department-Based Task Filtering
+
+### Media Buyers (Cards View)
+Shows tasks where:
+```javascript
+task.scriptAssigned === user.id || 
+(!task.scriptAssigned && task.assignedTo === user.id)
+```
+
+### Video Editors (Cards View)
+Shows tasks where:
+```javascript
+task.assignedTo === user.id && 
+(task.mediaType === 'VIDEO' || task.type === 'video')
+```
+
+### Designers (Cards View)
+Shows tasks where:
+```javascript
+task.assignedTo === user.id && 
+(task.mediaType === 'IMAGE' || task.type === 'image')
+```
+
+---
+
+## Cards View Data Display
+
+### Media Buyers Card
+**Always Visible:**
+- Script Assigned (dropdown - Media Buyers only)
+- Copy Written (checkbox)
+- Copy Link (text input with external link icon)
+- Copy Approval (dropdown with feedback icon)
+
+**Show More Section:**
+- Viewer Links (array with add/remove)
+- Cali Variation (array with add/remove)
+- Slack Links (array with add/remove)
+
+### Video Editors Card
+**Always Visible:**
+- Viewer Links (read-only display)
+- Cali Variation (read-only display)
+- Slack Links (read-only display)
+
+### Designers Card
+**Always Visible:**
+- Viewer Links (read-only display)
+- Cali Variation (read-only display)
+- Slack Links (read-only display)
+
+---
+
+## Feedback System
+
+### Dropdown Field Feedback
+For approval fields (Copy Approval, Ad Approval):
+- Feedback icon appears when value is "Left feedback"
+- Hover shows tooltip with feedback text
+- Click opens modal for editing (admin only)
+- Stored in `{fieldKey}Feedback` (e.g., `copyApprovalFeedback`)
+
+### Array Field Feedback
+For array fields (viewerLink, caliVariation, slackPermalink):
+- Each item has approval checkbox and feedback icon
+- Approval stored in `{fieldKey}Approval` array
+- Feedback stored in `{fieldKey}Feedback` array
+- Index-based matching (e.g., viewerLink[0] → viewerLinkApproval[0])
+
+---
+
+## Weekly View Logic
+
+### Week Calculation
+```javascript
+// Current week
+const now = new Date();
+const weekStart = startOfWeek(now, { weekStartsOn: 0 }); // Sunday
+const weekEnd = endOfWeek(now, { weekStartsOn: 0 });     // Saturday
+
+// Filter tasks
+const weeklyTasks = tasks.filter(task => {
+  const taskDate = new Date(task.createdAt);
+  return isWithinInterval(taskDate, { start: weekStart, end: weekEnd });
+});
+```
+
+### Week Navigation
+- Previous Week: `currentWeekOffset - 1`
+- Next Week: `currentWeekOffset + 1`
+- Current Week: `currentWeekOffset = 0`
+
+---
+
+## Data Persistence
+
+### LocalStorage Keys
+```javascript
+'hyrax_tasks'        // Tasks array
+'hyrax_users'        // Users array
+'hyrax_campaigns'    // Campaigns array
+'auth_token'         // JWT authentication token
+```
+
+### File-Based Storage (Development)
+```
+server/data/
+  ├── users.json      // User accounts
+  ├── campaigns.json  // Campaign data
+  └── tasks.json      // Task data
+```
+
+---
+
+## Business Logic Rules
+
+### Task Assignment
+1. Script is assigned only to Media Buyers
+2. Copy/creative assignment depends on media type:
+   - VIDEO → Video Editors
+   - IMAGE → Designers
+
+### Column Visibility
+1. Hidden columns (visible: false):
+   - Ad Status
+   - Ad Approval
+   - QC Sign-Off
+   - Post Status
+   - Drive Upload
+
+2. Columns are filtered before rendering:
+   ```javascript
+   columns.filter(col => col.visible !== false)
+   ```
+
+### Approval Workflow
+1. Copy written → Copy link added → Copy approval
+2. Feedback can be added at approval stage
+3. Array items have individual approvals
+4. Only admins can edit feedback
+
+### Card View Rules
+1. Each department sees only relevant tasks
+2. Campaign filter applies per user (independent)
+3. "Show More" state is task-specific
+4. Media Buyers have editable fields
+5. Video Editors/Designers have read-only displays
+
+---
+
+## Future Enhancements
+
+### Planned Data Structure Changes
+1. **Task Comments**: Add discussion threads
+2. **File Attachments**: Store file metadata
+3. **Activity Log**: Track all changes with timestamps
+4. **Notifications**: Add notification preferences to users
+5. **Templates**: Reusable task templates
+
+### Database Migration Considerations
+When moving to a database:
+- Add proper foreign key constraints
+- Create indexes on frequently queried fields
+- Implement cascading deletes where appropriate
+- Add audit trail tables
+- Consider separate tables for array fields
+
+---
+
+## Data Validation Rules
+
+### User Validation
+- Email: Must be valid email format and unique
+- Password: Minimum 8 characters (enforced on creation)
+- Role: Must be one of the defined roles
+- Department: Must be one of three valid departments
+
+### Task Validation
+- Campaign ID: Must reference existing campaign
+- User IDs: Must reference existing users
+- Media Type: Must be "IMAGE" or "VIDEO"
+- Priority: Must be one of defined priority values
+- Dates: Must be valid ISO 8601 format
+
+### Campaign Validation
+- Name: Required, non-empty string
+- Dates: End date must be after start date
+- Status: Must be one of defined status values
+
+---
+
+*Last Updated: December 2025*
+*Version: 1.0.0*

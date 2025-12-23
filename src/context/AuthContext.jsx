@@ -29,7 +29,7 @@ export const AppProvider = ({ children }) => {
       type: 'dropdown',
       width: 120,
       visible: true,
-      options: ['urgent', 'high', 'normal', 'low']
+      options: ['Critical', 'High', 'Normal', 'Low', 'Paused']
     },
     {
       id: 'mediaType',
@@ -38,7 +38,7 @@ export const AppProvider = ({ children }) => {
       type: 'dropdown',
       width: 140,
       visible: true,
-      options: ['IMAGE', 'VIDEO', 'COPY', 'SCRIPT']
+      options: ['IMAGE', 'VIDEO']
     },
     {
       id: 'scriptAssigned',
@@ -71,7 +71,7 @@ export const AppProvider = ({ children }) => {
       type: 'dropdown',
       width: 140,
       visible: true,
-      options: ['Needs Review', 'Approved', 'Rejected']
+      options: ['Approved', 'Needs Review', 'Left feedback', 'Unchecked', 'Revisit Later']
     },
     {
       id: 'assignedTo',
@@ -122,8 +122,8 @@ export const AppProvider = ({ children }) => {
       key: 'adStatus',
       type: 'dropdown',
       width: 120,
-      visible: true,
-      options: ['Complete', 'Incomplete', 'In Progress']
+      visible: false,
+      options: ['Incomplete', 'Complete', 'Uploaded', 'Posted']
     },
     {
       id: 'adApproval',
@@ -131,17 +131,16 @@ export const AppProvider = ({ children }) => {
       key: 'adApproval',
       type: 'dropdown',
       width: 130,
-      visible: true,
-      options: ['Needs Review', 'Approved', 'Rejected']
+      visible: false,
+      options: ['Approved', 'Needs Review', 'Left feedback', 'Unchecked', 'Revisit Later']
     },
     {
       id: 'qcSignOff',
       name: 'QC Sign-Off',
       key: 'qcSignOff',
-      type: 'dropdown',
+      type: 'text',
       width: 130,
-      visible: true,
-      options: ['Incomplete', 'Complete', 'Pending']
+      visible: false
     },
     {
       id: 'postStatus',
@@ -149,8 +148,8 @@ export const AppProvider = ({ children }) => {
       key: 'postStatus',
       type: 'dropdown',
       width: 130,
-      visible: true,
-      options: ['Incomplete', 'Complete', 'Scheduled']
+      visible: false,
+      options: ['Incomplete', 'Complete', 'Uploaded', 'Posted']
     },
     {
       id: 'driveUpload',
@@ -158,8 +157,8 @@ export const AppProvider = ({ children }) => {
       key: 'driveUpload',
       type: 'dropdown',
       width: 130,
-      visible: true,
-      options: ['Incomplete', 'Complete', 'Pending']
+      visible: false,
+      options: ['Incomplete', 'Complete', 'Uploaded', 'Posted']
     }
   ]);
 

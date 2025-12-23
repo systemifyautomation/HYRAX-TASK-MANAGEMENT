@@ -2,11 +2,11 @@
 import { USER_ROLES } from '../constants/roles';
 
 export const users = [
-  { id: 1, name: 'John Doe', role: USER_ROLES.MANAGER, email: 'john@hyrax.com', avatar: 'JD' },
-  { id: 2, name: 'Sarah Smith', role: USER_ROLES.TEAM_MEMBER, email: 'sarah@hyrax.com', avatar: 'SS' },
-  { id: 3, name: 'Mike Johnson', role: USER_ROLES.TEAM_MEMBER, email: 'mike@hyrax.com', avatar: 'MJ' },
-  { id: 4, name: 'Emily Brown', role: USER_ROLES.TEAM_MEMBER, email: 'emily@hyrax.com', avatar: 'EB' },
-  { id: 5, name: 'David Lee', role: USER_ROLES.MANAGER, email: 'david@hyrax.com', avatar: 'DL' },
+  { id: 1, name: 'John Doe', role: USER_ROLES.MANAGER, email: 'john@hyrax.com', avatar: 'JD', department: 'Media Buyers' },
+  { id: 2, name: 'Sarah Smith', role: USER_ROLES.TEAM_MEMBER, email: 'sarah@hyrax.com', avatar: 'SS', department: 'Video Editors' },
+  { id: 3, name: 'Mike Johnson', role: USER_ROLES.TEAM_MEMBER, email: 'mike@hyrax.com', avatar: 'MJ', department: 'Designers' },
+  { id: 4, name: 'Emily Brown', role: USER_ROLES.TEAM_MEMBER, email: 'emily@hyrax.com', avatar: 'EB', department: 'Media Buyers' },
+  { id: 5, name: 'David Lee', role: USER_ROLES.MANAGER, email: 'david@hyrax.com', avatar: 'DL', department: 'Video Editors' },
 ];
 
 export const campaigns = [
@@ -92,7 +92,7 @@ export const columns = [
   { id: 'assignedTo', key: 'assignedTo', name: 'Assigned To', type: 'user', canDelete: false },
   { id: 'campaignId', key: 'campaignId', name: 'Campaign', type: 'campaign', canDelete: false },
   { id: 'dueDate', key: 'dueDate', name: 'Due Date', type: 'date', canDelete: false },
-  { id: 'priority', key: 'priority', name: 'Priority', type: 'dropdown', options: ['urgent', 'high', 'normal', 'low'], canDelete: false },
+  { id: 'priority', key: 'priority', name: 'Priority', type: 'dropdown', options: ['Critical', 'High', 'Normal', 'Low', 'Paused'], canDelete: false },
   { id: 'type', key: 'type', name: 'Type', type: 'dropdown', options: ['copy', 'image', 'video', 'script'], canDelete: false },
   { id: 'description', key: 'description', name: 'Description', type: 'text', canDelete: false },
 ];

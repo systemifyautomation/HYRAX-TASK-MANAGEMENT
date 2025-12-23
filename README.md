@@ -14,14 +14,22 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 ### 📋 Campaign & Task Management
 - **Campaign Organization**: Manage multiple Facebook ad campaigns with detailed tracking
 - **Task Workflows**: Comprehensive task tracking from creation to completion
-- **Weekly Planning**: Focus on weekly tasks with intuitive weekly view navigation
-- **Priority System**: Tasks organized by priority (urgent, high, normal, low)
+- **Weekly Planning**: Focus on weekly tasks with intuitive weekly view navigation and week-by-week navigation
+- **Dual View Modes**: Switch between List (spreadsheet) and Cards (department-grouped) views
+- **Department-Based Assignment**: Smart task assignment based on user departments (Media Buyers, Video Editors, Designers)
+- **Priority System**: Tasks organized by priority (Critical, High, Normal, Low, Paused)
 - **Status Tracking**: Real-time status updates across the entire workflow
+- **Collapsible Sidebar**: Maximize screen space with expandable/collapsible navigation
 
 ### 🎯 Approval Workflows
 - **Multi-Stage Reviews**: Copy writing → Approval → Creative → QC → Publishing
-- **Media Type Support**: IMAGE, VIDEO, COPY, SCRIPT content types
-- **Assignment System**: Assign tasks to specific team members
+- **Media Type Support**: IMAGE, VIDEO content types with smart filtering
+- **Department-Based Assignment**: 
+  - Media Buyers: Script assignment and copy review
+  - Video Editors: Video content (assigned based on VIDEO media type)
+  - Designers: Image content (assigned based on IMAGE media type)
+- **Feedback System**: Inline feedback tooltips for Copy/Ad Approval with admin-only editing
+- **Array Field Approvals**: Individual checkboxes and feedback for viewer links, variations, and slack permalinks
 - **Progress Tracking**: Visual indicators for each stage of completion
 - **Quality Control**: Built-in QC sign-off processes
 
@@ -77,9 +85,13 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 
 ## 🎨 Interface Highlights
 
-- **Modern SaaS Design**: Professional purple/blue gradients with glassmorphism
+- **Modern SaaS Design**: Red-themed (#dc2626) interface with clean, professional styling
+- **Dual View System**: Toggle between List (spreadsheet) and Cards (department-grouped) views
+- **Department Organization**: Cards grouped by Media Buyers, Video Editors, and Designers
+- **Expandable Details**: Show/hide additional task information with "Show More" button
 - **Role-Based UI**: Different interfaces based on user permissions  
 - **Responsive Layout**: Perfect on desktop, tablet, and mobile
+- **Collapsible Sidebar**: Maximize workspace with expandable navigation
 - **Intuitive Navigation**: Clean sidebar with contextual menus
 - **Real-time Updates**: Live data synchronization across all views
 

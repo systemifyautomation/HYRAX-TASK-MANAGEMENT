@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CheckSquare, FolderOpen, Users, LogOut } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isAdmin } from '../constants/roles';
 
@@ -8,6 +8,7 @@ const Sidebar = () => {
   const { currentUser, logout } = useApp();
   const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
     { to: '/', icon: CheckSquare, label: 'Tasks', end: true },
@@ -16,11 +17,29 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col">
+    <div className={`bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-primary-600">HYRAX</h1>
-        <p className="text-sm text-gray-500 mt-1">Task Management</p>
+      <div className="p-6 border-b border-gray-200 relative">
+        {!isCollapsed && (
+          <>
+            <h1 className="text-2xl font-bold text-primary-600">HYRAX</h1>
+            <p className="text-sm text-gray-500 mt-1">Task Management</p>
+          </>
+        )}
+        {isCollapsed && (
+          <div className="flex justify-center">
+            <h1 className="text-2xl font-bold text-primary-600">H</h1>
+          </div>
+        )}
+        
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-600 hover:text-primary-600 hover:border-primary-300 transition-colors shadow-sm"
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
       {/* Navigation */}
@@ -31,15 +50,16 @@ const Sidebar = () => {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              `flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-colors ${
                 isActive
                   ? 'bg-primary-50 text-primary-700 font-medium'
                   : 'text-gray-700 hover:bg-gray-50'
               }`
             }
+            title={isCollapsed ? item.label : ''}
           >
             <item.icon className="w-5 h-5" />
-            <span>{item.label}</span>
+            {!isCollapsed && <span>{item.label}</span>}
           </NavLink>
         ))}
       </nav>
@@ -47,7 +67,7 @@ const Sidebar = () => {
       {/* User Info at Bottom */}
       <div className="border-t border-gray-200">
         {/* Sign Out Button (appears when user menu is open) */}
-        {showUserMenu && (
+        {showUserMenu && !isCollapsed && (
           <div className="p-3 border-b border-gray-200">
             <button 
               onClick={logout}
@@ -62,16 +82,18 @@ const Sidebar = () => {
         {/* User Profile */}
         <div 
           className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => setShowUserMenu(!showUserMenu)}
+          onClick={() => !isCollapsed && setShowUserMenu(!showUserMenu)}
         >
-          <div className="flex items-center space-x-3">
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
             <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium">
               {currentUser?.name?.charAt(0) || 'U'}
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">{currentUser?.name || 'User'}</p>
-              <p className="text-xs text-gray-500">{currentUser?.role || 'USER'}</p>
-            </div>
+            {!isCollapsed && (
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{currentUser?.name || 'User'}</p>
+                <p className="text-xs text-gray-500">{currentUser?.role || 'USER'}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
