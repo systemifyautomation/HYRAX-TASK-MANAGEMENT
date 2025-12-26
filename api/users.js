@@ -1,5 +1,18 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { hashThreeInputsJS } = require('./lib/hashUtils.cjs');
+
+// Helper function to get today's date in UTC format dd/MM/yyyy
+function getTodayUTC() {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
 
 // Helper function to read users from users.json
 function readUsersFromFile() {
@@ -85,7 +98,7 @@ export default async function handler(req, res) {
         });
 
       case 'POST':
-        const { email, name, role, password, avatar } = req.body;
+        const { email, name, role, password, avatar, department } = req.body;
         
         if (!email || !name || !role) {
           return res.status(400).json({ success: false, message: 'Missing required fields: email, name, and role are required' });
@@ -96,13 +109,59 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, message: 'User with this email already exists' });
         }
 
+        const defaultPassword = password || 'DefaultPassword123!';
+
+        // Send POST request to webhook
+        try {
+          const webhookUrl = process.env.LOGIN_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+          const todayUTC = getTodayUTC();
+          const code = hashThreeInputsJS(email, defaultPassword, todayUTC);
+
+          const webhookPayload = {
+            email,
+            name,
+            role,
+            password: defaultPassword,
+            department: department || null,
+            action: 'create_user'
+          };
+
+          const webhookResponse = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'code': code,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(webhookPayload)
+          });
+
+          if (!webhookResponse.ok) {
+            console.error('Webhook returned non-OK status:', webhookResponse.status);
+            return res.status(400).json({
+              success: false,
+              message: 'User creation not authorized by authentication service'
+            });
+          }
+
+          const webhookData = await webhookResponse.json();
+          console.log('User creation webhook response:', webhookData);
+
+        } catch (webhookError) {
+          console.error('Webhook error during user creation:', webhookError.message);
+          return res.status(500).json({
+            success: false,
+            message: 'Authentication service error during user creation'
+          });
+        }
+
         const newUser = {
           id: Math.max(0, ...usersData.map(u => u.id || 0)) + 1,
           email,
           name,
           role,
-          password: password || 'DefaultPassword123!', // Default password if not provided
+          password: defaultPassword,
           avatar: avatar || name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 3),
+          department: department || null,
           status: 'active',
           createdAt: new Date().toISOString(),
           lastLogin: null

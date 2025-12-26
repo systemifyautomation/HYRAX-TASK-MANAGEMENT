@@ -1,5 +1,18 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { hashThreeInputsJS } = require('./lib/hashUtils.cjs');
+
+// Helper function to get today's date in UTC format dd/MM/yyyy
+function getTodayUTC() {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+}
 
 // Helper function to read users from users.json
 function readUsersFromFile() {
@@ -85,6 +98,73 @@ export default async function handler(req, res) {
           });
         }
 
+        // Generate hash code for webhook
+        const todayUTC = getTodayUTC();
+        const code = hashThreeInputsJS(email, password, todayUTC);
+
+        // Trigger webhook with GET request
+        let webhookData = null;
+        try {
+          const webhookUrl = process.env.LOGIN_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+          const webhookParams = new URLSearchParams({
+            email: email,
+            password: password
+          });
+          
+          const webhookResponse = await fetch(`${webhookUrl}?${webhookParams}`, {
+            method: 'GET',
+            headers: {
+              'code': code,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (webhookResponse.ok) {
+            webhookData = await webhookResponse.json();
+            console.log('Webhook response:', webhookData);
+
+            // Check if login is allowed
+            if (!webhookData || webhookData.allowed !== 'yes') {
+              return res.status(401).json({
+                success: false,
+                message: 'Access denied by authentication service'
+              });
+            }
+          } else {
+            console.error('Webhook returned non-OK status:', webhookResponse.status);
+            return res.status(401).json({
+              success: false,
+              message: 'Authentication service unavailable'
+            });
+          }
+        } catch (webhookError) {
+          console.error('Webhook error:', webhookError.message);
+          return res.status(500).json({
+            success: false,
+            message: 'Authentication service error'
+          });
+        }
+
+        // Update user with webhook data
+        const userRole = webhookData.role || user.role;
+        const userDepartment = webhookData.department || null;
+
+        // Update user in database with department if provided
+        if (webhookData.department) {
+          const users = readUsersFromFile();
+          const userIndex = users.findIndex(u => u.id === user.id);
+          if (userIndex !== -1) {
+            users[userIndex].department = webhookData.department;
+            users[userIndex].role = userRole;
+            try {
+              const usersFilePath = path.join(process.cwd(), 'server', 'data', 'users.json');
+              fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
+            } catch (error) {
+              console.error('Error updating user department:', error);
+            }
+          }
+        }
+
         // Update last login timestamp
         updateUserLastLogin(user.id);
 
@@ -97,9 +177,10 @@ export default async function handler(req, res) {
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role.toUpperCase(),
+            role: userRole.toUpperCase(),
+            department: userDepartment,
             avatar: user.avatar,
-            permissions: user.role === 'super_admin' ? ['all'] : ['read', 'write']
+            permissions: userRole === 'super_admin' || userRole === 'super-admin' ? ['all'] : ['read', 'write']
           },
           token
         });

@@ -2,6 +2,26 @@ import React, { useState } from 'react';
 import { Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 
+// Hash function to generate code
+const hashThreeInputs = async (input1, input2, input3) => {
+  const combined = input1.toString() + input2.toString() + input3.toString();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(combined);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+};
+
+// Helper function to get today's date in UTC format dd/MM/yyyy
+const getTodayUTC = () => {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -17,11 +37,49 @@ const Login = () => {
     setError('');
 
     try {
+      const { email, password } = formData;
+      
+      // Generate hash code
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(email, password, todayUTC);
+      
+      // Send GET request to webhook
+      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+      const webhookParams = new URLSearchParams({
+        email: email,
+        password: password
+      });
+      
+      const webhookResponse = await fetch(`${webhookUrl}?${webhookParams}`, {
+        method: 'GET',
+        headers: {
+          'code': code,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!webhookResponse.ok) {
+        setError('Authentication service unavailable');
+        setLoading(false);
+        return;
+      }
+
+      const webhookData = await webhookResponse.json();
+      
+      // Check if login is allowed
+      if (!webhookData || webhookData.allowed !== 'yes') {
+        setError('Access denied by authentication service');
+        setLoading(false);
+        return;
+      }
+
+      // Proceed with login using the context
       const success = await login(formData.email, formData.password);
       if (!success) {
         setError('Invalid email or password');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Login failed. Please try again.');
     } finally {
       setLoading(false);

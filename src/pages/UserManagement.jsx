@@ -81,7 +81,7 @@ const UserManagement = () => {
       email: '',
       password: '',
       role: 'team_member',
-      department: 'Media Buyers',
+      department: 'MEDIA BUYING',
     });
     setShowAddModal(false);
     setEditingUser(null);
@@ -317,13 +317,14 @@ const UserManagement = () => {
               <div>
                 <label className="block text-sm font-medium text-white mb-1">Department</label>
                 <select
-                  value={formData.department || 'Media Buyers'}
+                  value={formData.department || 'MEDIA BUYING'}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white focus:ring-2 focus:ring-red-600 focus:border-red-600"
                 >
-                  <option value="Media Buyers">Media Buyers</option>
-                  <option value="Video Editors">Video Editors</option>
-                  <option value="Designers">Designers</option>
+                  <option value="DEV">DEV</option>
+                  <option value="MEDIA BUYING">MEDIA BUYING</option>
+                  <option value="VIDEO EDITING">VIDEO EDITING</option>
+                  <option value="GRAPHIC DESIGN">GRAPHIC DESIGN</option>
                 </select>
               </div>
             </div>

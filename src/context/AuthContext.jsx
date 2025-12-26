@@ -312,63 +312,44 @@ export const AppProvider = ({ children }) => {
       
       console.log('=== LOGIN ATTEMPT ===');
       console.log('Email:', email);
-      console.log('Password length:', password.length);
       
-      // ALWAYS have hardcoded admin as fallback (for first-time deployment)
-      const HARDCODED_ADMIN = {
-        id: 1,
-        name: 'HYRAX Super Admin',
-        email: 'admin@wearehyrax.com',
-        role: 'super_admin',
-        password: 'HyraxAdmin2024!SecurePass',
-        avatar: 'HSA'
-      };
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
       
-      let user = null;
+      // Call the API login endpoint which handles webhook authentication
+      const response = await fetch(`${apiBaseUrl}/auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          action: 'login'
+        })
+      });
+
+      const data = await response.json();
       
-      // First, try to find user in loaded users (from API or localStorage)
-      if (users.length > 0) {
-        user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (user) {
-          console.log('✓ User found in loaded users:', user.email);
-        }
-      }
-      
-      // If not found and it's the admin email, use hardcoded admin
-      if (!user && email.toLowerCase() === HARDCODED_ADMIN.email.toLowerCase()) {
-        user = HARDCODED_ADMIN;
-        console.log('✓ Using hardcoded admin user');
-      }
-      
-      if (!user) {
-        console.error('❌ User not found');
+      if (!response.ok || !data.success) {
+        console.error('❌ Login failed:', data.message);
         return false;
       }
+
+      console.log('✓ Login successful via API!');
+      console.log('User data:', data.user);
       
-      console.log('Checking password...');
-      console.log('Expected:', user.password);
-      console.log('Received:', password);
-      console.log('Match:', user.password === password);
-      
-      // Check password
-      if (user.password !== password) {
-        console.error('❌ Invalid password');
-        return false;
-      }
-      
-      console.log('✓ Password correct!');
-      
-      // Create authenticated user
+      // Create authenticated user from API response
       const authenticatedUser = {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar,
-        permissions: user.role === 'super_admin' ? ['all'] : ['read', 'write']
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        role: data.user.role,
+        department: data.user.department,
+        avatar: data.user.avatar,
+        permissions: data.user.permissions
       };
       
-      const token = btoa(`${email}:${Date.now()}:token`);
+      const token = data.token;
       
       setAuthToken(token);
       setCurrentUser(authenticatedUser);
@@ -378,7 +359,7 @@ export const AppProvider = ({ children }) => {
       localStorage.setItem('auth_token', token);
       localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
       
-      console.log('✓ Login successful!');
+      console.log('✓ Login complete!');
       
       // Load app data
       await loadInitialData();
