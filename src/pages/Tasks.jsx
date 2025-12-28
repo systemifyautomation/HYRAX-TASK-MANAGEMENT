@@ -2092,6 +2092,9 @@ const Tasks = () => {
                     className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
                   />
                 </th>
+                <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
+                  Index
+                </th>
                 {columns.filter(col => col.visible !== false).map((column) => (
                   <th 
                     key={column.id} 
@@ -2113,6 +2116,9 @@ const Tasks = () => {
                 <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 animate-in fade-in duration-200">
                   <td className="px-6 py-4 sticky left-0 bg-gradient-to-r from-blue-50 to-indigo-50 z-10">
                     {/* Empty checkbox cell for add row */}
+                  </td>
+                  <td className="px-4 py-4">
+                    {/* Empty index cell for add row */}
                   </td>
                   {columns.filter(col => col.visible !== false).map((column) => (
                     <td key={column.id} className="px-6 py-4 min-w-[180px]">
@@ -2141,7 +2147,7 @@ const Tasks = () => {
               )}
               
               {/* Task Rows */}
-              {filteredTasks.map((task) => (
+              {filteredTasks.map((task, index) => (
                 <tr 
                   key={task.id} 
                   className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150"
@@ -2153,6 +2159,9 @@ const Tasks = () => {
                       onChange={() => handleSelectTask(task.id)}
                       className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
                     />
+                  </td>
+                  <td className="px-4 py-4 text-sm font-semibold text-gray-500">
+                    {index + 1}
                   </td>
                   {columns.filter(col => col.visible !== false).map((column) => (
                     <td 
