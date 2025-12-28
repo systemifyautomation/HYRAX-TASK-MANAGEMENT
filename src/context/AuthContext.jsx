@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AppContext = createContext();
 
@@ -177,6 +177,63 @@ export const AppProvider = ({ children }) => {
     PROD: import.meta.env.PROD,
     USE_API: USE_API
   });
+
+  // Helper function to normalize role names
+  const normalizeRole = (role) => {
+    if (!role) return 'user';
+    const normalized = role.toLowerCase().replace(/[\s-]+/g, '_');
+    return normalized;
+  };
+
+  // Load users from webhook
+  const loadUsers = useCallback(async () => {
+    // Clear localStorage first to avoid showing stale data
+    localStorage.removeItem('hyrax_users');
+    
+    console.log('loadUsers called - fetching from webhook...');
+    
+    // Always load from n8n webhook - this is the source of truth
+    try {
+      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+      
+      console.log('Fetching users from:', webhookUrl);
+      
+      const response = await fetch(webhookUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Users webhook response status:', response.status, response.ok);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Users webhook raw data:', data);
+        
+        // Normalize roles from webhook format to internal format
+        const normalizedUsers = data.map(user => ({
+          ...user,
+          role: normalizeRole(user.role)
+        }));
+        
+        console.log('Normalized users:', normalizedUsers);
+        console.log('Setting users state with', normalizedUsers.length, 'users');
+        
+        // Update both state and localStorage with fresh webhook data
+        setUsers(normalizedUsers);
+        localStorage.setItem('hyrax_users', JSON.stringify(normalizedUsers));
+        localStorage.setItem('hyrax_users_last_updated', new Date().toISOString());
+        return;
+      } else {
+        console.error('Webhook failed with status:', response.status);
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Failed to load users from webhook:', error);
+      setUsers([]);
+    }
+  }, []);
 
   // Check authentication on mount
   useEffect(() => {
@@ -844,43 +901,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // User CRUD operations  
-  const loadUsers = async () => {
-    // Clear localStorage first to avoid showing stale data
-    localStorage.removeItem('hyrax_users');
-    
-    // Always load from n8n webhook - this is the source of truth
-    try {
-      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
-      
-      const response = await fetch(webhookUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Normalize roles from webhook format to internal format
-        const normalizedUsers = data.map(user => ({
-          ...user,
-          role: normalizeRole(user.role)
-        }));
-        
-        // Update both state and localStorage with fresh webhook data
-        setUsers(normalizedUsers);
-        localStorage.setItem('hyrax_users', JSON.stringify(normalizedUsers));
-        localStorage.setItem('hyrax_users_last_updated', new Date().toISOString());
-        return;
-      } else {
-        console.error('Webhook failed with status:', response.status);
-        setUsers([]);
-      }
-    } catch (error) {
-      console.error('Failed to load users from webhook:', error);
-      setUsers([]);
-    }
-  };
+  // loadUsers moved above to be available in useEffect
 
   // Force refresh users from server (clears cache)
   const refreshUsersFromServer = async () => {

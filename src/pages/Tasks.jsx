@@ -12,6 +12,13 @@ const Tasks = () => {
   const isAdminUser = isAdmin(currentUser.role);
   const filtersRef = useRef(null);
   
+  // Debug: Log users on component mount
+  useEffect(() => {
+    console.log('Tasks Component - Users from context:', users);
+    console.log('Tasks Component - Users length:', users?.length);
+    console.log('Tasks Component - Current user:', currentUser);
+  }, [users, currentUser]);
+  
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [newTask, setNewTask] = useState({});
   const [showAddRow, setShowAddRow] = useState(false);
@@ -557,9 +564,35 @@ const Tasks = () => {
       
       case 'user':
         // Filter users based on column key
-        const filteredUsers = column.key === 'scriptAssigned' 
-          ? users.filter(u => u.department === 'MEDIA BUYING')
-          : users;
+        let filteredUsers;
+        if (column.key === 'scriptAssigned') {
+          filteredUsers = users.filter(u => u.department?.trim().toUpperCase() === 'MEDIA BUYING');
+        } else if (column.key === 'assignedTo') {
+          // Filter based on media type
+          const mediaType = task.mediaType?.toUpperCase();
+          if (mediaType === 'IMAGE') {
+            filteredUsers = users.filter(u => u.department?.trim().toUpperCase() === 'GRAPHIC DESIGN');
+          } else if (mediaType === 'VIDEO') {
+            filteredUsers = users.filter(u => u.department?.trim().toUpperCase() === 'VIDEO EDITING');
+          } else {
+            // If no media type selected, show both video editors and graphic designers
+            filteredUsers = users.filter(u => {
+              const dept = u.department?.trim().toUpperCase();
+              return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
+            });
+          }
+        } else {
+          filteredUsers = users;
+        }
+        
+        // Debug logging
+        if (column.key === 'scriptAssigned') {
+          console.log('Script Assigned Column Debug:');
+          console.log('Column key:', column.key);
+          console.log('All users:', users);
+          console.log('Users with departments:', users.map(u => ({ name: u.name, department: u.department })));
+          console.log('Filtered users:', filteredUsers);
+        }
         
         return (
           <div className="relative">
