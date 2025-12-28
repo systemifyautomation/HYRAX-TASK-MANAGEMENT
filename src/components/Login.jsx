@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { normalizeRole } from '../constants/roles';
 
 // Hash function to generate code
 const hashThreeInputs = async (input1, input2, input3) => {
@@ -29,12 +30,14 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [waitingForSlack, setWaitingForSlack] = useState(false);
   const { login } = useApp();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setWaitingForSlack(false);
 
     try {
       const { email, password } = formData;
@@ -50,6 +53,9 @@ const Login = () => {
         password: password
       });
       
+      // Show Slack message while waiting
+      setWaitingForSlack(true);
+      
       const webhookResponse = await fetch(`${webhookUrl}?${webhookParams}`, {
         method: 'GET',
         headers: {
@@ -57,6 +63,8 @@ const Login = () => {
           'Content-Type': 'application/json'
         }
       });
+
+      setWaitingForSlack(false);
 
       if (!webhookResponse.ok) {
         setError('Authentication service unavailable');
@@ -73,14 +81,39 @@ const Login = () => {
         return;
       }
 
-      // Proceed with login using the context
-      const success = await login(formData.email, formData.password);
-      if (!success) {
-        setError('Invalid email or password');
-      }
+      console.log('Webhook authentication successful:', webhookData);
+
+      // Normalize the role from webhook format
+      const normalizedRole = normalizeRole(webhookData.role);
+
+      // Authenticate user with webhook response data
+      const authenticatedUser = {
+        id: Date.now(), // Generate a temporary ID
+        email: email,
+        name: webhookData.name || email.split('@')[0],
+        role: normalizedRole,
+        department: webhookData.department || null,
+        avatar: (webhookData.name || email).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 3),
+        permissions: normalizedRole === 'super_admin' || normalizedRole === 'admin' ? ['all'] : ['read', 'write']
+      };
+
+      console.log('Authenticated user:', authenticatedUser);
+
+      // Create token
+      const token = btoa(`${email}:${Date.now()}:token`);
+      
+      // Store in localStorage
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
+      localStorage.setItem('admin_password', password); // Store password for creating users
+      
+      // Force page reload to trigger authentication
+      window.location.reload();
+      
     } catch (err) {
       console.error('Login error:', err);
       setError('Login failed. Please try again.');
+      setWaitingForSlack(false);
     } finally {
       setLoading(false);
     }
@@ -120,6 +153,13 @@ const Login = () => {
             <div className="mb-4 p-4 bg-red-900/30 border border-red-600 rounded-lg flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <p className="text-white text-sm">{error}</p>
+            </div>
+          )}
+
+          {waitingForSlack && (
+            <div className="mb-4 p-4 bg-blue-900/30 border border-blue-600 rounded-lg flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0"></div>
+              <p className="text-white text-sm">Check your Slack DMs, Rocky sent you a message</p>
             </div>
           )}
 

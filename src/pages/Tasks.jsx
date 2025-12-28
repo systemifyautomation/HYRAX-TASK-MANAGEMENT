@@ -363,10 +363,6 @@ const Tasks = () => {
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
     const isNewTask = task.id === 'new';
-    
-    if (!isEditing && !isAdminUser && !isNewTask && column.key !== 'title' && column.key !== 'description') {
-      return <span className="text-sm text-gray-700">{formatCellValue(value, column)}</span>;
-    }
 
     const handleChange = isNewTask 
       ? (newValue) => handleNewTaskFieldChange(column.key, newValue)
@@ -472,7 +468,7 @@ const Tasks = () => {
             type="text"
             value={value || ''}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
+            className="w-full px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
             placeholder={column.name}
           />
         );
@@ -483,7 +479,7 @@ const Tasks = () => {
             type="number"
             value={value || ''}
             onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
+            className="w-full px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
             placeholder={column.name}
           />
         );
@@ -1367,7 +1363,7 @@ const Tasks = () => {
                                             type="text"
                                             value={task.copyLink || ''}
                                             onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
-                                            className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                            className="flex-1 px-2 py-1 text-xs bg-white text-black border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
                                             placeholder="Enter copy link..."
                                           />
                                           {task.copyLink && (

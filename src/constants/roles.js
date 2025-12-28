@@ -7,6 +7,23 @@ export const USER_ROLES = {
   TEAM_MEMBER: 'team_member',
 };
 
+// Normalize role from webhook format to internal format
+export const normalizeRole = (role) => {
+  if (!role) return USER_ROLES.USER;
+  const roleLower = role.toLowerCase().replace(/-/g, '_');
+  
+  // Map webhook roles to internal roles
+  const roleMap = {
+    'super_admin': USER_ROLES.SUPER_ADMIN,
+    'admin': USER_ROLES.ADMIN,
+    'manager': USER_ROLES.MANAGER,
+    'user': USER_ROLES.USER,
+    'team_member': USER_ROLES.TEAM_MEMBER,
+  };
+  
+  return roleMap[roleLower] || USER_ROLES.USER;
+};
+
 // Role hierarchy (higher number = more permissions)
 export const ROLE_HIERARCHY = {
   [USER_ROLES.SUPER_ADMIN]: 5,
@@ -27,27 +44,34 @@ export const ROLE_LABELS = {
 
 // Helper functions
 export const isAdmin = (role) => {
-  return role === USER_ROLES.SUPER_ADMIN || role === USER_ROLES.ADMIN || role === USER_ROLES.MANAGER;
+  const normalized = normalizeRole(role);
+  return normalized === USER_ROLES.SUPER_ADMIN || normalized === USER_ROLES.ADMIN || normalized === USER_ROLES.MANAGER;
 };
 
 export const isSuperAdmin = (role) => {
-  return role === USER_ROLES.SUPER_ADMIN;
+  const normalized = normalizeRole(role);
+  return normalized === USER_ROLES.SUPER_ADMIN;
 };
 
 export const isManager = (role) => {
-  return role === USER_ROLES.MANAGER || role === USER_ROLES.ADMIN || role === USER_ROLES.SUPER_ADMIN;
+  const normalized = normalizeRole(role);
+  return normalized === USER_ROLES.MANAGER || normalized === USER_ROLES.ADMIN || normalized === USER_ROLES.SUPER_ADMIN;
 };
 
 export const isTeamMember = (role) => {
-  return role === USER_ROLES.TEAM_MEMBER;
+  const normalized = normalizeRole(role);
+  return normalized === USER_ROLES.TEAM_MEMBER;
 };
 
 export const hasPermission = (userRole, requiredRole) => {
-  return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
+  const normalizedUserRole = normalizeRole(userRole);
+  const normalizedRequiredRole = normalizeRole(requiredRole);
+  return ROLE_HIERARCHY[normalizedUserRole] >= ROLE_HIERARCHY[normalizedRequiredRole];
 };
 
 export const getRoleLabel = (role) => {
-  return ROLE_LABELS[role] || role;
+  const normalized = normalizeRole(role);
+  return ROLE_LABELS[normalized] || role;
 };
 
 export const getAllRoles = () => {

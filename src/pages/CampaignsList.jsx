@@ -5,6 +5,8 @@ const CampaignsList = () => {
   const { campaigns, tasks } = useApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Use campaigns from context instead of fetching from API
   useEffect(() => {
@@ -19,6 +21,30 @@ const CampaignsList = () => {
     }, 100);
   }, [campaigns]);
 
+  // Calculate pagination
+  const totalPages = Math.ceil(campaigns.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentCampaigns = campaigns.slice(startIndex, endIndex);
+
+  // Handle page change
+  const goToPage = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      goToPage(currentPage + 1);
+    }
+  };
+
   // Get tasks for a specific campaign
   const getTasksByCampaign = (campaignId) => {
     return tasks.filter(task => task.campaignId === campaignId);
@@ -26,6 +52,7 @@ const CampaignsList = () => {
 
   const handleRefresh = () => {
     setLoading(true);
+    setCurrentPage(1); // Reset to first page on refresh
     setTimeout(() => {
       setLoading(false);
     }, 500);
@@ -122,7 +149,7 @@ const CampaignsList = () => {
                     </td>
                   </tr>
                 ) : (
-                  campaigns.map((campaign) => (
+                  currentCampaigns.map((campaign) => (
                     <tr 
                       key={campaign.id} 
                       className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150"
@@ -146,19 +173,77 @@ const CampaignsList = () => {
             </table>
           </div>
           
-          {/* Table Footer */}
+          {/* Table Footer with Pagination */}
           <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <div className="flex items-center space-x-4">
-                <span className="font-medium">Total: {campaigns.length} campaigns</span>
+            <div className="flex items-center justify-between">
+              {/* Left side - Info */}
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <span className="font-medium">
+                  Showing {campaigns.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, campaigns.length)} of {campaigns.length} campaigns
+                </span>
                 <span className="text-gray-400">•</span>
                 <span>
                   {campaigns.filter(c => c.slackId).length} with Slack integration
                 </span>
               </div>
-              <div className="text-xs text-gray-500">
-                Last updated: {new Date().toLocaleTimeString()}
-              </div>
+
+              {/* Right side - Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Previous
+                  </button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {[...Array(totalPages)].map((_, index) => {
+                      const pageNumber = index + 1;
+                      // Show first page, last page, current page, and pages around current
+                      const showPage = 
+                        pageNumber === 1 || 
+                        pageNumber === totalPages || 
+                        (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1);
+                      
+                      const showEllipsis = 
+                        (pageNumber === 2 && currentPage > 3) ||
+                        (pageNumber === totalPages - 1 && currentPage < totalPages - 2);
+
+                      if (showEllipsis) {
+                        return <span key={pageNumber} className="px-2 text-gray-400">...</span>;
+                      }
+                      
+                      if (!showPage) {
+                        return null;
+                      }
+
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => goToPage(pageNumber)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                            currentPage === pageNumber
+                              ? 'bg-primary-600 text-white'
+                              : 'text-gray-700 hover:bg-white'
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

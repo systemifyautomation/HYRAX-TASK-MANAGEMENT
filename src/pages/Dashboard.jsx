@@ -3,10 +3,11 @@ import { TrendingUp, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import TaskCard from '../components/TaskCard';
 import { taskStatus } from '../data/mockData';
+import { isManager as checkIsManager } from '../constants/roles';
 
 const Dashboard = () => {
   const { currentUser, tasks, campaigns, getTasksNeedingReview, getMyTasks } = useApp();
-  const isManager = currentUser.role === 'manager';
+  const isManager = checkIsManager(currentUser?.role);
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
   const tasksNeedingReview = getTasksNeedingReview();

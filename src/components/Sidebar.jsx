@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { isAdmin } from '../constants/roles';
+import { isAdmin, getRoleLabel } from '../constants/roles';
 
 const Sidebar = () => {
   const { currentUser, logout } = useApp();
@@ -91,7 +91,7 @@ const Sidebar = () => {
             {!isCollapsed && (
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900">{currentUser?.name || 'User'}</p>
-                <p className="text-xs text-gray-500">{currentUser?.role || 'USER'}</p>
+                <p className="text-xs text-gray-500">{getRoleLabel(currentUser?.role)}</p>
               </div>
             )}
           </div>

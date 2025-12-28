@@ -1,7 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Edit2, Trash2, X, Shield, User as UserIcon } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { isAdmin, isSuperAdmin, USER_ROLES, ROLE_LABELS } from '../constants/roles';
+import { isAdmin, isSuperAdmin, USER_ROLES, ROLE_LABELS, normalizeRole } from '../constants/roles';
+
+// Hash function to generate code
+const hashThreeInputs = async (input1, input2, input3) => {
+  const combined = input1.toString() + input2.toString() + input3.toString();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(combined);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+};
+
+// Helper function to get today's date in UTC format dd/MM/yyyy
+const getTodayUTC = () => {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 const UserManagement = () => {
   const { currentUser, users, loadUsers, refreshUsersFromServer, addUser, updateUser, deleteUser } = useApp();
@@ -11,39 +31,87 @@ const UserManagement = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [webhookUsers, setWebhookUsers] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: '',
     role: 'team_member',
+    department: 'MEDIA BUYING',
   });
 
-  // Load users when component mounts
+  // Load users from webhook when component mounts
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsersFromWebhook = async () => {
       setLoading(true);
       try {
-        await loadUsers();
+        const webhookUrl = 'https://workflows.wearehyrax.com/webhook/get-all-users';
+        const response = await fetch(webhookUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Users from webhook:', data);
+          // Normalize roles from webhook format to internal format
+          const normalizedUsers = data.map(user => ({
+            ...user,
+            role: normalizeRole(user.role)
+          }));
+          setWebhookUsers(normalizedUsers);
+        } else {
+          console.error('Failed to fetch users from webhook');
+          // Fallback to local users
+          await loadUsers();
+        }
       } catch (error) {
-        console.error('Failed to load users:', error);
+        console.error('Failed to load users from webhook:', error);
+        // Fallback to local users
+        await loadUsers();
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUsers();
+    fetchUsersFromWebhook();
   }, []); // Empty dependency array to run only once on mount
 
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      await loadUsers();
+      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/get-all-users';
+      const response = await fetch(webhookUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Refreshed users from webhook:', data);
+        // Normalize roles from webhook format to internal format
+        const normalizedUsers = data.map(user => ({
+          ...user,
+          role: normalizeRole(user.role)
+        }));
+        setWebhookUsers(normalizedUsers);
+      } else {
+        await loadUsers();
+      }
     } catch (error) {
       console.error('Failed to refresh users:', error);
+      await loadUsers();
     } finally {
       setLoading(false);
     }
   };
+
+  // Use webhook users if available, otherwise fallback to context users
+  const displayUsers = webhookUsers.length > 0 ? webhookUsers : users;
 
  
 
@@ -60,18 +128,64 @@ const UserManagement = () => {
     );
   }
 
-  const handleSubmit = () => {
-    if (formData.name && formData.email && (!editingUser ? formData.password : true)) {
-      const userData = {
-        ...formData,
-      };
-      
-      if (editingUser) {
-        updateUser(editingUser.id, userData);
-      } else {
-        addUser(userData);
+  const handleSubmit = async () => {
+    if (formData.name && formData.email && formData.role && formData.department) {
+      setSubmitting(true);
+      try {
+        // Generate hash code using admin's credentials
+        const todayUTC = getTodayUTC();
+        const adminEmail = currentUser.email;
+        const adminPassword = localStorage.getItem('admin_password') || ''; // You'll need to store this during login
+        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+        // Get current website URL
+        const websiteUrl = window.location.origin;
+
+        // Send POST request to webhook
+        const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+        const webhookParams = new URLSearchParams({
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          department: formData.department
+        });
+
+        const response = await fetch(`${webhookUrl}?${webhookParams}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'website-url': websiteUrl
+          },
+          body: JSON.stringify({
+            code: code,
+            added_by: adminEmail
+          })
+        });
+
+        if (response.status === 200) {
+          console.log('User created successfully via webhook');
+          alert('User created successfully! Password has been sent to the user via Slack.');
+          // Refresh the user list
+          await handleRefresh();
+          resetForm();
+        } else if (response.status === 400) {
+          // Get error message from webhook
+          const errorData = await response.json();
+          const errorMessage = errorData.error || 'Failed to create user';
+          console.error('Webhook error:', errorMessage);
+          alert(`Error: ${errorMessage}`);
+        } else {
+          console.error('Failed to create user via webhook, status:', response.status);
+          alert('Failed to create user. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error creating user:', error);
+        alert('Error creating user. Please check your connection and try again.');
+      } finally {
+        setSubmitting(false);
       }
-      resetForm();
+    } else {
+      alert('Please fill in all required fields');
     }
   };
 
@@ -79,7 +193,6 @@ const UserManagement = () => {
     setFormData({
       name: '',
       email: '',
-      password: '',
       role: 'team_member',
       department: 'MEDIA BUYING',
     });
@@ -94,7 +207,8 @@ const UserManagement = () => {
   };
 
   const getRoleBadge = (role) => {
-    switch (role) {
+    const normalized = normalizeRole(role);
+    switch (normalized) {
       case 'super_admin':
         return 'bg-purple-100 text-purple-700';
       case 'admin':
@@ -111,14 +225,16 @@ const UserManagement = () => {
   };
 
   const getRoleLabel = (role) => {
-    return ROLE_LABELS[role] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    const normalized = normalizeRole(role);
+    return ROLE_LABELS[normalized] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   const canEditUser = (user) => {
     // Super admin can edit anyone
     if (isSuperAdminUser) return true;
     // Regular admin can only edit team members
-    if (isAdminUser && user.role === 'team_member') return true;
+    const normalizedUserRole = normalizeRole(user.role);
+    if (isAdminUser && normalizedUserRole === 'team_member') return true;
     return false;
   };
 
@@ -171,16 +287,20 @@ const UserManagement = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {loading && users.length === 0 ? (
+            {loading ? (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center">
                   <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-gray-500">Loading users from server...</p>
+                    <img 
+                      src="https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif" 
+                      alt="Loading..." 
+                      className="w-48 h-48 object-contain mb-4 rounded-lg"
+                    />
+                    <p className="text-gray-500 font-medium">Loading users from server...</p>
                   </div>
                 </td>
               </tr>
-            ) : users.length === 0 ? (
+            ) : displayUsers.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center">
                   <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -188,8 +308,8 @@ const UserManagement = () => {
                 </td>
               </tr>
             ) : (
-              users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+              displayUsers.map((user) => (
+                <tr key={user.id || user.email} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
                       <div>
@@ -202,7 +322,7 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
-                      {user.role === 'super_admin' ? <Shield className="w-3 h-3 mr-1" /> : <UserIcon className="w-3 h-3 mr-1" />}
+                      {normalizeRole(user.role) === 'super_admin' ? <Shield className="w-3 h-3 mr-1" /> : <UserIcon className="w-3 h-3 mr-1" />}
                       {getRoleLabel(user.role)}
                     </span>
                   </td>
@@ -276,23 +396,6 @@ const UserManagement = () => {
                 />
               </div>
 
-              {!editingUser && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1">Password</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                    placeholder="Enter a secure password"
-                    required
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Password is required for new users
-                  </p>
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium text-white mb-1">Role</label>
                 <select
@@ -330,10 +433,25 @@ const UserManagement = () => {
             </div>
 
             <div className="flex space-x-3 mt-6">
-              <button onClick={handleSubmit} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-red-600/50">
-                {editingUser ? 'Update User' : 'Add User'}
+              <button 
+                onClick={handleSubmit} 
+                disabled={submitting}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-red-600/50"
+              >
+                {submitting ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Creating User...
+                  </div>
+                ) : (
+                  editingUser ? 'Update User' : 'Add User'
+                )}
               </button>
-              <button onClick={resetForm} className="bg-gray-800 hover:bg-gray-700 text-white font-medium py-3 px-4 rounded-lg transition-all">
+              <button 
+                onClick={resetForm} 
+                disabled={submitting}
+                className="bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all"
+              >
                 Cancel
               </button>
             </div>
