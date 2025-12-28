@@ -1067,14 +1067,23 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateScheduledTask = async (taskId, updates) => {
+    const taskUpdates = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Find the complete updated task
+    const updatedTask = scheduledTasks.find(t => t.id === taskId);
+    const completeUpdatedTask = { ...updatedTask, ...taskUpdates };
+    
+    // Update local state and localStorage immediately
     const updatedTasks = scheduledTasks.map(task =>
-      task.id === taskId ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
+      task.id === taskId ? completeUpdatedTask : task
     );
     setScheduledTasks(updatedTasks);
     localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
     
-    const updatedTask = updatedTasks.find(task => task.id === taskId);
-    
+    // Send to webhook
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
@@ -1084,26 +1093,26 @@ export const AppProvider = ({ children }) => {
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
         console.error('VITE_SCHEDULED_TASKS_WEBHOOK_URL not configured');
-        return;
-      }
+      } else {
+        // Prepare URL with updated_tasks in query parameters
+        const params = new URLSearchParams({
+          updated_tasks: JSON.stringify([completeUpdatedTask])
+        });
 
-      const params = new URLSearchParams({
-        updated_tasks: JSON.stringify([updatedTask])
-      });
+        const response = await fetch(`${webhookUrl}?${params}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            updated_by: adminEmail,
+            code: code
+          })
+        });
 
-      const response = await fetch(`${webhookUrl}?${params}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          updated_by: adminEmail,
-          code: code
-        })
-      });
-
-      if (!response.ok) {
-        console.error('Failed to send scheduled task update to webhook:', response.status);
+        if (!response.ok) {
+          console.error('Failed to send scheduled task update to webhook:', response.status);
+        }
       }
     } catch (error) {
       console.error('Failed to send scheduled task update to webhook:', error);

@@ -377,7 +377,7 @@ const ScheduledTasks = () => {
 
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
-    let filtered = tasks;
+    let filtered = scheduledTasks;
 
     // Apply week filter
     if (selectedWeek !== 'all') {
@@ -419,7 +419,7 @@ const ScheduledTasks = () => {
     }
 
     return filtered;
-  }, [tasks, selectedCampaign, selectedWeek, selectedUser, dateRangeStart, dateRangeEnd]);
+  }, [scheduledTasks, selectedCampaign, selectedWeek, selectedUser, dateRangeStart, dateRangeEnd]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
