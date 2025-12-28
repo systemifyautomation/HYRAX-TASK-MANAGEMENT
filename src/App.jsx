@@ -27,10 +27,12 @@ const ProtectedRoute = ({ children }) => {
 
 // Main App Layout
 const AppLayout = ({ children }) => {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar onCollapsedChange={setIsSidebarCollapsed} />
+      <main className={`overflow-auto transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
         {children}
       </main>
     </div>

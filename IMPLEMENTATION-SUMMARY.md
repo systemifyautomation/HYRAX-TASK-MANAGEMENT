@@ -10,19 +10,18 @@ Implemented a file-based authentication system using `server/data/users.json` as
 - Admin credentials:
   - Email: `admin@wearehyrax.com`
   - Password: `HyraxAdmin2024!SecurePass`
-- Added `status` and `lastLogin` fields for better user management
+- Added `lastLogin` field for better user management
 
 ### 2. **Enhanced Authentication API** (`api/auth.js`)
 - **Refactored login flow:**
   - Reads users from `server/data/users.json`
   - Validates credentials against the file
   - Updates last login timestamp on successful login
-  - Checks user status (active/inactive)
   - Falls back to hardcoded admin if file read fails
 
 - **Improved token verification:**
   - Token now includes user ID for better security
-  - Verifies user still exists and is active
+  - Verifies user still exists
   - Validates token expiration (24 hours)
 
 - **Helper functions:**

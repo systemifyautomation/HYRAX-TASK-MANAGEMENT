@@ -45,7 +45,13 @@ const UserManagement = () => {
     const fetchUsersFromWebhook = async () => {
       setLoading(true);
       try {
-        const webhookUrl = 'https://workflows.wearehyrax.com/webhook/get-all-users';
+        const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+        if (!webhookUrl) {
+          console.error('VITE_GET_USERS_WEBHOOK_URL not configured');
+          await loadUsers();
+          setLoading(false);
+          return;
+        }
         const response = await fetch(webhookUrl, {
           method: 'GET',
           headers: {
@@ -82,7 +88,13 @@ const UserManagement = () => {
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/get-all-users';
+      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+      if (!webhookUrl) {
+        console.error('VITE_GET_USERS_WEBHOOK_URL not configured');
+        await loadUsers();
+        setLoading(false);
+        return;
+      }
       const response = await fetch(webhookUrl, {
         method: 'GET',
         headers: {
@@ -142,7 +154,13 @@ const UserManagement = () => {
         const websiteUrl = window.location.origin;
 
         // Send POST request to webhook
-        const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+        const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+        if (!webhookUrl) {
+          console.error('VITE_GET_USERS_WEBHOOK_URL not configured');
+          alert('Webhook configuration error. Please contact administrator.');
+          setSubmitting(false);
+          return;
+        }
         const webhookParams = new URLSearchParams({
           email: formData.email,
           name: formData.name,
@@ -236,6 +254,63 @@ const UserManagement = () => {
     const normalizedUserRole = normalizeRole(user.role);
     if (isAdminUser && normalizedUserRole === 'team_member') return true;
     return false;
+  };
+
+  const handleUpdate = async () => {
+    if (!editingUser) return;
+    
+    if (formData.name && formData.email && formData.role && formData.department) {
+      setSubmitting(true);
+      try {
+        // Generate hash code using admin's credentials (same as add user)
+        const todayUTC = getTodayUTC();
+        const adminEmail = currentUser.email;
+        const adminPassword = localStorage.getItem('admin_password') || '';
+        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+        // Build query parameters with all user info
+        const queryParams = new URLSearchParams({
+          id: editingUser.id.toString(),
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          department: formData.department
+        });
+
+        // Send PATCH request to webhook
+        const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+        const response = await fetch(`${webhookUrl}?${queryParams}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            code: code,
+            modified_by: currentUser.email
+          })
+        });
+
+        if (response.ok) {
+          console.log('User updated successfully via webhook');
+          alert('User updated successfully!');
+          // Also update via API
+          await updateUser(editingUser.id, formData);
+          // Refresh the user list
+          await handleRefresh();
+          resetForm();
+        } else {
+          console.error('Failed to update user via webhook, status:', response.status);
+          alert('Failed to update user. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error updating user:', error);
+        alert('Error updating user. Please check your connection and try again.');
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      alert('Please fill in all required fields');
+    }
   };
 
   return (
@@ -434,14 +509,14 @@ const UserManagement = () => {
 
             <div className="flex space-x-3 mt-6">
               <button 
-                onClick={handleSubmit} 
+                onClick={editingUser ? handleUpdate : handleSubmit} 
                 disabled={submitting}
                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-red-600/50"
               >
                 {submitting ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Creating User...
+                    {editingUser ? 'Updating User...' : 'Creating User...'}
                   </div>
                 ) : (
                   editingUser ? 'Update User' : 'Add User'

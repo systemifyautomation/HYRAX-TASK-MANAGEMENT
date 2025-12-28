@@ -41,7 +41,6 @@ async function createUsersTable() {
       password VARCHAR(255) NOT NULL,
       role VARCHAR(50) NOT NULL,
       avatar VARCHAR(10),
-      status VARCHAR(20) DEFAULT 'active',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       last_login TIMESTAMP
     )
@@ -57,8 +56,8 @@ async function getUsers() {
 // Add user
 async function addUser(user) {
   const { rows } = await sql`
-    INSERT INTO users (name, email, password, role, avatar, status)
-    VALUES (${user.name}, ${user.email}, ${user.password}, ${user.role}, ${user.avatar}, 'active')
+    INSERT INTO users (name, email, password, role, avatar)
+    VALUES (${user.name}, ${user.email}, ${user.password}, ${user.role}, ${user.avatar})
     RETURNING *
   `;
   return rows[0];
@@ -214,8 +213,8 @@ export const db = {
     },
     async create(user) {
       const { rows } = await sql`
-        INSERT INTO users (name, email, password, role, avatar, status)
-        VALUES (${user.name}, ${user.email}, ${user.password}, ${user.role}, ${user.avatar}, 'active')
+        INSERT INTO users (name, email, password, role, avatar)
+        VALUES (${user.name}, ${user.email}, ${user.password}, ${user.role}, ${user.avatar})
         RETURNING *
       `;
       return rows[0];
@@ -226,8 +225,7 @@ export const db = {
         SET name = ${user.name}, 
             email = ${user.email}, 
             role = ${user.role},
-            avatar = ${user.avatar},
-            status = ${user.status}
+            avatar = ${user.avatar}
         WHERE id = ${id}
         RETURNING *
       `;

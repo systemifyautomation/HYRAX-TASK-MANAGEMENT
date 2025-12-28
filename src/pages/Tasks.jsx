@@ -8,7 +8,7 @@ import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 
 const Tasks = () => {
-  const { currentUser, tasks, users, campaigns, addTask, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn } = useApp();
+  const { currentUser, tasks, users, campaigns, addTask, addTasks, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
   const filtersRef = useRef(null);
   
@@ -192,10 +192,15 @@ const Tasks = () => {
   };
 
   const handleDuplicateSelectedTasks = () => {
-    const tasksToduplicate = tasks.filter(task => selectedTasks.has(task.id));
-    tasksToduplicate.forEach(task => {
-      handleDuplicateTask(task);
-    });
+    const tasksToDuplicate = tasks.filter(task => selectedTasks.has(task.id));
+    const duplicatedTasksData = tasksToDuplicate.map(task => ({
+      ...task,
+      id: undefined, // Will be assigned by addTasks
+      title: `${task.title} (Copy)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    addTasks(duplicatedTasksData);
     setSelectedTasks(new Set());
   };
 
@@ -551,21 +556,10 @@ const Tasks = () => {
         );
       
       case 'user':
-        // Filter users based on column key and task media type
-        let filteredUsers = users;
-        
-        if (column.key === 'scriptAssigned') {
-          // Script is only assigned to Media Buyers
-          filteredUsers = users.filter(u => u.department === 'Media Buyers');
-        } else if (column.key === 'assignedTo') {
-          // Copy assignment depends on media type
-          const mediaType = task?.mediaType;
-          if (mediaType === 'VIDEO') {
-            filteredUsers = users.filter(u => u.department === 'Video Editors');
-          } else if (mediaType === 'IMAGE') {
-            filteredUsers = users.filter(u => u.department === 'Designers');
-          }
-        }
+        // Filter users based on column key
+        const filteredUsers = column.key === 'scriptAssigned' 
+          ? users.filter(u => u.department === 'MEDIA BUYING')
+          : users;
         
         return (
           <div className="relative">
@@ -1215,7 +1209,7 @@ const Tasks = () => {
       {/* Cards View */}
       {displayType === 'cards' ? (
         <div className="space-y-8">
-          {['Media Buyers', 'Video Editors', 'Designers'].map(department => {
+          {['MEDIA BUYING', 'VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
             const departmentUsers = users.filter(u => u.department === department);
             
             if (departmentUsers.length === 0) return null;
@@ -1228,14 +1222,14 @@ const Tasks = () => {
                   {departmentUsers.map(user => {
                     // Filter tasks based on department
                     let userTasks = filteredTasks.filter(task => {
-                      if (department === 'Media Buyers') {
+                      if (department === 'MEDIA BUYING') {
                         // Media Buyers: show tasks where they are assigned to script or generally assigned
                         return task.scriptAssigned === user.id || (!task.scriptAssigned && task.assignedTo === user.id);
-                      } else if (department === 'Video Editors') {
+                      } else if (department === 'VIDEO EDITING') {
                         // Video Editors: show tasks where they are assigned and media type is VIDEO
                         const mediaType = task.mediaType || task.type;
                         return task.assignedTo === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
-                      } else if (department === 'Designers') {
+                      } else if (department === 'GRAPHIC DESIGN') {
                         // Designers: show tasks where they are assigned and media type is IMAGE
                         const mediaType = task.mediaType || task.type;
                         return task.assignedTo === user.id && (mediaType === 'IMAGE' || mediaType === 'image');

@@ -5,14 +5,17 @@ A premium SaaS application for managing approval workflows for HYRAX's Facebook 
 ## 🚀 Key Features
 
 ### 🔐 Authentication & User Management
-- **Multi-Role Authentication**: Secure login system with role-based access control
-- **Dynamic User System**: Users stored in JSON file, easily manageable through the interface
+- **2-Step Slack Verification**: Secure login with cryptographic authentication via n8n webhook
+- **Real-time Validation**: Login requests verified through Slack DM notifications
+- **Multi-Role Authentication**: Role-based access control with normalized role handling
+- **Dynamic User System**: Users managed in n8n hosted database, accessible via webhooks
 - **Role Hierarchy**: Super Admin (5) → Admin (4) → Manager (3) → Team Lead (2) → Team Member (1)
-- **User Dashboard**: Complete user management with add, edit, delete capabilities
-- **Persistent Sessions**: JWT-based authentication with localStorage persistence
+- **User Dashboard**: Complete user management with add, edit, delete capabilities via API
+- **Secure Hashing**: Time-based cryptographic validation for all authentication requests
 
 ### 📋 Campaign & Task Management
-- **Campaign Organization**: Manage multiple Facebook ad campaigns with detailed tracking
+- **Campaign Organization**: Manage multiple Facebook ad campaigns with n8n-hosted database
+- **Real-time Data**: Campaigns fetched from n8n webhook on app load for latest updates
 - **Task Workflows**: Comprehensive task tracking from creation to completion
 - **Weekly Planning**: Focus on weekly tasks with intuitive weekly view navigation and week-by-week navigation
 - **Dual View Modes**: Switch between List (spreadsheet) and Cards (department-grouped) views

@@ -192,12 +192,29 @@ export const AppProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+
+    // Refresh users from webhook every 5 minutes to keep data in sync
+    const usersRefreshInterval = setInterval(() => {
+      loadUsers();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => {
+      clearInterval(usersRefreshInterval);
+    };
   }, []);
 
   // Load campaigns data from webhook
   const loadCampaignsData = async () => {
+    // Clear localStorage first to avoid showing stale data
+    localStorage.removeItem('hyrax_campaigns');
+    
     try {
-      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/get-all-campaigns';
+      const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_GET_CAMPAIGNS_WEBHOOK_URL not configured');
+        setCampaigns([]);
+        return;
+      }
       const response = await fetch(webhookUrl, {
         method: 'GET',
         headers: {
@@ -207,7 +224,6 @@ export const AppProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Campaigns loaded from webhook:', data);
         // Map webhook structure to app structure
         const mappedCampaigns = data.map(campaign => ({
           id: campaign.id,
@@ -215,6 +231,8 @@ export const AppProvider = ({ children }) => {
           slackId: campaign.slack_channel_ID
         }));
         setCampaigns(mappedCampaigns);
+        localStorage.setItem('hyrax_campaigns', JSON.stringify(mappedCampaigns));
+        localStorage.setItem('hyrax_campaigns_last_updated', new Date().toISOString());
       } else {
         console.error('Failed to fetch campaigns from webhook');
         setCampaigns([]);
@@ -322,7 +340,7 @@ export const AppProvider = ({ children }) => {
       console.log('✓ Login complete!');
       
       // Load app data
-      await loadInitialData();
+      await loadInitialData(authenticatedUser);
       return true;
       
     } catch (error) {
@@ -355,7 +373,7 @@ export const AppProvider = ({ children }) => {
         setAuthToken(token);
         setCurrentUser(authenticatedUser);
         setIsAuthenticated(true);
-        await loadInitialData();
+        await loadInitialData(authenticatedUser);
       } else {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('current_user');
@@ -369,108 +387,55 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const loadInitialData = async () => {
+  const loadInitialData = async (user = null) => {
     try {
-      // Load tasks from localStorage or use default data
-      const storedTasks = localStorage.getItem('hyrax_tasks');
-      if (storedTasks) {
-        setTasks(JSON.parse(storedTasks));
-      } else {
-        // Default tasks data
-        const defaultTasks = [
-          {
-            id: 1,
-            priority: "high",
-            mediaType: "IMAGE",
-            scriptAssigned: 1,
-            copyWritten: true,
-            copyLink: "https://docs.google.com/document/d/1abc123",
-            copyApproval: "Approved",
-            assignedTo: 2,
-            campaignId: 1,
-            viewerLink: ["https://viewer.example.com/task1"],
-            caliVariation: ["CA-001"],
-            slackPermalink: ["https://hyraxhq.slack.com/archives/C123/p1234567890"],
-            adStatus: "Complete",
-            adApproval: "Approved",
-            qcSignOff: "Complete",
-            postStatus: "Complete",
-            driveUpload: "Complete",
-            createdAt: "2025-01-15T10:00:00.000Z",
-            updatedAt: "2025-01-15T14:30:00.000Z"
-          },
-          {
-            id: 2,
-            priority: "normal",
-            mediaType: "VIDEO",
-            scriptAssigned: 1,
-            copyWritten: false,
-            copyLink: "",
-            copyApproval: "Needs Review",
-            assignedTo: 3,
-            campaignId: 2,
-            viewerLink: [],
-            caliVariation: ["CA-002"],
-            slackPermalink: [],
-            adStatus: "In Progress",
-            adApproval: "Needs Review",
-            qcSignOff: "Pending",
-            postStatus: "Incomplete",
-            driveUpload: "Incomplete",
-            createdAt: "2025-01-20T09:00:00.000Z",
-            updatedAt: "2025-01-20T16:45:00.000Z"
-          }
-        ];
-        setTasks(defaultTasks);
-        localStorage.setItem('hyrax_tasks', JSON.stringify(defaultTasks));
-      }
-
-      // Load users from API first, then localStorage, then default data
-      try {
-        if (USE_API) {
-          const usersResponse = await apiCall('/users');
-          if (usersResponse && usersResponse.users && usersResponse.users.length > 0) {
-            setUsers(usersResponse.users);
-            localStorage.setItem('hyrax_users', JSON.stringify(usersResponse.users));
-          } else {
-            throw new Error('No users from API');
-          }
-        } else {
-          throw new Error('API disabled');
-        }
-      } catch (error) {
-        // Fallback to localStorage
-        const storedUsers = localStorage.getItem('hyrax_users');
-        if (storedUsers) {
-          setUsers(JSON.parse(storedUsers));
-        } else {
-          // Default users data as final fallback - matches users.json
-          const defaultUsers = [
-            {
-              id: 1,
-              name: 'HYRAX Super Admin',
-              email: 'admin@hyrax.com',
-              role: 'super_admin',
-              password: 'HyraxAdmin2024!SecurePass',
-              avatar: 'HSA',
-              createdAt: '2025-01-01T00:00:00.000Z'
-            },
-            {
-              id: 2,
-              name: 'Test User',
-              email: 'test@hyrax.com',
-              role: 'team_member',
-              password: 'password123',
-              avatar: 'TU',
-              createdAt: '2025-01-02T10:00:00.000Z'
-            }
-          ];
-          setUsers(defaultUsers);
-          localStorage.setItem('hyrax_users', JSON.stringify(defaultUsers));
-        }
-      }
+      // Load tasks from webhook
+      await loadTasksFromWebhook(user);
     } catch (error) {
       console.error('Failed to load initial data:', error);
+    }
+  };
+
+  // Load tasks from n8n webhook
+  const loadTasksFromWebhook = async (user = null) => {
+    try {
+      const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_TASKS_WEBHOOK_URL not configured');
+        setTasks([]);
+        return;
+      }
+
+      const userEmail = user?.email || currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+
+      // Use query parameters for GET request
+      const params = new URLSearchParams({
+        requested_by: userEmail,
+        code: code
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Tasks loaded from webhook:', data.length || 0);
+        setTasks(data);
+        localStorage.setItem('hyrax_tasks', JSON.stringify(data));
+      } else {
+        console.error('Failed to fetch tasks from webhook:', response.status);
+        setTasks([]);
+      }
+    } catch (error) {
+      console.error('Error loading tasks from webhook:', error);
+      setTasks([]);
     }
   };
 
@@ -559,11 +524,43 @@ export const AppProvider = ({ children }) => {
     return { success: true };
   };
 
+  // Hash function for webhook authentication
+  const hashThreeInputs = async (input1, input2, input3) => {
+    const combined = input1.toString() + input2.toString() + input3.toString();
+    const encoder = new TextEncoder();
+    const data = encoder.encode(combined);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  };
+
+  // Helper function to get today's date in UTC format dd/MM/yyyy
+  const getTodayUTC = () => {
+    const now = new Date();
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const year = now.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   // Task operations with localStorage and API persistence
   const addTask = async (taskData) => {
     const newTask = {
       ...taskData,
       id: tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
+      // Ensure boolean fields are actual booleans, not null
+      copyWritten: taskData.copyWritten === true,
+      // Initialize array fields if not provided
+      viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
+      viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
+      viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
+      caliVariation: Array.isArray(taskData.caliVariation) ? taskData.caliVariation : [],
+      caliVariationApproval: Array.isArray(taskData.caliVariationApproval) ? taskData.caliVariationApproval : [],
+      caliVariationFeedback: Array.isArray(taskData.caliVariationFeedback) ? taskData.caliVariationFeedback : [],
+      slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
+      slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
+      slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -572,6 +569,42 @@ export const AppProvider = ({ children }) => {
     const updatedTasks = [...tasks, newTask];
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Send to webhook
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_TASKS_WEBHOOK_URL not configured');
+        return;
+      }
+
+      // Prepare URL with new_tasks in query parameters
+      const params = new URLSearchParams({
+        new_tasks: JSON.stringify([newTask])
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          added_by: adminEmail,
+          code: code
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send task to webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send task to webhook:', error);
+    }
     
     // Persist to JSON file via API
     try {
@@ -584,20 +617,143 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Batch add multiple tasks at once (for duplicate operations)
+  const addTasks = async (tasksData) => {
+    if (!Array.isArray(tasksData) || tasksData.length === 0) {
+      return;
+    }
+
+    // Generate new tasks with proper sequential IDs
+    let currentMaxId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) : 0;
+    const newTasks = tasksData.map((taskData) => {
+      currentMaxId += 1;
+      return {
+        ...taskData,
+        id: currentMaxId,
+        // Ensure boolean fields are actual booleans, not null
+        copyWritten: taskData.copyWritten === true,
+        // Initialize array fields if not provided
+        viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
+        viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
+        viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
+        caliVariation: Array.isArray(taskData.caliVariation) ? taskData.caliVariation : [],
+        caliVariationApproval: Array.isArray(taskData.caliVariationApproval) ? taskData.caliVariationApproval : [],
+        caliVariationFeedback: Array.isArray(taskData.caliVariationFeedback) ? taskData.caliVariationFeedback : [],
+        slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
+        slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
+        slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    
+    // Update local state and localStorage immediately
+    const updatedTasks = [...tasks, ...newTasks];
+    setTasks(updatedTasks);
+    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Send all tasks to webhook in a single request
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_TASKS_WEBHOOK_URL not configured');
+        return;
+      }
+
+      // Prepare URL with new_tasks in query parameters (all tasks at once)
+      const params = new URLSearchParams({
+        new_tasks: JSON.stringify(newTasks)
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          added_by: adminEmail,
+          code: code
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send tasks to webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send tasks to webhook:', error);
+    }
+    
+    // Persist each task to JSON file via API
+    for (const newTask of newTasks) {
+      try {
+        await apiCall('/tasks', {
+          method: 'POST',
+          body: newTask,
+        });
+      } catch (error) {
+        console.error('Failed to save task to file:', error);
+      }
+    }
+  };
+
   const updateTask = async (taskId, updates) => {
     const taskUpdates = {
       ...updates,
       updatedAt: new Date().toISOString()
     };
     
+    // Find the complete updated task
+    const updatedTask = tasks.find(t => t.id === taskId);
+    const completeUpdatedTask = { ...updatedTask, ...taskUpdates };
+    
     // Update local state and localStorage immediately
     const updatedTasks = tasks.map(task => 
       task.id === taskId 
-        ? { ...task, ...taskUpdates }
+        ? completeUpdatedTask
         : task
     );
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Send to webhook
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_TASKS_WEBHOOK_URL not configured');
+      } else {
+        // Prepare URL with updated_tasks in query parameters
+        const params = new URLSearchParams({
+          updated_tasks: JSON.stringify([completeUpdatedTask])
+        });
+
+        const response = await fetch(`${webhookUrl}?${params}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            updated_by: adminEmail,
+            code: code
+          })
+        });
+
+        if (!response.ok) {
+          console.error('Failed to send task update to webhook:', response.status);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send task update to webhook:', error);
+    }
     
     // Persist to JSON file via API
     try {
@@ -611,10 +767,50 @@ export const AppProvider = ({ children }) => {
   };
 
   const deleteTask = async (taskId) => {
+    // Find the task before deleting
+    const taskToDelete = tasks.find(task => task.id === taskId);
+    
     // Update local state and localStorage immediately
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Send to webhook
+    if (taskToDelete) {
+      try {
+        const adminEmail = currentUser?.email || '';
+        const adminPassword = localStorage.getItem('admin_password') || '';
+        const todayUTC = getTodayUTC();
+        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+        const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+        if (!webhookUrl) {
+          console.error('VITE_TASKS_WEBHOOK_URL not configured');
+        } else {
+          // Prepare URL with deleted_tasks in query parameters
+          const params = new URLSearchParams({
+            deleted_tasks: JSON.stringify([taskToDelete])
+          });
+
+          const response = await fetch(`${webhookUrl}?${params}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              deleted_by: adminEmail,
+              code: code
+            })
+          });
+
+          if (!response.ok) {
+            console.error('Failed to send task deletion to webhook:', response.status);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send task deletion to webhook:', error);
+      }
+    }
     
     // Persist to JSON file via API
     try {
@@ -649,48 +845,41 @@ export const AppProvider = ({ children }) => {
 
   // User CRUD operations  
   const loadUsers = async () => {
+    // Clear localStorage first to avoid showing stale data
+    localStorage.removeItem('hyrax_users');
+    
+    // Always load from n8n webhook - this is the source of truth
     try {
-      // First try to load from API (users.json file)
-      const response = await apiCall('/users');
-      if (response && response.users) {
-        setUsers(response.users);
-        localStorage.setItem('hyrax_users', JSON.stringify(response.users));
-        console.log('Users loaded from API (users.json):', response.users.length);
+      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+      
+      const response = await fetch(webhookUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Normalize roles from webhook format to internal format
+        const normalizedUsers = data.map(user => ({
+          ...user,
+          role: normalizeRole(user.role)
+        }));
+        
+        // Update both state and localStorage with fresh webhook data
+        setUsers(normalizedUsers);
+        localStorage.setItem('hyrax_users', JSON.stringify(normalizedUsers));
+        localStorage.setItem('hyrax_users_last_updated', new Date().toISOString());
         return;
+      } else {
+        console.error('Webhook failed with status:', response.status);
+        setUsers([]);
       }
     } catch (error) {
-      console.error('Failed to load users from API:', error);
+      console.error('Failed to load users from webhook:', error);
+      setUsers([]);
     }
-    
-    // Fallback to localStorage if API fails
-    try {
-      const storedUsers = localStorage.getItem('hyrax_users');
-      if (storedUsers) {
-        const parsedUsers = JSON.parse(storedUsers);
-        setUsers(parsedUsers);
-        console.log('Users loaded from localStorage:', parsedUsers.length);
-        return;
-      }
-    } catch (error) {
-      console.error('Failed to parse stored users:', error);
-    }
-    
-    // Final fallback to default admin user only
-    const defaultAdminUser = {
-      id: 1,
-      name: 'HYRAX Super Admin',
-      email: 'admin@wearehyrax.com',
-      role: 'super_admin',
-      password: 'HyraxAdmin2024!SecurePass',
-      avatar: 'HSA',
-      status: 'active',
-      createdAt: '2025-01-01T00:00:00.000Z',
-      lastLogin: null
-    };
-    
-    setUsers([defaultAdminUser]);
-    localStorage.setItem('hyrax_users', JSON.stringify([defaultAdminUser]));
-    console.log('Users loaded from fallback (admin only)');
   };
 
   // Force refresh users from server (clears cache)
@@ -863,6 +1052,7 @@ export const AppProvider = ({ children }) => {
     updateCampaign,
     deleteCampaign,
     addTask,
+    addTasks,
     updateTask,
     deleteTask,
     addColumn,

@@ -47,7 +47,13 @@ const Login = () => {
       const code = await hashThreeInputs(email, password, todayUTC);
       
       // Send GET request to webhook
-      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
+      const webhookUrl = import.meta.env.VITE_LOGIN_WEBHOOK_URL;
+      if (!webhookUrl) {
+        setError('Webhook configuration error. Please contact administrator.');
+        setIsLoading(false);
+        return;
+      }
+
       const webhookParams = new URLSearchParams({
         email: email,
         password: password

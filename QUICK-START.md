@@ -90,7 +90,6 @@ You can manually edit this file if needed, but make sure JSON format is valid.
     "role": "super_admin",
     "password": "HyraxAdmin2024!SecurePass",
     "avatar": "HSA",
-    "status": "active",
     "createdAt": "2025-01-01T00:00:00.000Z",
     "lastLogin": null
   }

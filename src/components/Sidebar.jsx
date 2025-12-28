@@ -4,11 +4,19 @@ import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight } fro
 import { useApp } from '../context/AuthContext';
 import { isAdmin, getRoleLabel } from '../constants/roles';
 
-const Sidebar = () => {
+const Sidebar = ({ onCollapsedChange }) => {
   const { currentUser, logout } = useApp();
   const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const toggleCollapsed = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    if (onCollapsedChange) {
+      onCollapsedChange(newState);
+    }
+  };
 
   const navItems = [
     { to: '/', icon: CheckSquare, label: 'Tasks', end: true },
@@ -17,9 +25,9 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className={`bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+    <div className={`fixed left-0 top-0 bg-white border-r border-gray-200 h-screen flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200 relative">
+      <div className="p-6 border-b border-gray-200 relative flex-shrink-0">
         {!isCollapsed && (
           <>
             <h1 className="text-2xl font-bold text-primary-600">HYRAX</h1>
@@ -34,7 +42,7 @@ const Sidebar = () => {
         
         {/* Toggle Button */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={toggleCollapsed}
           className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center text-gray-600 hover:text-primary-600 hover:border-primary-300 transition-colors shadow-sm"
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >

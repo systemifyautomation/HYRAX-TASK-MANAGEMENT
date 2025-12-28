@@ -2,17 +2,28 @@
 
 This document contains the complete API specification for the Campaign Management system.
 
-## Base URL
+## Base URLs
 ```
-http://localhost:3001/api
+Local: http://localhost:3001/api
+Webhooks: [Configured in environment variables]
 ```
 
 ## Authentication
-All endpoints require authentication using Bearer tokens. You must first obtain a token by logging in with valid credentials.
+The application uses a 2-step webhook-based authentication system with Slack verification:
 
-**Authentication Header:**
-```
-Authorization: Bearer <your-jwt-token>
+1. **Cryptographic Hashing**: Client generates secure hash with time-based component
+2. **Webhook Request**: Secure request to n8n webhook with validation headers
+3. **Slack Notification**: Rocky bot sends verification DM
+4. **Authentication**: Webhook responds with user data if credentials are valid
+
+**Authentication Flow:**
+```javascript
+// Client-side secure hashing
+const hash = await generateSecureHash(credentials);
+
+// Webhook request
+GET [LOGIN_WEBHOOK_URL]?email=user@example.com&password=[REDACTED]
+Headers: { 'x-hash-code': hash }
 ```
 
 ## Response Format
@@ -29,13 +40,145 @@ All responses follow this standard format:
 
 ---
 
-## Authentication Endpoints
+## n8n Webhook Endpoints
+
+### Login Verification
+
+**Endpoint:** `GET [LOGIN_WEBHOOK_URL]`
+
+**Description:** Authenticate user with 2-step Slack verification
+
+**Headers:**
+```
+x-hash-code: <Cryptographic hash for verification>
+```
+
+**Query Parameters:**
+```
+email: user@example.com
+password: [User password]
+```
+
+**Success Response:**
+```json
+{
+  "allowed": "yes",
+  "name": "John Doe",
+  "role": "super-admin",
+  "department": "DEV"
+}
+```
+
+**Failed Response:**
+```json
+{
+  "allowed": "no"
+}
+```
+
+**Notes:**
+- Role "super-admin" is normalized to "super_admin" on client
+- Slack DM sent to user during verification
+- Time-based hash validation for security
+
+---
+
+### Get All Users
+
+**Endpoint:** `GET [GET_USERS_WEBHOOK_URL]`
+
+**Description:** Fetch all users from n8n hosted database
+
+**Headers:**
+```
+x-hash-code: <Cryptographic hash for verification>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@hyrax.com",
+    "role": "super_admin",
+    "department": "DEV"
+  }
+]
+```
+
+---
+
+### Get All Campaigns
+
+**Endpoint:** `GET [GET_CAMPAIGNS_WEBHOOK_URL]`
+
+**Description:** Fetch all campaigns from n8n hosted database
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "campaign_name": "001_CCW",
+    "slack_channel_ID": "C092ZBS0KEK"
+  }
+]
+```
+
+**Response Mapping:**
+- `campaign_name` → `name`
+- `slack_channel_ID` → `slackId`
+
+---
+
+### Create User
+
+**Endpoint:** `POST [CREATE_USER_WEBHOOK_URL]`
+
+**Description:** Create new user (password auto-generated and sent via Slack)
+
+**Headers:**
+```
+Content-Type: application/json
+x-hash-code: <SHA-256 hash for verification>
+```
+
+**Request Body:**
+```json
+{
+  "name": "New User",
+  "email": "newuser@example.com",
+  "role": "team_member",
+  "department": "MEDIA BUYING",
+  "admin_email": "admin@hyrax.com"
+}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "message": "User created successfully"
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "error": "User already exists with this email"
+}
+```
+
+---
+
+## Local Authentication Endpoints
 
 ### Login
 
 **Endpoint:** `POST /auth/login`
 
-**Description:** Authenticate user and obtain access token
+**Description:** Authenticate user via webhook and obtain session data
 
 **Headers:**
 ```
