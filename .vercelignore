@@ -1,5 +1,30 @@
-# Don't ignore the data directory - we need users.json
-!server/data/
-!server/data/users.json
-!server/data/tasks.json
-!server/data/campaigns.json
+# Server folder (not needed for Vercel - using n8n)
+server/
+
+# Node modules  
+node_modules/
+
+# Development files
+.env.local
+.env.development
+
+# Test files
+*.test.js
+*.spec.js
+
+# Scripts
+scripts/
+capture-screenshots.ps1
+update-readme-screenshots.ps1
+test-*.mjs
+test-*.cjs
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
