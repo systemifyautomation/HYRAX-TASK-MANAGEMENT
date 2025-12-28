@@ -50,7 +50,7 @@ const Login = () => {
       const webhookUrl = import.meta.env.VITE_LOGIN_WEBHOOK_URL;
       if (!webhookUrl) {
         setError('Webhook configuration error. Please contact administrator.');
-        setIsLoading(false);
+        setLoading(false);
         return;
       }
 
