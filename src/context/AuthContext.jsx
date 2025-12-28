@@ -198,13 +198,9 @@ export const AppProvider = ({ children }) => {
     // Clear localStorage first to avoid showing stale data
     localStorage.removeItem('hyrax_users');
     
-    console.log('loadUsers called - fetching from webhook...');
-    
     // Always load from n8n webhook - this is the source of truth
     try {
       const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
-      
-      console.log('Fetching users from:', webhookUrl);
       
       const response = await fetch(webhookUrl, {
         method: 'GET',
@@ -213,20 +209,14 @@ export const AppProvider = ({ children }) => {
         }
       });
       
-      console.log('Users webhook response status:', response.status, response.ok);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('Users webhook raw data:', data);
         
         // Normalize roles from webhook format to internal format
         const normalizedUsers = data.map(user => ({
           ...user,
           role: normalizeRole(user.role)
         }));
-        
-        console.log('Normalized users:', normalizedUsers);
-        console.log('Setting users state with', normalizedUsers.length, 'users');
         
         // Update both state and localStorage with fresh webhook data
         setUsers(normalizedUsers);

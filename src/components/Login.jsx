@@ -87,8 +87,6 @@ const Login = () => {
         return;
       }
 
-      console.log('Webhook authentication successful:', webhookData);
-
       // Normalize the role from webhook format
       const normalizedRole = normalizeRole(webhookData.role);
 
@@ -102,8 +100,6 @@ const Login = () => {
         avatar: (webhookData.name || email).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 3),
         permissions: normalizedRole === 'super_admin' || normalizedRole === 'admin' ? ['all'] : ['read', 'write']
       };
-
-      console.log('Authenticated user:', authenticatedUser);
 
       // Create token
       const token = btoa(`${email}:${Date.now()}:token`);
