@@ -4,6 +4,7 @@ import { AppProvider, useApp } from './context/AuthContext';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Tasks from './pages/Tasks';
+import ScheduledTasks from './pages/ScheduledTasks';
 import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
 
@@ -67,6 +68,7 @@ const AppRouter = () => {
             <AppLayout>
               <Routes>
                 <Route path="/" element={<Tasks />} />
+                <Route path="/scheduled-tasks" element={<ScheduledTasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
                 <Route path="/users" element={<UserManagement />} />
               </Routes>

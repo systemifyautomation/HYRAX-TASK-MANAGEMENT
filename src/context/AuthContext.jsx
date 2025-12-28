@@ -20,6 +20,7 @@ export const AppProvider = ({ children }) => {
   // App state
   const [campaigns, setCampaigns] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [scheduledTasks, setScheduledTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [columns, setColumns] = useState([
     {
@@ -412,6 +413,7 @@ export const AppProvider = ({ children }) => {
     setIsAuthenticated(false);
     setCampaigns([]);
     setTasks([]);
+    setScheduledTasks([]);
     setUsers([]);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_user');
@@ -446,6 +448,8 @@ export const AppProvider = ({ children }) => {
     try {
       // Load tasks from webhook
       await loadTasksFromWebhook(user);
+      // Load scheduled tasks from webhook
+      await loadScheduledTasksFromWebhook(user);
     } catch (error) {
       console.error('Failed to load initial data:', error);
     }
@@ -898,6 +902,251 @@ export const AppProvider = ({ children }) => {
     setColumns(prev => prev.filter(column => column.id !== columnId));
   };
 
+  // Scheduled Tasks operations (same logic as tasks but different webhook)
+  const loadScheduledTasksFromWebhook = async (user = null) => {
+    try {
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_SCHEDULED_TASKS_WEBHOOK_URL not configured');
+        setScheduledTasks([]);
+        return;
+      }
+
+      const userEmail = user?.email || currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+
+      const params = new URLSearchParams({
+        requested_by: userEmail,
+        code: code
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Scheduled tasks loaded from webhook:', data.length || 0);
+        setScheduledTasks(data);
+        localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(data));
+      } else {
+        console.error('Failed to fetch scheduled tasks from webhook:', response.status);
+        setScheduledTasks([]);
+      }
+    } catch (error) {
+      console.error('Error loading scheduled tasks from webhook:', error);
+      setScheduledTasks([]);
+    }
+  };
+
+  const addScheduledTask = async (taskData) => {
+    const newTask = {
+      ...taskData,
+      id: scheduledTasks.length > 0 ? Math.max(...scheduledTasks.map(t => t.id)) + 1 : 1,
+      copyWritten: taskData.copyWritten === true,
+      viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
+      viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
+      viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
+      caliVariation: Array.isArray(taskData.caliVariation) ? taskData.caliVariation : [],
+      caliVariationApproval: Array.isArray(taskData.caliVariationApproval) ? taskData.caliVariationApproval : [],
+      caliVariationFeedback: Array.isArray(taskData.caliVariationFeedback) ? taskData.caliVariationFeedback : [],
+      slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
+      slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
+      slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    const updatedTasks = [...scheduledTasks, newTask];
+    setScheduledTasks(updatedTasks);
+    localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+    
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_SCHEDULED_TASKS_WEBHOOK_URL not configured');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        new_tasks: JSON.stringify([newTask])
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          added_by: adminEmail,
+          code: code
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send scheduled task to webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send scheduled task to webhook:', error);
+    }
+  };
+
+  const addScheduledTasks = async (tasksData) => {
+    if (!Array.isArray(tasksData) || tasksData.length === 0) {
+      return;
+    }
+
+    let currentMaxId = scheduledTasks.length > 0 ? Math.max(...scheduledTasks.map(t => t.id)) : 0;
+    const newTasks = tasksData.map((taskData) => {
+      currentMaxId += 1;
+      return {
+        ...taskData,
+        id: currentMaxId,
+        copyWritten: taskData.copyWritten === true,
+        viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
+        viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
+        viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
+        caliVariation: Array.isArray(taskData.caliVariation) ? taskData.caliVariation : [],
+        caliVariationApproval: Array.isArray(taskData.caliVariationApproval) ? taskData.caliVariationApproval : [],
+        caliVariationFeedback: Array.isArray(taskData.caliVariationFeedback) ? taskData.caliVariationFeedback : [],
+        slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
+        slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
+        slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    const updatedTasks = [...scheduledTasks, ...newTasks];
+    setScheduledTasks(updatedTasks);
+    localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_SCHEDULED_TASKS_WEBHOOK_URL not configured');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        new_tasks: JSON.stringify(newTasks)
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          added_by: adminEmail,
+          code: code
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send scheduled tasks to webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send scheduled tasks to webhook:', error);
+    }
+  };
+
+  const updateScheduledTask = async (taskId, updates) => {
+    const updatedTasks = scheduledTasks.map(task =>
+      task.id === taskId ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
+    );
+    setScheduledTasks(updatedTasks);
+    localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+    
+    const updatedTask = updatedTasks.find(task => task.id === taskId);
+    
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        console.error('VITE_SCHEDULED_TASKS_WEBHOOK_URL not configured');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        updated_tasks: JSON.stringify([updatedTask])
+      });
+
+      const response = await fetch(`${webhookUrl}?${params}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          updated_by: adminEmail,
+          code: code
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send scheduled task update to webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send scheduled task update to webhook:', error);
+    }
+  };
+
+  const deleteScheduledTask = async (taskId) => {
+    const updatedTasks = scheduledTasks.filter(task => task.id !== taskId);
+    setScheduledTasks(updatedTasks);
+    localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+    
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (webhookUrl) {
+        const params = new URLSearchParams({
+          deleted_task_ids: JSON.stringify([taskId])
+        });
+
+        const response = await fetch(`${webhookUrl}?${params}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            deleted_by: adminEmail,
+            code: code
+          })
+        });
+
+        if (!response.ok) {
+          console.error('Failed to send scheduled task deletion to webhook:', response.status);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send scheduled task deletion to webhook:', error);
+    }
+  };
+
   // User CRUD operations  
   // loadUsers moved above to be available in useEffect
 
@@ -1062,6 +1311,7 @@ export const AppProvider = ({ children }) => {
     // Data
     campaigns,
     tasks,
+    scheduledTasks,
     users,
     columns,
     
@@ -1074,6 +1324,11 @@ export const AppProvider = ({ children }) => {
     addTasks,
     updateTask,
     deleteTask,
+    addScheduledTask,
+    addScheduledTasks,
+    updateScheduledTask,
+    deleteScheduledTask,
+    loadScheduledTasksFromWebhook,
     addColumn,
     updateColumn,
     deleteColumn,
