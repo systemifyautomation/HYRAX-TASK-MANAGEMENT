@@ -1,23 +1,99 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
 import { isAdmin } from '../constants/roles';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
+
+// Start date: Monday November 24, 2025
+const WEEK_START_DATE = new Date(2025, 10, 24); // Month is 0-indexed, so 10 = November
+
+// Helper function to get Monday of a given date
+const getMondayOfWeek = (date) => {
+  return startOfWeek(date, { weekStartsOn: 1 }); // 1 = Monday
+};
+
+// Helper function to get Sunday of a given date
+const getSundayOfWeek = (date) => {
+  return endOfWeek(date, { weekStartsOn: 1 }); // 1 = Monday (so end will be Sunday)
+};
+
+// Convert week offset to label (0 = This week, 1 = Next week, -1 = Last week, etc.)
+const getWeekLabel = (weekOffset) => {
+  if (weekOffset === 0) return 'This week';
+  if (weekOffset === 1) return 'Next week';
+  if (weekOffset === 2) return '2 weeks from now';
+  if (weekOffset === -1) return 'Last week';
+  if (weekOffset < -1) return `${Math.abs(weekOffset)} weeks ago`;
+  if (weekOffset > 2) return `${weekOffset} weeks from now`;
+};
+
+// Format date to UTC dd/MM/yyyy
+const formatDateUTC = (date) => {
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Get date range string for a week offset
+const getWeekDateRange = (weekOffset) => {
+  const thisMonday = getMondayOfWeek(new Date());
+  const targetMonday = addWeeks(thisMonday, weekOffset);
+  const targetSunday = getSundayOfWeek(targetMonday);
+  
+  // Convert to UTC
+  const mondayUTC = new Date(Date.UTC(targetMonday.getFullYear(), targetMonday.getMonth(), targetMonday.getDate()));
+  const sundayUTC = new Date(Date.UTC(targetSunday.getFullYear(), targetSunday.getMonth(), targetSunday.getDate()));
+  
+  return `${formatDateUTC(mondayUTC)} - ${formatDateUTC(sundayUTC)}`;
+};
+
+// Get current week offset (0 = this week)
+const getCurrentWeekOffset = () => {
+  const thisMonday = getMondayOfWeek(new Date());
+  const startMonday = getMondayOfWeek(WEEK_START_DATE);
+  return differenceInWeeks(thisMonday, startMonday);
+};
+
+// Get current week date range string
+const getCurrentWeekDateRange = () => {
+  return getWeekDateRange(0);
+};
+
+// Generate week options from start date to 2 weeks from now
+const generateWeekOptions = () => {
+  const options = [];
+  const currentOffset = getCurrentWeekOffset();
+  
+  // From start date (most negative) to 2 weeks from now
+  for (let offset = 0; offset <= currentOffset + 2; offset++) {
+    const weekOffset = offset - currentOffset; // Convert to relative offset
+    options.push({
+      value: getWeekDateRange(weekOffset),
+      label: getWeekLabel(weekOffset),
+      weekOffset: weekOffset
+    });
+  }
+  
+  return options.reverse(); // Most recent first
+};
 
 const Tasks = () => {
   const { currentUser, tasks, users, campaigns, addTask, addTasks, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
   const filtersRef = useRef(null);
   
-  // Debug: Log users on component mount
+  // Debug: Log users and columns on component mount
   useEffect(() => {
     console.log('Tasks Component - Users from context:', users);
     console.log('Tasks Component - Users length:', users?.length);
     console.log('Tasks Component - Current user:', currentUser);
-  }, [users, currentUser]);
+    console.log('Tasks Component - Columns:', columns);
+    console.log('Tasks Component - Week column:', columns.find(c => c.key === 'week'));
+  }, [users, currentUser, columns]);
   
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [newTask, setNewTask] = useState({});
@@ -28,7 +104,7 @@ const Tasks = () => {
   const [displayType, setDisplayType] = useState('list'); // 'list', 'cards' - display mode
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
-  const [currentWeekOffset, setCurrentWeekOffset] = useState(0); // 0 = current week, -1 = last week, 1 = next week
+  const [selectedWeek, setSelectedWeek] = useState('all'); // 'all' or week value
   const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
   const [feedbackModal, setFeedbackModal] = useState(null); // { taskId, type: 'copyApproval' | 'adApproval', currentFeedback }
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
@@ -48,6 +124,9 @@ const Tasks = () => {
     type: 'text',
     dropdownOptions: [],
   });
+
+  // Generate week options
+  const weekOptions = useMemo(() => generateWeekOptions(), []);
 
   const handleCellEdit = (taskId, columnKey, value) => {
     // If admin/superadmin setting Copy Approval or Ad Approval to "Left feedback", open feedback modal
@@ -132,6 +211,16 @@ const Tasks = () => {
     setShowDatePicker(false);
   };
 
+  const handleViewChange = (view) => {
+    setCurrentView(view);
+    // Set week filter based on view
+    if (view === 'weekly') {
+      setSelectedWeek(getCurrentWeekDateRange()); // Set to "This week"
+    } else {
+      setSelectedWeek('all'); // Set to "All weeks"
+    }
+  };
+
   // Click outside handler to close filters dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -154,7 +243,8 @@ const Tasks = () => {
       ...newTask,
       status: newTask.status || 'approved',
       priority: newTask.priority || 'normal',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      week: newTask.week || getCurrentWeekDateRange() // Default to current week date range
     };
     addTask(taskToAdd);
     setNewTask({});
@@ -191,7 +281,8 @@ const Tasks = () => {
       ...task,
       id: undefined, // Will be assigned by addTask
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      week: task.week || getCurrentWeekDateRange() // Keep same week or default to current
     };
     addTask(duplicatedTask);
   };
@@ -202,7 +293,8 @@ const Tasks = () => {
       ...task,
       id: undefined, // Will be assigned by addTasks
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      week: task.week || getCurrentWeekDateRange() // Keep same week or default to current
     }));
     addTasks(duplicatedTasksData);
     setSelectedTasks(new Set());
@@ -287,17 +379,11 @@ const Tasks = () => {
   const filteredTasks = useMemo(() => {
     let filtered = tasks;
 
-    // Apply view-based filtering (weekly or all)
-    if (currentView === 'weekly') {
-      // Show all tasks for the selected week based on createdAt
-      const targetDate = addWeeks(new Date(), currentWeekOffset);
-      const weekStart = startOfWeek(targetDate, { weekStartsOn: 0 }); // Sunday
-      const weekEnd = endOfWeek(targetDate, { weekStartsOn: 0 }); // Saturday
-      
+    // Apply week filter
+    if (selectedWeek !== 'all') {
       filtered = filtered.filter(task => {
-        if (!task.createdAt) return false;
-        const taskDate = new Date(task.createdAt);
-        return isWithinInterval(taskDate, { start: weekStart, end: weekEnd });
+        const taskWeek = task.week || getCurrentWeekDateRange(); // Default to this week
+        return taskWeek === selectedWeek;
       });
     }
 
@@ -333,41 +419,7 @@ const Tasks = () => {
     }
 
     return filtered;
-  }, [tasks, currentView, selectedCampaign, currentWeekOffset, selectedUser, dateRangeStart, dateRangeEnd]);
-
-  // Handle view changes with smart defaults
-  const handleViewChange = (view) => {
-    setCurrentView(view);
-    if (view === 'weekly') {
-      // Reset to current week when switching to weekly view
-      setCurrentWeekOffset(0);
-    }
-  };
-
-  // Week navigation handlers
-  const handlePreviousWeek = () => {
-    setCurrentWeekOffset(prev => prev - 1);
-  };
-
-  const handleNextWeek = () => {
-    setCurrentWeekOffset(prev => prev + 1);
-  };
-
-  const handleCurrentWeek = () => {
-    setCurrentWeekOffset(0);
-  };
-
-  // Get current week date range for display
-  const getCurrentWeekRange = () => {
-    const targetDate = addWeeks(new Date(), currentWeekOffset);
-    const weekStart = startOfWeek(targetDate, { weekStartsOn: 0 });
-    const weekEnd = endOfWeek(targetDate, { weekStartsOn: 0 });
-    return {
-      start: weekStart,
-      end: weekEnd,
-      weekNumber: getWeek(targetDate)
-    };
-  };
+  }, [tasks, selectedCampaign, selectedWeek, selectedUser, dateRangeStart, dateRangeEnd]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -632,6 +684,22 @@ const Tasks = () => {
               ))}
             </select>
           </div>
+        );
+      
+      case 'weekdropdown':
+        const weekValue = value || getCurrentWeekDateRange(); // Default to this week
+        return (
+          <select
+            value={weekValue}
+            onChange={(e) => handleChange(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 cursor-pointer font-medium text-purple-800 shadow-sm"
+          >
+            {weekOptions.map(option => (
+              <option key={option.value} value={option.value} className="bg-white text-gray-800">
+                {option.label}
+              </option>
+            ))}
+          </select>
         );
       
       default:
@@ -1054,7 +1122,7 @@ const Tasks = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm ${
-                (selectedCampaign || selectedUser || dateRangeStart || dateRangeEnd) ? 'border-primary-500 bg-primary-50' : ''
+                (selectedCampaign || selectedUser || selectedWeek !== 'all' || dateRangeStart || dateRangeEnd) ? 'border-primary-500 bg-primary-50' : ''
               }`}
               title="Filters"
             >
@@ -1065,6 +1133,26 @@ const Tasks = () => {
             {showFilters && (
               <div ref={filtersRef} className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-20 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
                 <div className="space-y-4">
+                  {/* Week Filter */}
+                  <div>
+                    <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Week</label>
+                    <div className="relative">
+                      <select
+                        value={selectedWeek}
+                        onChange={(e) => setSelectedWeek(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm border-2 border-red-500/40 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black/50 text-white font-medium transition-all hover:border-red-500/60 appearance-none cursor-pointer shadow-inner backdrop-blur-sm"
+                      >
+                        <option value="all" className="bg-gray-900 text-gray-300">All Weeks</option>
+                        {weekOptions.map((option) => (
+                          <option key={option.value} value={option.value} className="bg-gray-900 text-white">{option.label}</option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <ChevronRight className="w-4 h-4 text-red-400 rotate-90" />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Campaign Filter */}
                   <div>
                     <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Campaign</label>
@@ -2114,29 +2202,6 @@ const Tasks = () => {
                 </>
               )}
             </div>
-            
-            {/* Simple Week Navigation - Only show in weekly view */}
-            {currentView === 'weekly' && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={handlePreviousWeek}
-                  className="p-1.5 rounded hover:bg-gray-200 transition-colors"
-                  title="Previous Week"
-                >
-                  <ChevronLeft className="w-4 h-4 text-gray-600" />
-                </button>
-                <span className="text-xs font-medium text-gray-700 min-w-[100px] text-center">
-                  Week {getCurrentWeekRange().weekNumber}
-                </span>
-                <button
-                  onClick={handleNextWeek}
-                  className="p-1.5 rounded hover:bg-gray-200 transition-colors"
-                  title="Next Week"
-                >
-                  <ChevronRight className="w-4 h-4 text-gray-600" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>

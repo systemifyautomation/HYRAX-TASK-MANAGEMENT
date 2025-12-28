@@ -90,6 +90,14 @@ export const AppProvider = ({ children }) => {
       visible: true
     },
     {
+      id: 'week',
+      name: 'Week',
+      key: 'week',
+      type: 'weekdropdown',
+      width: 200,
+      visible: true
+    },
+    {
       id: 'viewerLink',
       name: 'Viewer Link',
       key: 'viewerLink',

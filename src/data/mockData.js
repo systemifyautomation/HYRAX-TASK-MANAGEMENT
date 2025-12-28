@@ -87,14 +87,15 @@ export const taskTags = [
 
 // Spreadsheet columns configuration
 export const columns = [
-  { id: 'title', key: 'title', name: 'Title', type: 'text', canDelete: false },
-  { id: 'status', key: 'status', name: 'Status', type: 'dropdown', options: ['not_started', 'in_progress', 'submitted', 'needs_revision', 'approved'], canDelete: false },
-  { id: 'assignedTo', key: 'assignedTo', name: 'Assigned To', type: 'user', canDelete: false },
-  { id: 'campaignId', key: 'campaignId', name: 'Campaign', type: 'campaign', canDelete: false },
-  { id: 'dueDate', key: 'dueDate', name: 'Due Date', type: 'date', canDelete: false },
-  { id: 'priority', key: 'priority', name: 'Priority', type: 'dropdown', options: ['Critical', 'High', 'Normal', 'Low', 'Paused'], canDelete: false },
-  { id: 'type', key: 'type', name: 'Type', type: 'dropdown', options: ['copy', 'image', 'video', 'script'], canDelete: false },
-  { id: 'description', key: 'description', name: 'Description', type: 'text', canDelete: false },
+  { id: 'title', key: 'title', name: 'Title', type: 'text', canDelete: false, visible: true },
+  { id: 'status', key: 'status', name: 'Status', type: 'dropdown', options: ['not_started', 'in_progress', 'submitted', 'needs_revision', 'approved'], canDelete: false, visible: true },
+  { id: 'assignedTo', key: 'assignedTo', name: 'Assigned To', type: 'user', canDelete: false, visible: true },
+  { id: 'campaignId', key: 'campaignId', name: 'Campaign', type: 'campaign', canDelete: false, visible: true },
+  { id: 'week', key: 'week', name: 'Week', type: 'weekdropdown', canDelete: false, visible: true },
+  { id: 'dueDate', key: 'dueDate', name: 'Due Date', type: 'date', canDelete: false, visible: true },
+  { id: 'priority', key: 'priority', name: 'Priority', type: 'dropdown', options: ['Critical', 'High', 'Normal', 'Low', 'Paused'], canDelete: false, visible: true },
+  { id: 'type', key: 'type', name: 'Type', type: 'dropdown', options: ['copy', 'image', 'video', 'script'], canDelete: false, visible: true },
+  { id: 'description', key: 'description', name: 'Description', type: 'text', canDelete: false, visible: true },
 ];
 
 export const tasks = [
@@ -107,6 +108,7 @@ export const tasks = [
     description: 'Write engaging copy for main summer sale ads',
     assignedTo: 2,
     dueDate: '2024-12-13',
+    week: '23/12/2024 - 29/12/2024', // This week
     status: taskStatus.SUBMITTED,
     priority: taskPriority.HIGH,
   },
@@ -118,6 +120,7 @@ export const tasks = [
     description: 'Create hero banner image for the campaign',
     assignedTo: 3,
     dueDate: '2024-12-14',
+    week: '23/12/2024 - 29/12/2024', // This week
     status: taskStatus.APPROVED,
     priority: taskPriority.URGENT,
   },
@@ -129,6 +132,7 @@ export const tasks = [
     description: '30-second product showcase video',
     assignedTo: 4,
     dueDate: '2024-12-15',
+    week: '23/12/2024 - 29/12/2024', // This week
     status: taskStatus.IN_PROGRESS,
     priority: taskPriority.HIGH,
   },
@@ -140,6 +144,7 @@ export const tasks = [
     description: 'Copy for retargeting ads',
     assignedTo: 2,
     dueDate: '2024-12-16',
+    week: '30/12/2024 - 05/01/2025', // Next week
     status: taskStatus.NOT_STARTED,
     priority: taskPriority.NORMAL,
   },
@@ -151,6 +156,7 @@ export const tasks = [
     description: 'Create 5 carousel images for Instagram',
     assignedTo: 3,
     dueDate: '2024-12-17',
+    week: '30/12/2024 - 05/01/2025', // Next week
     status: taskStatus.NEEDS_REVISION,
     priority: taskPriority.HIGH,
   },
@@ -164,6 +170,7 @@ export const tasks = [
     description: 'Write script for 60-second holiday video',
     assignedTo: 2,
     dueDate: '2024-12-18',
+    week: '30/12/2024 - 05/01/2025', // Next week
     status: taskStatus.SUBMITTED,
     priority: taskPriority.URGENT,
   },
@@ -175,6 +182,7 @@ export const tasks = [
     description: 'Create 3 variations of holiday ad copy',
     assignedTo: 4,
     dueDate: '2024-12-19',
+    week: '30/12/2024 - 05/01/2025', // Next week
     status: taskStatus.IN_PROGRESS,
     priority: taskPriority.HIGH,
   },
@@ -186,6 +194,7 @@ export const tasks = [
     description: 'Design festive banner images',
     assignedTo: 3,
     dueDate: '2024-12-20',
+    week: '30/12/2024 - 05/01/2025', // Next week
     status: taskStatus.NOT_STARTED,
     priority: taskPriority.NORMAL,
   },
@@ -199,6 +208,7 @@ export const tasks = [
     description: 'Write copy for product launch announcement',
     assignedTo: 2,
     dueDate: '2024-12-10',
+    week: 0, // This week
     status: taskStatus.APPROVED,
     priority: taskPriority.URGENT,
   },
@@ -210,6 +220,7 @@ export const tasks = [
     description: 'Create product demonstration video',
     assignedTo: 4,
     dueDate: '2024-12-12',
+    week: 0, // This week
     status: taskStatus.APPROVED,
     priority: taskPriority.HIGH,
   },
@@ -223,6 +234,7 @@ export const tasks = [
     description: 'Outline the content strategy for Q1',
     assignedTo: 2,
     dueDate: '2024-12-25',
+    week: 1, // Next week
     status: taskStatus.NOT_STARTED,
     priority: taskPriority.NORMAL,
   },
@@ -234,6 +246,7 @@ export const tasks = [
     description: 'Write compelling brand story script',
     assignedTo: 4,
     dueDate: '2024-12-27',
+    week: 1, // Next week
     status: taskStatus.NOT_STARTED,
     priority: taskPriority.LOW,
   },
