@@ -152,7 +152,6 @@ const Tasks = () => {
   const handleAddTask = () => {
     const taskToAdd = {
       ...newTask,
-      title: newTask.title?.trim() || 'New Task',
       status: newTask.status || 'approved',
       priority: newTask.priority || 'normal',
       createdAt: new Date().toISOString()
@@ -191,7 +190,6 @@ const Tasks = () => {
     const duplicatedTask = {
       ...task,
       id: undefined, // Will be assigned by addTask
-      title: `${task.title} (Copy)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -203,7 +201,6 @@ const Tasks = () => {
     const duplicatedTasksData = tasksToDuplicate.map(task => ({
       ...task,
       id: undefined, // Will be assigned by addTasks
-      title: `${task.title} (Copy)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }));
@@ -1210,24 +1207,24 @@ const Tasks = () => {
         </div>
 
         {/* Right side - Action Buttons */}
-        {isAdminUser && (
-          <div className="flex items-center space-x-3">
-            {selectedTasks.size > 0 && (
-              <button
-                onClick={handleDuplicateSelectedTasks}
-                className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
-              >
-                <Copy className="w-4 h-4" />
-                <span>Duplicate ({selectedTasks.size})</span>
-              </button>
-            )}
+        <div className="flex items-center space-x-3">
+          {selectedTasks.size > 0 && (
             <button
-              onClick={() => setShowAddRow(!showAddRow)}
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
+              onClick={handleDuplicateSelectedTasks}
+              className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add Task</span>
+              <Copy className="w-4 h-4" />
+              <span>Duplicate ({selectedTasks.size})</span>
             </button>
+          )}
+          <button
+            onClick={() => setShowAddRow(!showAddRow)}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Task</span>
+          </button>
+          {isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}
               className="px-4 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
@@ -1235,37 +1232,392 @@ const Tasks = () => {
               <Settings className="w-4 h-4" />
               <span>Manage Columns</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Cards View */}
       {displayType === 'cards' ? (
         <div className="space-y-8">
-          {['MEDIA BUYING', 'VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
+          {/* MEDIA BUYING - Grouped by Users, then Campaigns */}
+          {users.filter(u => u.department === 'MEDIA BUYING').length > 0 && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">MEDIA BUYING</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {users.filter(u => u.department === 'MEDIA BUYING').map(user => {
+                  // Get all tasks for this user - convert scriptAssigned to number for comparison
+                  let userTasks = filteredTasks.filter(task => parseInt(task.scriptAssigned) === user.id);
+                  
+                  // Apply card-level campaign filter
+                  const cardCampaignFilter = cardCampaignFilters[user.id] || '';
+                  if (cardCampaignFilter) {
+                    userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
+                  }
+                  
+                  // Group tasks by campaign
+                  const tasksByCampaign = userTasks.reduce((acc, task) => {
+                    const campaignId = task.campaignId;
+                    if (!acc[campaignId]) {
+                      acc[campaignId] = [];
+                    }
+                    acc[campaignId].push(task);
+                    return acc;
+                  }, {});
+
+                  return (
+                    <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
+                      {/* User Header */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 border-b border-gray-200">
+                        <div className="flex flex-col items-center">
+                          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
+                            {user.name.charAt(0)}
+                          </div>
+                          <h3 className="text-lg font-bold text-gray-900 text-center">{user.name}</h3>
+                          <p className="text-xs text-gray-500 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+
+                      {/* Campaign Filter */}
+                      <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
+                        <select
+                          value={cardCampaignFilter}
+                          onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                        >
+                          <option value="">All Campaigns</option>
+                          {campaigns.map((campaign) => (
+                            <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Campaigns List */}
+                      <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+                        {Object.keys(tasksByCampaign).length === 0 ? (
+                          <div className="text-center py-8">
+                            <p className="text-sm text-gray-400 italic">No tasks</p>
+                          </div>
+                        ) : (
+                          Object.entries(tasksByCampaign).map(([campaignId, tasks]) => {
+                            const campaign = campaigns.find(c => c.id === parseInt(campaignId));
+                            
+                            return (
+                              <div key={campaignId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                <h4 className="font-semibold text-sm text-gray-800 mb-2">{campaign?.name || 'Unknown Campaign'}</h4>
+                                
+                                <div className="space-y-2">
+                                  {tasks.map(task => {
+                                    const getPriorityColor = (priority) => {
+                                      switch(priority?.toLowerCase()) {
+                                        case 'critical': return 'bg-red-100 text-red-700';
+                                        case 'high': return 'bg-orange-100 text-orange-700';
+                                        case 'normal': return 'bg-blue-100 text-blue-700';
+                                        case 'low': return 'bg-gray-100 text-gray-700';
+                                        case 'paused': return 'bg-purple-100 text-purple-700';
+                                        default: return 'bg-gray-100 text-gray-700';
+                                      }
+                                    };
+
+                                    return (
+                                      <div key={task.id} className="text-xs bg-white p-3 rounded border border-gray-200">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <select
+                                            value={task.priority || 'Normal'}
+                                            onChange={(e) => updateTask(task.id, { priority: e.target.value })}
+                                            className={`px-2 py-1 rounded font-medium text-xs border-0 cursor-pointer ${getPriorityColor(task.priority)}`}
+                                          >
+                                            <option value="Critical">Critical</option>
+                                            <option value="High">High</option>
+                                            <option value="Normal">Normal</option>
+                                            <option value="Low">Low</option>
+                                            <option value="Paused">Paused</option>
+                                          </select>
+                                          <select
+                                            value={task.mediaType || ''}
+                                            onChange={(e) => updateTask(task.id, { mediaType: e.target.value })}
+                                            className="px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded cursor-pointer"
+                                          >
+                                            <option value="">Select...</option>
+                                            <option value="IMAGE">IMAGE</option>
+                                            <option value="VIDEO">VIDEO</option>
+                                          </select>
+                                        </div>
+                                        
+                                        <div className="space-y-2 mt-2">
+                                          {/* Copy Written */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-gray-600 w-24">Copy Written:</span>
+                                            <input
+                                              type="checkbox"
+                                              checked={task.copyWritten || false}
+                                              onChange={(e) => updateTask(task.id, { copyWritten: e.target.checked })}
+                                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                            <span className={task.copyWritten ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                                              {task.copyWritten ? 'Yes' : 'No'}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Copy Link */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-gray-600 w-24">Copy Link:</span>
+                                            <input
+                                              type="text"
+                                              value={task.copyLink || ''}
+                                              onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
+                                              className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                              placeholder="Enter link..."
+                                            />
+                                            {task.copyLink && (
+                                              <a href={task.copyLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                                <ExternalLink className="w-3 h-3" />
+                                              </a>
+                                            )}
+                                          </div>
+                                          
+                                          {/* Copy Approval */}
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-gray-600 w-24">Approval:</span>
+                                            <select
+                                              value={task.copyApproval || ''}
+                                              onChange={(e) => updateTask(task.id, { copyApproval: e.target.value })}
+                                              className={`flex-1 px-2 py-1 text-xs border rounded cursor-pointer ${
+                                                task.copyApproval === 'Approved' ? 'bg-green-100 text-green-700 border-green-200' :
+                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                                'bg-white text-gray-700 border-gray-200'
+                                              }`}
+                                            >
+                                              <option value="">Select...</option>
+                                              <option value="Approved">Approved</option>
+                                              <option value="Needs Review">Needs Review</option>
+                                              <option value="Left feedback">Left feedback</option>
+                                              <option value="Unchecked">Unchecked</option>
+                                              <option value="Revisit Later">Revisit Later</option>
+                                            </select>
+                                          </div>
+                                          
+                                          {/* Show More Button */}
+                                          <button
+                                            onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
+                                            className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                                          >
+                                            {expandedCards[task.id] ? (
+                                              <>
+                                                <ChevronLeft className="w-3 h-3 rotate-90" />
+                                                Show Less
+                                              </>
+                                            ) : (
+                                              <>
+                                                <ChevronRight className="w-3 h-3 rotate-90" />
+                                                Show More
+                                              </>
+                                            )}
+                                          </button>
+                                          
+                                          {/* Expandable Additional Info */}
+                                          {expandedCards[task.id] && (
+                                            <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                                              {/* Assigned To */}
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-gray-600 w-24">Assigned To:</span>
+                                                <select
+                                                  value={task.assignedTo || ''}
+                                                  onChange={(e) => updateTask(task.id, { assignedTo: parseInt(e.target.value) })}
+                                                  className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                  <option value="">Select user...</option>
+                                                  {users.filter(u => {
+                                                    const dept = u.department?.trim().toUpperCase();
+                                                    return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
+                                                  }).map((user) => (
+                                                    <option key={user.id} value={user.id}>{user.name}</option>
+                                                  ))}
+                                                </select>
+                                              </div>
+                                              
+                                              {/* Campaign Name */}
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-gray-600 w-24">Campaign:</span>
+                                                <span className="text-gray-800">{campaign?.name || 'Unknown'}</span>
+                                              </div>
+                                              
+                                              {/* Viewer Link */}
+                                              <div className="space-y-1">
+                                                <span className="font-semibold text-gray-600 block">Viewer Links:</span>
+                                                {task.viewerLink && task.viewerLink.length > 0 ? (
+                                                  task.viewerLink.map((link, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                      <input
+                                                        type="text"
+                                                        value={link || ''}
+                                                        onChange={(e) => {
+                                                          const newLinks = [...(task.viewerLink || [])];
+                                                          newLinks[idx] = e.target.value;
+                                                          updateTask(task.id, { viewerLink: newLinks });
+                                                        }}
+                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        placeholder={`Viewer link ${idx + 1}`}
+                                                      />
+                                                      {link && (
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                                          <ExternalLink className="w-3 h-3" />
+                                                        </a>
+                                                      )}
+                                                      <button
+                                                        onClick={() => {
+                                                          const newLinks = task.viewerLink.filter((_, i) => i !== idx);
+                                                          updateTask(task.id, { viewerLink: newLinks });
+                                                        }}
+                                                        className="text-red-500 hover:text-red-700"
+                                                      >
+                                                        <X className="w-3 h-3" />
+                                                      </button>
+                                                    </div>
+                                                  ))
+                                                ) : (
+                                                  <p className="text-xs text-gray-400 italic">No viewer links</p>
+                                                )}
+                                                <button
+                                                  onClick={() => {
+                                                    const newLinks = [...(task.viewerLink || []), ''];
+                                                    updateTask(task.id, { viewerLink: newLinks });
+                                                  }}
+                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                >
+                                                  + Add Viewer Link
+                                                </button>
+                                              </div>
+                                              
+                                              {/* Cali Variation */}
+                                              <div className="space-y-1">
+                                                <span className="font-semibold text-gray-600 block">Cali Variation:</span>
+                                                {task.caliVariation && task.caliVariation.length > 0 ? (
+                                                  task.caliVariation.map((variation, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                      <input
+                                                        type="text"
+                                                        value={variation || ''}
+                                                        onChange={(e) => {
+                                                          const newVariations = [...(task.caliVariation || [])];
+                                                          newVariations[idx] = e.target.value;
+                                                          updateTask(task.id, { caliVariation: newVariations });
+                                                        }}
+                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        placeholder={`Variation ${idx + 1}`}
+                                                      />
+                                                      <button
+                                                        onClick={() => {
+                                                          const newVariations = task.caliVariation.filter((_, i) => i !== idx);
+                                                          updateTask(task.id, { caliVariation: newVariations });
+                                                        }}
+                                                        className="text-red-500 hover:text-red-700"
+                                                      >
+                                                        <X className="w-3 h-3" />
+                                                      </button>
+                                                    </div>
+                                                  ))
+                                                ) : (
+                                                  <p className="text-xs text-gray-400 italic">No variations</p>
+                                                )}
+                                                <button
+                                                  onClick={() => {
+                                                    const newVariations = [...(task.caliVariation || []), ''];
+                                                    updateTask(task.id, { caliVariation: newVariations });
+                                                  }}
+                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                >
+                                                  + Add Variation
+                                                </button>
+                                              </div>
+                                              
+                                              {/* Slack Permalink */}
+                                              <div className="space-y-1">
+                                                <span className="font-semibold text-gray-600 block">Slack Links:</span>
+                                                {task.slackPermalink && task.slackPermalink.length > 0 ? (
+                                                  task.slackPermalink.map((link, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                      <input
+                                                        type="text"
+                                                        value={link || ''}
+                                                        onChange={(e) => {
+                                                          const newLinks = [...(task.slackPermalink || [])];
+                                                          newLinks[idx] = e.target.value;
+                                                          updateTask(task.id, { slackPermalink: newLinks });
+                                                        }}
+                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        placeholder={`Slack link ${idx + 1}`}
+                                                      />
+                                                      {link && (
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                                          <ExternalLink className="w-3 h-3" />
+                                                        </a>
+                                                      )}
+                                                      <button
+                                                        onClick={() => {
+                                                          const newLinks = task.slackPermalink.filter((_, i) => i !== idx);
+                                                          updateTask(task.id, { slackPermalink: newLinks });
+                                                        }}
+                                                        className="text-red-500 hover:text-red-700"
+                                                      >
+                                                        <X className="w-3 h-3" />
+                                                      </button>
+                                                    </div>
+                                                  ))
+                                                ) : (
+                                                  <p className="text-xs text-gray-400 italic">No slack links</p>
+                                                )}
+                                                <button
+                                                  onClick={() => {
+                                                    const newLinks = [...(task.slackPermalink || []), ''];
+                                                    updateTask(task.id, { slackPermalink: newLinks });
+                                                  }}
+                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                >
+                                                  + Add Slack Link
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* VIDEO EDITING & GRAPHIC DESIGN - Grouped by Users with Campaigns */}
+          {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
             const departmentUsers = users.filter(u => u.department === department);
             
             if (departmentUsers.length === 0) return null;
 
             return (
-              <div key={department}>
+              <div key={department} className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {departmentUsers.map(user => {
-                    // Filter tasks based on department
+                    // Get all tasks for this user based on department
                     let userTasks = filteredTasks.filter(task => {
-                      if (department === 'MEDIA BUYING') {
-                        // Media Buyers: show tasks where they are assigned to script or generally assigned
-                        return task.scriptAssigned === user.id || (!task.scriptAssigned && task.assignedTo === user.id);
-                      } else if (department === 'VIDEO EDITING') {
-                        // Video Editors: show tasks where they are assigned and media type is VIDEO
+                      if (department === 'VIDEO EDITING') {
                         const mediaType = task.mediaType || task.type;
-                        return task.assignedTo === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
+                        return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
                       } else if (department === 'GRAPHIC DESIGN') {
-                        // Designers: show tasks where they are assigned and media type is IMAGE
                         const mediaType = task.mediaType || task.type;
-                        return task.assignedTo === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
+                        return parseInt(task.assignedTo) === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
                       }
                       return false;
                     });
@@ -1273,28 +1625,39 @@ const Tasks = () => {
                     // Apply card-level campaign filter
                     const cardCampaignFilter = cardCampaignFilters[user.id] || '';
                     if (cardCampaignFilter) {
-                      userTasks = userTasks.filter(task => task.campaignId === parseInt(cardCampaignFilter));
+                      userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
                     }
+
+                    // Group tasks by campaign
+                    const tasksByCampaign = userTasks.reduce((acc, task) => {
+                      const campaignId = task.campaignId || 'uncategorized';
+                      if (!acc[campaignId]) {
+                        acc[campaignId] = [];
+                      }
+                      acc[campaignId].push(task);
+                      return acc;
+                    }, {});
 
                     return (
                       <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
                         {/* User Header */}
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 border-b border-gray-200">
+                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 border-b border-purple-700">
                           <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
+                            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3 border-2 border-white/30">
                               {user.name.charAt(0)}
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 text-center">{user.name}</h3>
+                            <h3 className="text-lg font-bold text-white text-center">{user.name}</h3>
+                            <p className="text-xs text-purple-100 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
 
                         {/* Campaign Filter */}
                         <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
-                          <label className="block text-xs font-semibold text-gray-600 mb-2">Campaign</label>
+                          <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
                           <select
                             value={cardCampaignFilter}
                             onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white text-gray-900"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900"
                           >
                             <option value="">All Campaigns</option>
                             {campaigns.map((campaign) => (
@@ -1303,182 +1666,77 @@ const Tasks = () => {
                           </select>
                         </div>
 
-                        {/* Tasks List */}
-                        <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-                          {userTasks.length === 0 ? (
+                        {/* Campaigns List */}
+                        <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+                          {Object.keys(tasksByCampaign).length === 0 ? (
                             <div className="text-center py-8">
-                              <p className="text-sm text-gray-400 italic">No tasks</p>
+                              <p className="text-sm text-gray-400 italic">No tasks assigned</p>
                             </div>
                           ) : (
-                            userTasks.map(task => {
-                              const campaign = campaigns.find(c => c.id === task.campaignId);
+                            Object.entries(tasksByCampaign).map(([campaignId, tasks]) => {
+                              const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                               
-                              const getApprovalColor = (approval) => {
-                                switch(approval) {
-                                  case 'Approved': return 'text-green-600';
-                                  case 'Needs Review': return 'text-orange-600';
-                                  case 'Left feedback': return 'text-blue-600';
-                                  case 'Unchecked': return 'text-gray-500';
-                                  case 'Revisit Later': return 'text-purple-600';
-                                  default: return 'text-gray-500';
-                                }
-                              };
-
-                              const getPriorityColor = (priority) => {
-                                switch(priority?.toLowerCase()) {
-                                  case 'critical': return 'text-red-600';
-                                  case 'high': return 'text-orange-600';
-                                  case 'normal': return 'text-blue-600';
-                                  case 'low': return 'text-gray-500';
-                                  case 'paused': return 'text-purple-600';
-                                  default: return 'text-gray-500';
-                                }
-                              };
-
-                              const taskTitle = task.title || campaign?.name || `${task.mediaType || task.type || 'Task'} #${task.id}`;
-                              const scriptAssignedUser = users.find(u => u.id === task.scriptAssigned);
-
                               return (
-                                <div key={task.id} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                                  <div className="space-y-2">
-                                    {/* Task Title */}
-                                    <div className="text-sm font-semibold text-gray-800">{taskTitle}</div>
-                                    
-                                    {/* Priority Badge */}
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <span className={`px-2 py-1 rounded font-medium ${getPriorityColor(task.priority)} bg-gray-50`}>
-                                        {task.priority || 'Normal'}
-                                      </span>
-                                    </div>
+                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 overflow-hidden">
+                                  {/* Campaign Header */}
+                                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 px-3 py-2 border-b border-purple-200">
+                                    <h4 className="text-sm font-bold text-purple-900">
+                                      {campaign?.name || 'Uncategorized'}
+                                    </h4>
+                                    <p className="text-xs text-purple-600 mt-0.5">
+                                      {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Tasks for this campaign */}
+                                  <div className="p-3 space-y-3">
+                                    {tasks.map(task => {
+                                      const getPriorityColor = (priority) => {
+                                        switch(priority?.toLowerCase()) {
+                                          case 'critical': return 'bg-red-100 text-red-700';
+                                          case 'high': return 'bg-orange-100 text-orange-700';
+                                          case 'normal': return 'bg-blue-100 text-blue-700';
+                                          case 'low': return 'bg-gray-100 text-gray-700';
+                                          case 'paused': return 'bg-purple-100 text-purple-700';
+                                          default: return 'bg-gray-100 text-gray-700';
+                                        }
+                                      };
 
-                                    {/* Department-Specific Details */}
-                                    {department === 'Media Buyers' && (
-                                      <div className="space-y-2 text-xs mt-2">
-                                        {/* Script Assigned */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Script Assigned:</span>
-                                          <select
-                                            value={task.scriptAssigned || ''}
-                                            onChange={(e) => updateTask(task.id, { scriptAssigned: parseInt(e.target.value) })}
-                                            className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-900"
-                                          >
-                                            <option value="">Select user...</option>
-                                            {users.filter(u => u.department === 'Media Buyers').map((user) => (
-                                              <option key={user.id} value={user.id}>{user.name}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        
-                                        {/* Copy Written */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Copy Written:</span>
-                                          <input
-                                            type="checkbox"
-                                            checked={task.copyWritten || false}
-                                            onChange={(e) => updateTask(task.id, { copyWritten: e.target.checked })}
-                                            className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-2 focus:ring-red-500 cursor-pointer"
-                                          />
-                                          <span className={task.copyWritten ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                                            {task.copyWritten ? 'Yes' : 'No'}
-                                          </span>
-                                        </div>
-                                        
-                                        {/* Copy Link */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Copy Link:</span>
-                                          <input
-                                            type="text"
-                                            value={task.copyLink || ''}
-                                            onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
-                                            className="flex-1 px-2 py-1 text-xs bg-white text-black border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                            placeholder="Enter copy link..."
-                                          />
-                                          {task.copyLink && (
-                                            <a href={task.copyLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                              <ExternalLink className="w-4 h-4" />
-                                            </a>
-                                          )}
-                                        </div>
-                                        
-                                        {/* Copy Approval */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Copy Approval:</span>
-                                          <select
-                                            value={task.copyApproval || ''}
-                                            onChange={(e) => updateTask(task.id, { copyApproval: e.target.value })}
-                                            className={`flex-1 px-2 py-1 text-xs border rounded focus:ring-2 focus:ring-red-500 focus:border-red-500 font-medium ${
-                                              task.copyApproval === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
-                                              task.copyApproval === 'Needs Review' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                                              task.copyApproval === 'Left feedback' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                              task.copyApproval === 'Revisit Later' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                                              'bg-white text-gray-700 border-gray-200'
-                                            }`}
-                                          >
-                                            <option value="">Select...</option>
-                                            <option value="Approved">Approved</option>
-                                            <option value="Needs Review">Needs Review</option>
-                                            <option value="Left feedback">Left feedback</option>
-                                            <option value="Unchecked">Unchecked</option>
-                                            <option value="Revisit Later">Revisit Later</option>
-                                          </select>
-                                          {task.copyApproval === 'Left feedback' && (
-                                            <div className="relative group">
-                                              <div 
-                                                className={`w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
-                                                  isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : 'cursor-help'
-                                                }`}
-                                                onClick={() => isAdminUser && setFeedbackModal({
-                                                  taskId: task.id,
-                                                  type: 'copyApproval',
-                                                  columnKey: 'copyApproval',
-                                                  currentFeedback: task.copyApprovalFeedback || '',
-                                                  readOnly: !isAdminUser
-                                                })}
+                                      const assignedUser = users.find(u => u.id === parseInt(task.assignedTo));
+
+                                      return (
+                                        <div key={task.id} className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-md transition-shadow">
+                                          <div className="space-y-1.5">
+                                            {/* Assigned To */}
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-semibold text-gray-700 text-xs w-24">Assigned To:</span>
+                                              <select
+                                                value={task.assignedTo || ''}
+                                                onChange={(e) => updateTask(task.id, { assignedTo: parseInt(e.target.value) })}
+                                                className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
                                               >
-                                                <AlertCircle className="w-4 h-4 text-red-600" />
-                                              </div>
-                                              {task.copyApprovalFeedback && (
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 pointer-events-none">
-                                                  <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-xs whitespace-pre-wrap border border-gray-700">
-                                                    <div className="font-semibold mb-1 text-red-400">Feedback:</div>
-                                                    {task.copyApprovalFeedback}
-                                                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-                                                      <div className="border-4 border-transparent border-t-gray-900"></div>
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              )}
+                                                <option value="">Select user...</option>
+                                                {users.filter(u => {
+                                                  const dept = u.department?.trim().toUpperCase();
+                                                  return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
+                                                }).map((user) => (
+                                                  <option key={user.id} value={user.id}>{user.name}</option>
+                                                ))}
+                                              </select>
                                             </div>
-                                          )}
-                                        </div>
-                                        
-                                        {/* Show More Button */}
-                                        <button
-                                          onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
-                                          className="mt-2 text-xs text-red-600 hover:text-red-700 font-semibold flex items-center gap-1"
-                                        >
-                                          {expandedCards[task.id] ? (
-                                            <>
-                                              <ChevronLeft className="w-3 h-3 rotate-90" />
-                                              Show Less
-                                            </>
-                                          ) : (
-                                            <>
-                                              <ChevronRight className="w-3 h-3 rotate-90" />
-                                              Show More
-                                            </>
-                                          )}
-                                        </button>
-                                        
-                                        {/* Expandable Additional Info */}
-                                        {expandedCards[task.id] && (
-                                          <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
-                                            {/* Viewer Link */}
+                                            
+                                            {/* Campaign Name */}
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-semibold text-gray-700 text-xs w-24">Campaign:</span>
+                                              <span className="text-gray-900 text-xs truncate">{campaign?.name || 'Unknown'}</span>
+                                            </div>
+                                            
+                                            {/* Viewer Links */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-600 block">Viewer Links:</span>
+                                              <span className="font-semibold text-gray-700 text-xs block">Viewer Links:</span>
                                               {task.viewerLink && task.viewerLink.length > 0 ? (
                                                 task.viewerLink.map((link, idx) => (
-                                                  <div key={idx} className="flex items-center gap-2">
+                                                  <div key={idx} className="flex items-center gap-1">
                                                     <input
                                                       type="text"
                                                       value={link || ''}
@@ -1487,12 +1745,12 @@ const Tasks = () => {
                                                         newLinks[idx] = e.target.value;
                                                         updateTask(task.id, { viewerLink: newLinks });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Viewer link ${idx + 1}`}
                                                     />
                                                     {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                                        <ExternalLink className="w-4 h-4" />
+                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
+                                                        <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
                                                     )}
                                                     <button
@@ -1502,7 +1760,7 @@ const Tasks = () => {
                                                       }}
                                                       className="text-red-500 hover:text-red-700"
                                                     >
-                                                      <X className="w-3 h-3" />
+                                                      <X className="w-3.5 h-3.5" />
                                                     </button>
                                                   </div>
                                                 ))
@@ -1514,7 +1772,7 @@ const Tasks = () => {
                                                   const newLinks = [...(task.viewerLink || []), ''];
                                                   updateTask(task.id, { viewerLink: newLinks });
                                                 }}
-                                                className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Viewer Link
                                               </button>
@@ -1522,10 +1780,10 @@ const Tasks = () => {
                                             
                                             {/* Cali Variation */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-600 block">Cali Variation:</span>
+                                              <span className="font-semibold text-gray-700 text-xs block">Cali Variation:</span>
                                               {task.caliVariation && task.caliVariation.length > 0 ? (
                                                 task.caliVariation.map((variation, idx) => (
-                                                  <div key={idx} className="flex items-center gap-2">
+                                                  <div key={idx} className="flex items-center gap-1">
                                                     <input
                                                       type="text"
                                                       value={variation || ''}
@@ -1534,7 +1792,7 @@ const Tasks = () => {
                                                         newVariations[idx] = e.target.value;
                                                         updateTask(task.id, { caliVariation: newVariations });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Variation ${idx + 1}`}
                                                     />
                                                     <button
@@ -1544,7 +1802,7 @@ const Tasks = () => {
                                                       }}
                                                       className="text-red-500 hover:text-red-700"
                                                     >
-                                                      <X className="w-3 h-3" />
+                                                      <X className="w-3.5 h-3.5" />
                                                     </button>
                                                   </div>
                                                 ))
@@ -1556,18 +1814,18 @@ const Tasks = () => {
                                                   const newVariations = [...(task.caliVariation || []), ''];
                                                   updateTask(task.id, { caliVariation: newVariations });
                                                 }}
-                                                className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Variation
                                               </button>
                                             </div>
                                             
-                                            {/* Slack Permalink */}
+                                            {/* Slack Links */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-600 block">Slack Links:</span>
+                                              <span className="font-semibold text-gray-700 text-xs block">Slack Links:</span>
                                               {task.slackPermalink && task.slackPermalink.length > 0 ? (
                                                 task.slackPermalink.map((link, idx) => (
-                                                  <div key={idx} className="flex items-center gap-2">
+                                                  <div key={idx} className="flex items-center gap-1">
                                                     <input
                                                       type="text"
                                                       value={link || ''}
@@ -1576,12 +1834,12 @@ const Tasks = () => {
                                                         newLinks[idx] = e.target.value;
                                                         updateTask(task.id, { slackPermalink: newLinks });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Slack link ${idx + 1}`}
                                                     />
                                                     {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                                        <ExternalLink className="w-4 h-4" />
+                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
+                                                        <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
                                                     )}
                                                     <button
@@ -1591,7 +1849,7 @@ const Tasks = () => {
                                                       }}
                                                       className="text-red-500 hover:text-red-700"
                                                     >
-                                                      <X className="w-3 h-3" />
+                                                      <X className="w-3.5 h-3.5" />
                                                     </button>
                                                   </div>
                                                 ))
@@ -1603,85 +1861,120 @@ const Tasks = () => {
                                                   const newLinks = [...(task.slackPermalink || []), ''];
                                                   updateTask(task.id, { slackPermalink: newLinks });
                                                 }}
-                                                className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Slack Link
                                               </button>
                                             </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
+                                            
+                                            {/* Show More Button */}
+                                            <button
+                                              onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
+                                              className="mt-1 text-xs text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
+                                            >
+                                              {expandedCards[task.id] ? (
+                                                <>
+                                                  <ChevronLeft className="w-3 h-3 rotate-90" />
+                                                  Show Less
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <ChevronRight className="w-3 h-3 rotate-90" />
+                                                  Show More
+                                                </>
+                                              )}
+                                            </button>
+                                            
+                                            {/* Expandable Additional Info */}
+                                            {expandedCards[task.id] && (
+                                              <div className="mt-2 pt-2 border-t border-gray-200 space-y-1.5">
+                                                {/* Priority */}
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-700 text-xs w-24">Priority:</span>
+                                                  <select
+                                                    value={task.priority || 'Normal'}
+                                                    onChange={(e) => updateTask(task.id, { priority: e.target.value })}
+                                                    className={`flex-1 px-2 py-1 text-xs rounded font-medium focus:ring-2 focus:ring-purple-500 ${getPriorityColor(task.priority)}`}
+                                                  >
+                                                    <option value="Critical">Critical</option>
+                                                    <option value="High">High</option>
+                                                    <option value="Normal">Normal</option>
+                                                    <option value="Low">Low</option>
+                                                    <option value="Paused">Paused</option>
+                                                  </select>
+                                                </div>
 
-                                    {department === 'Video Editors' && (
-                                      <div className="space-y-1.5 text-xs mt-2">
-                                        {task.viewerLink && task.viewerLink.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Viewer Links:</span>
-                                            <div className="flex flex-col gap-1">
-                                              {task.viewerLink.map((link, idx) => (
-                                                <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline truncate">
-                                                  Link {idx + 1}
-                                                </a>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                        {task.caliVariation && task.caliVariation.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Cali Variation:</span>
-                                            <span className="text-gray-800">{task.caliVariation.join(', ')}</span>
-                                          </div>
-                                        )}
-                                        {task.slackPermalink && task.slackPermalink.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Slack Links:</span>
-                                            <div className="flex flex-col gap-1">
-                                              {task.slackPermalink.map((link, idx) => (
-                                                <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline truncate">
-                                                  Thread {idx + 1}
-                                                </a>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
+                                                {/* Media Type */}
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-700 text-xs w-24">Media Type:</span>
+                                                  <select
+                                                    value={task.mediaType || task.type || ''}
+                                                    onChange={(e) => updateTask(task.id, { mediaType: e.target.value })}
+                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                  >
+                                                    <option value="">Select...</option>
+                                                    <option value="IMAGE">Image</option>
+                                                    <option value="VIDEO">Video</option>
+                                                  </select>
+                                                </div>
 
-                                    {department === 'Designers' && (
-                                      <div className="space-y-1.5 text-xs mt-2">
-                                        {task.viewerLink && task.viewerLink.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Viewer Links:</span>
-                                            <div className="flex flex-col gap-1">
-                                              {task.viewerLink.map((link, idx) => (
-                                                <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline truncate">
-                                                  Link {idx + 1}
-                                                </a>
-                                              ))}
-                                            </div>
+                                                {/* Copy Link */}
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Link:</span>
+                                                  <input
+                                                    type="text"
+                                                    value={task.copyLink || ''}
+                                                    onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
+                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                    placeholder="Enter copy link..."
+                                                  />
+                                                </div>
+
+                                                {/* Copy Status */}
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Status:</span>
+                                                  <select
+                                                    value={task.copyApproval || ''}
+                                                    onChange={(e) => updateTask(task.id, { copyApproval: e.target.value })}
+                                                    className={`flex-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 ${
+                                                      task.copyApproval === 'Approved' ? 'text-green-700' :
+                                                      task.copyApproval === 'Needs Review' ? 'text-orange-700' :
+                                                      task.copyApproval === 'Left feedback' ? 'text-blue-700' :
+                                                      'text-gray-700'
+                                                    }`}
+                                                  >
+                                                    <option value="">Select...</option>
+                                                    <option value="Approved">Approved</option>
+                                                    <option value="Needs Review">Needs Review</option>
+                                                    <option value="Left feedback">Left feedback</option>
+                                                    <option value="Unchecked">Unchecked</option>
+                                                    <option value="Revisit Later">Revisit Later</option>
+                                                  </select>
+                                                </div>
+                                                
+                                                {/* Script Writer */}
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-700 text-xs w-24">Script Writer:</span>
+                                                  <select
+                                                    value={task.scriptAssigned || ''}
+                                                    onChange={(e) => updateTask(task.id, { scriptAssigned: parseInt(e.target.value) })}
+                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                  >
+                                                    <option value="">Select user...</option>
+                                                    {users.filter(u => {
+                                                      const dept = u.department?.trim().toUpperCase();
+                                                      return dept === 'MEDIA BUYING';
+                                                    }).map((user) => (
+                                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+                                              </div>
+                                            )}
                                           </div>
-                                        )}
-                                        {task.caliVariation && task.caliVariation.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Cali Variation:</span>
-                                            <span className="text-gray-800">{task.caliVariation.join(', ')}</span>
-                                          </div>
-                                        )}
-                                        {task.slackPermalink && task.slackPermalink.length > 0 && (
-                                          <div className="flex items-start">
-                                            <span className="font-semibold text-gray-600 w-28 flex-shrink-0">Slack Links:</span>
-                                            <div className="flex flex-col gap-1">
-                                              {task.slackPermalink.map((link, idx) => (
-                                                <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline truncate">
-                                                  Thread {idx + 1}
-                                                </a>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               );
@@ -1721,16 +2014,14 @@ const Tasks = () => {
                     </div>
                   </th>
                 ))}
-                {isAdminUser && (
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
-                    Actions
-                  </th>
-                )}
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {/* Add New Task Row */}
-              {showAddRow && isAdminUser && (
+              {showAddRow && (
                 <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 animate-in fade-in duration-200">
                   <td className="px-6 py-4 sticky left-0 bg-gradient-to-r from-blue-50 to-indigo-50 z-10">
                     {/* Empty checkbox cell for add row */}
@@ -1783,26 +2074,24 @@ const Tasks = () => {
                       {renderCell(task, column, false)}
                     </td>
                   ))}
-                  {isAdminUser && (
-                    <td className="px-6 py-4">
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => handleDuplicateTask(task)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                          title="Duplicate task"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTask(task.id)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                          title="Delete task"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-6 py-4">
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => handleDuplicateTask(task)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
+                        title="Duplicate task"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
+                        title="Delete task"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
