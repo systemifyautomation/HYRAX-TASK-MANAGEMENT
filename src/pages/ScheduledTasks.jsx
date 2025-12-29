@@ -125,8 +125,8 @@ const ScheduledTasks = () => {
     dropdownOptions: [],
   });
 
-  // Generate week options
-  const weekOptions = useMemo(() => generateWeekOptions(), []);
+  // Generate week options (filter out "Next week" and "2 weeks from now" for scheduled tasks)
+  const weekOptions = useMemo(() => generateWeekOptions().filter(option => option.weekOffset !== 1 && option.weekOffset !== 2), []);
 
   const handleCellEdit = (taskId, columnKey, value) => {
     // If admin/superadmin setting Copy Approval or Ad Approval to "Left feedback", open feedback modal
@@ -2095,7 +2095,7 @@ const ScheduledTasks = () => {
                 <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
                   Index
                 </th>
-                {columns.filter(col => col.visible !== false).map((column) => (
+                {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
                   <th 
                     key={column.id} 
                     className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[180px]"
@@ -2120,7 +2120,7 @@ const ScheduledTasks = () => {
                   <td className="px-4 py-4">
                     {/* Empty index cell for add row */}
                   </td>
-                  {columns.filter(col => col.visible !== false).map((column) => (
+                  {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
                     <td key={column.id} className="px-6 py-4 min-w-[180px]">
                       {renderCell({ id: 'new', ...newTask }, column, true)}
                     </td>
@@ -2163,7 +2163,7 @@ const ScheduledTasks = () => {
                   <td className="px-4 py-4 text-sm font-semibold text-gray-500">
                     {index + 1}
                   </td>
-                  {columns.filter(col => col.visible !== false).map((column) => (
+                  {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
                     <td 
                       key={column.id} 
                       className="px-6 py-4 min-w-[180px]"

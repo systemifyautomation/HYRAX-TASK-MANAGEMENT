@@ -63,13 +63,13 @@ const getCurrentWeekDateRange = () => {
   return getWeekDateRange(0);
 };
 
-// Generate week options from start date to 2 weeks from now
+// Generate week options from start date to this week + Next week option
 const generateWeekOptions = () => {
   const options = [];
   const currentOffset = getCurrentWeekOffset();
   
-  // From start date (most negative) to 2 weeks from now
-  for (let offset = 0; offset <= currentOffset + 2; offset++) {
+  // From start date (most negative) to this week
+  for (let offset = 0; offset <= currentOffset; offset++) {
     const weekOffset = offset - currentOffset; // Convert to relative offset
     options.push({
       value: getWeekDateRange(weekOffset),
@@ -78,11 +78,18 @@ const generateWeekOptions = () => {
     });
   }
   
+  // Add "Next week" option
+  options.push({
+    value: getWeekDateRange(1),
+    label: 'Next week',
+    weekOffset: 1
+  });
+  
   return options.reverse(); // Most recent first
 };
 
 const Tasks = () => {
-  const { currentUser, tasks, users, campaigns, addTask, addTasks, updateTask, deleteTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
+  const { currentUser, tasks, users, campaigns, addTask, addTasks, updateTask, deleteTask, addScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
   const filtersRef = useRef(null);
   
@@ -128,7 +135,25 @@ const Tasks = () => {
   // Generate week options
   const weekOptions = useMemo(() => generateWeekOptions(), []);
 
-  const handleCellEdit = (taskId, columnKey, value) => {
+  const handleCellEdit = async (taskId, columnKey, value) => {
+    // If week is changed to "Next week", move task to scheduled tasks
+    if (columnKey === 'week' && value === getWeekDateRange(1)) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        // Delete from tasks
+        await deleteTask(taskId);
+        
+        // Add to scheduled tasks
+        const scheduledTask = {
+          ...task,
+          week: value,
+          updatedAt: new Date().toISOString()
+        };
+        await addScheduledTask(scheduledTask);
+      }
+      return;
+    }
+    
     // If admin/superadmin setting Copy Approval or Ad Approval to "Left feedback", open feedback modal
     if (isAdminUser && (columnKey === 'copyApproval' || columnKey === 'adApproval') && value === 'Left feedback') {
       const task = tasks.find(t => t.id === taskId);
