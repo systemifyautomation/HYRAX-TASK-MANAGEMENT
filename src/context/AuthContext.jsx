@@ -22,6 +22,12 @@ export const AppProvider = ({ children }) => {
   const [tasks, setTasks] = useState([]);
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [users, setUsers] = useState([]);
+  
+  // Loading states for each data type
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [scheduledTasksLoading, setScheduledTasksLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [columns, setColumns] = useState([
     {
       id: 'priority',
@@ -80,6 +86,14 @@ export const AppProvider = ({ children }) => {
       key: 'assignedTo',
       type: 'user',
       width: 140,
+      visible: true
+    },
+    {
+      id: 'quantity',
+      name: 'Quantity',
+      key: 'quantity',
+      type: 'text',
+      width: 90,
       visible: true
     },
     {
@@ -196,6 +210,7 @@ export const AppProvider = ({ children }) => {
 
   // Load users from webhook
   const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
     // Clear localStorage first to avoid showing stale data
     localStorage.removeItem('hyrax_users');
     
@@ -231,15 +246,14 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to load users from webhook:', error);
       setUsers([]);
+    } finally {
+      setUsersLoading(false);
     }
   }, []);
 
   // Check authentication on mount
   useEffect(() => {
-    // Always load initial campaigns data, regardless of auth state
-    loadCampaignsData();
-    
-    // Load users data immediately
+    // Load users data immediately (needed for authentication)
     loadUsers();
     
     const token = localStorage.getItem('auth_token');
@@ -261,6 +275,7 @@ export const AppProvider = ({ children }) => {
 
   // Load campaigns data from webhook
   const loadCampaignsData = async () => {
+    setCampaignsLoading(true);
     // Clear localStorage first to avoid showing stale data
     localStorage.removeItem('hyrax_campaigns');
     
@@ -296,6 +311,8 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading campaigns:', error);
       setCampaigns([]);
+    } finally {
+      setCampaignsLoading(false);
     }
   };
 
@@ -430,7 +447,7 @@ export const AppProvider = ({ children }) => {
         setAuthToken(token);
         setCurrentUser(authenticatedUser);
         setIsAuthenticated(true);
-        await loadInitialData(authenticatedUser);
+        // Data will be loaded on-demand by each page
       } else {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('current_user');
@@ -444,19 +461,11 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const loadInitialData = async (user = null) => {
-    try {
-      // Load tasks from webhook
-      await loadTasksFromWebhook(user);
-      // Load scheduled tasks from webhook
-      await loadScheduledTasksFromWebhook(user);
-    } catch (error) {
-      console.error('Failed to load initial data:', error);
-    }
-  };
+  // Data is now loaded on-demand by each page
 
   // Load tasks from n8n webhook
-  const loadTasksFromWebhook = async (user = null) => {
+  const loadTasksFromWebhook = async (user = null, week = null) => {
+    setTasksLoading(true);
     try {
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -475,6 +484,11 @@ export const AppProvider = ({ children }) => {
         requested_by: userEmail,
         code: code
       });
+      
+      // Add week parameter if provided
+      if (week) {
+        params.append('week', week);
+      }
 
       const response = await fetch(`${webhookUrl}?${params}`, {
         method: 'GET',
@@ -485,9 +499,11 @@ export const AppProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Tasks loaded from webhook:', data.length || 0);
-        setTasks(data);
-        localStorage.setItem('hyrax_tasks', JSON.stringify(data));
+        // Filter out empty objects (happens when a week has no tasks)
+        const validTasks = Array.isArray(data) ? data.filter(task => task && Object.keys(task).length > 0 && task.id) : [];
+        console.log('Tasks loaded from webhook:', validTasks.length || 0);
+        setTasks(validTasks);
+        localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
       } else {
         console.error('Failed to fetch tasks from webhook:', response.status);
         setTasks([]);
@@ -495,6 +511,8 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading tasks from webhook:', error);
       setTasks([]);
+    } finally {
+      setTasksLoading(false);
     }
   };
 
@@ -881,6 +899,54 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Batch delete tasks
+  const deleteTasks = async (taskIds) => {
+    // Find all tasks before deleting
+    const tasksToDelete = tasks.filter(task => taskIds.includes(task.id));
+    
+    // Update local state and localStorage immediately
+    const updatedTasks = tasks.filter(task => !taskIds.includes(task.id));
+    setTasks(updatedTasks);
+    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Send to webhook (single request with all tasks)
+    if (tasksToDelete.length > 0) {
+      try {
+        const adminEmail = currentUser?.email || '';
+        const adminPassword = localStorage.getItem('admin_password') || '';
+        const todayUTC = getTodayUTC();
+        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+        const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+        if (!webhookUrl) {
+          console.error('VITE_TASKS_WEBHOOK_URL not configured');
+        } else {
+          // Prepare URL with deleted_tasks in query parameters
+          const params = new URLSearchParams({
+            deleted_tasks: JSON.stringify(tasksToDelete)
+          });
+
+          const response = await fetch(`${webhookUrl}?${params}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              deleted_by: adminEmail,
+              code: code
+            })
+          });
+
+          if (!response.ok) {
+            console.error('Failed to send tasks deletion to webhook:', response.status);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send tasks deletion to webhook:', error);
+      }
+    }
+  };
+
   // Column operations
   const addColumn = (columnData) => {
     const newColumn = {
@@ -904,6 +970,7 @@ export const AppProvider = ({ children }) => {
 
   // Scheduled Tasks operations (same logic as tasks but different webhook)
   const loadScheduledTasksFromWebhook = async (user = null) => {
+    setScheduledTasksLoading(true);
     try {
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -941,6 +1008,8 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading scheduled tasks from webhook:', error);
       setScheduledTasks([]);
+    } finally {
+      setScheduledTasksLoading(false);
     }
   };
 
@@ -1156,6 +1225,44 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Batch delete scheduled tasks
+  const deleteScheduledTasks = async (taskIds) => {
+    const updatedTasks = scheduledTasks.filter(task => !taskIds.includes(task.id));
+    setScheduledTasks(updatedTasks);
+    localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+    
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const todayUTC = getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+      const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+      if (webhookUrl) {
+        const params = new URLSearchParams({
+          deleted_task_ids: JSON.stringify(taskIds)
+        });
+
+        const response = await fetch(`${webhookUrl}?${params}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            deleted_by: adminEmail,
+            code: code
+          })
+        });
+
+        if (!response.ok) {
+          console.error('Failed to send scheduled tasks deletion to webhook:', response.status);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send scheduled tasks deletion to webhook:', error);
+    }
+  };
+
   // User CRUD operations  
   // loadUsers moved above to be available in useEffect
 
@@ -1320,12 +1427,22 @@ export const AppProvider = ({ children }) => {
     // Data
     campaigns,
     tasks,
+    setTasks,
     scheduledTasks,
+    setScheduledTasks,
     users,
     columns,
     
+    // Loading states
+    campaignsLoading,
+    tasksLoading,
+    scheduledTasksLoading,
+    usersLoading,
+    
     // Operations
     loadCampaigns,
+    loadCampaignsData,
+    loadTasksFromWebhook,
     addCampaign,
     updateCampaign,
     deleteCampaign,
@@ -1333,10 +1450,12 @@ export const AppProvider = ({ children }) => {
     addTasks,
     updateTask,
     deleteTask,
+    deleteTasks,
     addScheduledTask,
     addScheduledTasks,
     updateScheduledTask,
     deleteScheduledTask,
+    deleteScheduledTasks,
     loadScheduledTasksFromWebhook,
     addColumn,
     updateColumn,

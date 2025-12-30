@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
@@ -82,9 +82,27 @@ const generateWeekOptions = () => {
 };
 
 const ScheduledTasks = () => {
-  const { currentUser, scheduledTasks, users, campaigns, addScheduledTask, addScheduledTasks, updateScheduledTask, deleteScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
+  const { currentUser, scheduledTasks, setScheduledTasks, users, campaigns, scheduledTasksLoading, campaignsLoading, loadScheduledTasksFromWebhook, loadCampaignsData, addScheduledTask, addScheduledTasks, updateScheduledTask, deleteScheduledTask, deleteScheduledTasks, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
   const filtersRef = useRef(null);
+  
+  // Load scheduled tasks and campaigns data when component mounts
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadData = async () => {
+      if (mounted) {
+        await loadScheduledTasksFromWebhook();
+        await loadCampaignsData();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
   
   // Debug: Log users and columns on component mount
   useEffect(() => {
@@ -100,24 +118,13 @@ const ScheduledTasks = () => {
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
-  const [currentView, setCurrentView] = useState('weekly'); // 'all', 'weekly' - time-based filter
   const [displayType, setDisplayType] = useState('list'); // 'list', 'cards' - display mode
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
-  const [selectedWeek, setSelectedWeek] = useState('all'); // 'all' or week value
   const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
   const [feedbackModal, setFeedbackModal] = useState(null); // { taskId, type: 'copyApproval' | 'adApproval', currentFeedback }
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
-  const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
-  const [dateRangeEnd, setDateRangeEnd] = useState(''); // End date for date range filter
-  const [showDatePicker, setShowDatePicker] = useState(false); // Show custom date picker
-  const [dateRange, setDateRange] = useState([{
-    startDate: new Date(),
-    endDate: new Date(),
-    key: 'selection'
-  }]);
-  const [selectedQuickFilter, setSelectedQuickFilter] = useState('all');
   
   const [newColumn, setNewColumn] = useState({
     name: '',
@@ -127,8 +134,26 @@ const ScheduledTasks = () => {
 
   // Generate week options (filter out "Next week" and "2 weeks from now" for scheduled tasks)
   const weekOptions = useMemo(() => generateWeekOptions().filter(option => option.weekOffset !== 1 && option.weekOffset !== 2), []);
+  
+  // Debounce timer ref for text inputs
+  const debounceTimers = useRef({});
+  
+  // Debounced update function for text inputs - only debounces the webhook call
+  const debouncedUpdateScheduledTask = useCallback((taskId, columnKey, value) => {
+    // Clear existing timer for this field
+    const timerKey = `${taskId}-${columnKey}`;
+    if (debounceTimers.current[timerKey]) {
+      clearTimeout(debounceTimers.current[timerKey]);
+    }
+    
+    // Debounce the webhook PATCH request
+    debounceTimers.current[timerKey] = setTimeout(() => {
+      updateScheduledTask(taskId, { [columnKey]: value });
+      delete debounceTimers.current[timerKey];
+    }, 1000);
+  }, [updateScheduledTask]);
 
-  const handleCellEdit = (taskId, columnKey, value) => {
+  const handleCellEdit = (taskId, columnKey, value, columnType) => {
     // If admin/superadmin setting Copy Approval or Ad Approval to "Left feedback", open feedback modal
     if (isAdminUser && (columnKey === 'copyApproval' || columnKey === 'adApproval') && value === 'Left feedback') {
       const task = scheduledTasks.find(t => t.id === taskId);
@@ -139,7 +164,14 @@ const ScheduledTasks = () => {
         currentFeedback: task?.[feedbackKey] || ''
       });
     }
-    updateScheduledTask(taskId, { [columnKey]: value });
+    
+    // For text, url, and array fields: debounce the entire update (state + webhook)
+    if (columnType === 'text' || columnType === 'url' || columnType === 'array') {
+      debouncedUpdateScheduledTask(taskId, columnKey, value);
+    } else {
+      // Immediate update for other field types (dropdowns, checkboxes, etc.)
+      updateScheduledTask(taskId, { [columnKey]: value });
+    }
   };
 
   const handleSaveFeedback = (feedback) => {
@@ -172,53 +204,6 @@ const ScheduledTasks = () => {
       currentFeedback: task[feedbackKey] || '',
       readOnly: true
     });
-  };
-
-  // Date picker helper functions
-  const handleQuickFilter = (filter) => {
-    setSelectedQuickFilter(filter);
-    const today = new Date();
-    
-    switch(filter) {
-      case 'all':
-        setDateRangeStart('');
-        setDateRangeEnd('');
-        setShowDatePicker(false);
-        break;
-      case 'today':
-        setDateRange([{ startDate: today, endDate: today, key: 'selection' }]);
-        break;
-      case 'yesterday':
-        const yesterday = subDays(today, 1);
-        setDateRange([{ startDate: yesterday, endDate: yesterday, key: 'selection' }]);
-        break;
-      case 'last7':
-        setDateRange([{ startDate: subDays(today, 7), endDate: today, key: 'selection' }]);
-        break;
-      case 'last30':
-        setDateRange([{ startDate: subDays(today, 30), endDate: today, key: 'selection' }]);
-        break;
-    }
-  };
-
-  const applyDateFilter = () => {
-    setDateRangeStart(format(dateRange[0].startDate, 'yyyy-MM-dd'));
-    setDateRangeEnd(format(dateRange[0].endDate, 'yyyy-MM-dd'));
-    setShowDatePicker(false);
-  };
-
-  const cancelDateFilter = () => {
-    setShowDatePicker(false);
-  };
-
-  const handleViewChange = (view) => {
-    setCurrentView(view);
-    // Set week filter based on view
-    if (view === 'weekly') {
-      setSelectedWeek(getCurrentWeekDateRange()); // Set to "This week"
-    } else {
-      setSelectedWeek('all'); // Set to "All weeks"
-    }
   };
 
   // Click outside handler to close filters dropdown
@@ -300,6 +285,14 @@ const ScheduledTasks = () => {
     setSelectedTasks(new Set());
   };
 
+  const handleDeleteSelectedTasks = () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedTasks.size} task${selectedTasks.size !== 1 ? 's' : ''}?`)) {
+      const taskIdsArray = Array.from(selectedTasks);
+      deleteScheduledTasks(taskIdsArray);
+      setSelectedTasks(new Set());
+    }
+  };
+
   const handleEditColumn = (column) => {
     setEditingColumn({
       ...column,
@@ -379,47 +372,18 @@ const ScheduledTasks = () => {
   const filteredTasks = useMemo(() => {
     let filtered = scheduledTasks;
 
-    // Apply week filter
-    if (selectedWeek !== 'all') {
-      filtered = filtered.filter(task => {
-        const taskWeek = task.week || getCurrentWeekDateRange(); // Default to this week
-        return taskWeek === selectedWeek;
-      });
-    }
-
-    // Apply date range filter (works across all views)
-    if (dateRangeStart || dateRangeEnd) {
-      filtered = filtered.filter(task => {
-        if (!task.createdAt) return false;
-        const taskDate = startOfDay(new Date(task.createdAt));
-        
-        if (dateRangeStart && dateRangeEnd) {
-          const start = startOfDay(new Date(dateRangeStart));
-          const end = endOfDay(new Date(dateRangeEnd));
-          return isWithinInterval(taskDate, { start, end });
-        } else if (dateRangeStart) {
-          const start = startOfDay(new Date(dateRangeStart));
-          return taskDate >= start;
-        } else if (dateRangeEnd) {
-          const end = endOfDay(new Date(dateRangeEnd));
-          return taskDate <= end;
-        }
-        return true;
-      });
-    }
-
-    // Apply campaign filter (works across all views)
+    // Apply campaign filter
     if (selectedCampaign) {
       filtered = filtered.filter(task => task.campaignId === parseInt(selectedCampaign));
     }
 
-    // Apply user filter (works across all views)
+    // Apply user filter
     if (selectedUser) {
       filtered = filtered.filter(task => task.assignedTo === parseInt(selectedUser));
     }
 
     return filtered;
-  }, [scheduledTasks, selectedCampaign, selectedWeek, selectedUser, dateRangeStart, dateRangeEnd]);
+  }, [scheduledTasks, selectedCampaign, selectedUser]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -427,7 +391,7 @@ const ScheduledTasks = () => {
 
     const handleChange = isNewTask 
       ? (newValue) => handleNewTaskFieldChange(column.key, newValue)
-      : (newValue) => handleCellEdit(task.id, column.key, newValue);
+      : (newValue) => handleCellEdit(task.id, column.key, newValue, column.type);
 
     switch (column.type) {
       case 'array':
@@ -459,8 +423,9 @@ const ScheduledTasks = () => {
             {arrayValue.map((item, index) => (
               <div key={index} className="flex items-center space-x-2">
                 <input
+                  key={`${task.id}-${column.key}-${index}`}
                   type="text"
-                  value={item || ''}
+                  defaultValue={item || ''}
                   onChange={(e) => {
                     const newArray = [...arrayValue];
                     newArray[index] = e.target.value;
@@ -526,11 +491,12 @@ const ScheduledTasks = () => {
       case 'url':
         return (
           <input
+            key={`${task.id}-${column.key}`}
             type="text"
-            value={value || ''}
+            defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
-            placeholder={column.name}
+            className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
+            placeholder={column.key === 'quantity' ? 'x1' : column.name}
           />
         );
       
@@ -708,6 +674,11 @@ const ScheduledTasks = () => {
   };
 
   const formatCellValue = (value, column) => {
+    // Special handling for quantity field - default to "x1" if no value
+    if (!value && column.key === 'quantity') {
+      return <span className="text-sm text-gray-700">x1</span>;
+    }
+    
     if (!value) return <span className="text-gray-400">-</span>;
     
     switch (column.type) {
@@ -798,9 +769,21 @@ const ScheduledTasks = () => {
     }
   };
 
+  // Show loading state while data is being fetched
+  if (scheduledTasksLoading || campaignsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading scheduled tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="p-8">
+    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+      <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">
           <h1 className="page-title">
@@ -1073,28 +1056,6 @@ const ScheduledTasks = () => {
       <div className="mb-4 flex items-center justify-between">
         {/* Left side - View Toggles */}
         <div className="flex items-center space-x-3">
-          {/* Time Filter Toggle - Weekly / All */}
-          <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-            <button
-              onClick={() => handleViewChange('weekly')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                currentView === 'weekly' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Weekly</span>
-            </button>
-            <button
-              onClick={() => handleViewChange('all')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                currentView === 'all' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Grid3X3 className="w-4 h-4" />
-              <span>View All</span>
-            </button>
-          </div>
-
           {/* Display Type Toggle - List / Cards */}
           <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
             <button
@@ -1122,7 +1083,7 @@ const ScheduledTasks = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm ${
-                (selectedCampaign || selectedUser || selectedWeek !== 'all' || dateRangeStart || dateRangeEnd) ? 'border-primary-500 bg-primary-50' : ''
+                (selectedCampaign || selectedUser) ? 'border-primary-500 bg-primary-50' : ''
               }`}
               title="Filters"
             >
@@ -1131,28 +1092,8 @@ const ScheduledTasks = () => {
             
             {/* Filter Dropdown */}
             {showFilters && (
-              <div ref={filtersRef} className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-20 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
+              <div ref={filtersRef} className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-40 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
                 <div className="space-y-4">
-                  {/* Week Filter */}
-                  <div>
-                    <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Week</label>
-                    <div className="relative">
-                      <select
-                        value={selectedWeek}
-                        onChange={(e) => setSelectedWeek(e.target.value)}
-                        className="w-full px-4 py-2.5 text-sm border-2 border-red-500/40 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black/50 text-white font-medium transition-all hover:border-red-500/60 appearance-none cursor-pointer shadow-inner backdrop-blur-sm"
-                      >
-                        <option value="all" className="bg-gray-900 text-gray-300">All Weeks</option>
-                        {weekOptions.map((option) => (
-                          <option key={option.value} value={option.value} className="bg-gray-900 text-white">{option.label}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ChevronRight className="w-4 h-4 text-red-400 rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Campaign Filter */}
                   <div>
                     <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Campaign</label>
@@ -1193,95 +1134,12 @@ const ScheduledTasks = () => {
                     </div>
                   </div>
                   
-                  {/* Date Range Filter */}
-                  <div className="border-t-2 border-red-500/20 pt-4 mt-2">
-                    <button
-                      onClick={() => {
-                        setShowDatePicker(!showDatePicker);
-                      }}
-                      className="w-full text-left block text-sm font-bold text-red-500 mb-3 uppercase tracking-wider flex items-center justify-between gap-2 hover:text-red-400 transition-colors"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        Date Range
-                      </span>
-                      {(dateRangeStart || dateRangeEnd) && (
-                        <span className="text-xs text-red-300 normal-case font-normal">
-                          {dateRangeStart && dateRangeEnd ? `${format(new Date(dateRangeStart), 'MMM d')} - ${format(new Date(dateRangeEnd), 'MMM d')}` : 
-                           dateRangeStart ? `From ${format(new Date(dateRangeStart), 'MMM d')}` :
-                           `Until ${format(new Date(dateRangeEnd), 'MMM d')}`}
-                        </span>
-                      )}
-                    </button>
-                    
-                    {showDatePicker && (
-                      <div className="mt-3 bg-gradient-to-br from-gray-950 to-black border-2 border-red-500/40 rounded-xl overflow-hidden shadow-2xl shadow-red-500/20">
-                        <div className="flex">
-                          {/* Quick Filters */}
-                          <div className="w-32 bg-black/50 border-r border-red-500/30 p-3">
-                            <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-2">Quick</div>
-                            {[
-                              { label: 'All Dates', value: 'all' },
-                              { label: 'Today', value: 'today' },
-                              { label: 'Yesterday', value: 'yesterday' },
-                              { label: 'Last 7 Days', value: 'last7' },
-                              { label: 'Last 30 Days', value: 'last30' }
-                            ].map(option => (
-                              <button
-                                key={option.value}
-                                onClick={() => handleQuickFilter(option.value)}
-                                className={`w-full text-left px-2 py-1.5 text-xs rounded mb-1 transition-all ${
-                                  selectedQuickFilter === option.value 
-                                    ? 'bg-red-600 text-white font-semibold' 
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            ))}
-                          </div>
-                          
-                          {/* Date Range Picker */}
-                          <div className="flex-1 date-range-picker-custom">
-                            <DateRangePicker
-                              ranges={dateRange}
-                              onChange={item => setDateRange([item.selection])}
-                              months={1}
-                              direction="horizontal"
-                              showSelectionPreview={true}
-                              moveRangeOnFirstSelection={false}
-                              rangeColors={['#dc2626']}
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Apply/Cancel Buttons */}
-                        <div className="flex gap-2 p-3 bg-black/30 border-t border-red-500/30">
-                          <button
-                            onClick={cancelDateFilter}
-                            className="flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-white border border-gray-700 hover:border-gray-600 rounded-lg transition-all"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={applyDateFilter}
-                            className="flex-1 px-3 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-lg transition-all shadow-lg shadow-red-500/30"
-                          >
-                            Apply
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
                   {/* Clear Filters Button */}
-                  {(selectedCampaign || selectedUser || dateRangeStart || dateRangeEnd) && (
+                  {(selectedCampaign || selectedUser) && (
                     <button
                       onClick={() => {
                         setSelectedCampaign('');
                         setSelectedUser('');
-                        setDateRangeStart('');
-                        setDateRangeEnd('');
                       }}
                       className="w-full px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 border-2 border-red-500/50 rounded-lg transition-all duration-200 shadow-lg shadow-red-500/30 hover:shadow-red-500/50 uppercase tracking-wide"
                     >
@@ -1297,13 +1155,22 @@ const ScheduledTasks = () => {
         {/* Right side - Action Buttons */}
         <div className="flex items-center space-x-3">
           {selectedTasks.size > 0 && (
-            <button
-              onClick={handleDuplicateSelectedTasks}
-              className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
-            >
-              <Copy className="w-4 h-4" />
-              <span>Duplicate ({selectedTasks.size})</span>
-            </button>
+            <>
+              <button
+                onClick={handleDuplicateSelectedTasks}
+                className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Duplicate ({selectedTasks.size})</span>
+              </button>
+              <button
+                onClick={handleDeleteSelectedTasks}
+                className="px-4 py-2 bg-white border border-red-200 hover:border-red-300 text-red-700 hover:text-red-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete ({selectedTasks.size})</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowAddRow(!showAddRow)}
@@ -1312,7 +1179,7 @@ const ScheduledTasks = () => {
             <Plus className="w-4 h-4" />
             <span>Add Task</span>
           </button>
-          {isAdminUser && (
+          {false && isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}
               className="px-4 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
@@ -2079,12 +1946,13 @@ const ScheduledTasks = () => {
         </div>
       ) : (
         /* Spreadsheet Table */
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden backdrop-blur-sm">
-        <div className="overflow-x-auto max-w-full">
-          <table className="w-full min-w-max">
-            <thead>
+        <div className="flex-1 overflow-hidden pb-8">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full flex flex-col">
+            <div className="flex-1 overflow-auto">
+              <table className="w-full min-w-max">
+            <thead className="sticky top-0 z-20">
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-10">
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-30">
                   <input
                     type="checkbox"
                     checked={selectedTasks.size === filteredTasks.length && filteredTasks.length > 0}
@@ -2098,7 +1966,7 @@ const ScheduledTasks = () => {
                 {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
                   <th 
                     key={column.id} 
-                    className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[180px]"
+                    className={`px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
                   >
                     <div className="flex items-center space-x-2">
                       <span>{column.name}</span>
@@ -2121,7 +1989,7 @@ const ScheduledTasks = () => {
                     {/* Empty index cell for add row */}
                   </td>
                   {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
-                    <td key={column.id} className="px-6 py-4 min-w-[180px]">
+                    <td key={column.id} className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}>
                       {renderCell({ id: 'new', ...newTask }, column, true)}
                     </td>
                   ))}
@@ -2166,7 +2034,7 @@ const ScheduledTasks = () => {
                   {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
                     <td 
                       key={column.id} 
-                      className="px-6 py-4 min-w-[180px]"
+                      className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
                     >
                       {renderCell(task, column, false)}
                     </td>
@@ -2213,7 +2081,8 @@ const ScheduledTasks = () => {
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </div>
       )}
 
       {/* Feedback Modal */}
@@ -2276,7 +2145,7 @@ const ScheduledTasks = () => {
         </div>
       )}
     </div>
-    </div>
+  </div>
   );
 };
 

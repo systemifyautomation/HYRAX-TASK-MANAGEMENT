@@ -2,24 +2,38 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AuthContext';
 
 const CampaignsList = () => {
-  const { campaigns, tasks } = useApp();
-  const [loading, setLoading] = useState(true);
+  const { campaigns, tasks, campaignsLoading, loadCampaignsData } = useApp();
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  // Use campaigns from context instead of fetching from API
+  // Load campaigns when component mounts
   useEffect(() => {
-    // Simulate loading for better UX
-    setTimeout(() => {
-      setLoading(false);
+    let mounted = true;
+    
+    const loadData = async () => {
+      if (mounted) {
+        await loadCampaignsData();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Check for errors when campaigns are loaded
+  useEffect(() => {
+    if (!campaignsLoading) {
       if (campaigns.length === 0) {
         setError('No campaigns available');
       } else {
         setError(null);
       }
-    }, 100);
-  }, [campaigns]);
+    }
+  }, [campaigns, campaignsLoading]);
 
   // Calculate pagination
   const totalPages = Math.ceil(campaigns.length / itemsPerPage);
@@ -51,12 +65,21 @@ const CampaignsList = () => {
   };
 
   const handleRefresh = () => {
-    setLoading(true);
     setCurrentPage(1); // Reset to first page on refresh
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    loadCampaignsData();
   };
+
+  // Show loading state while data is being fetched
+  if (campaignsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading campaigns...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -78,13 +101,13 @@ const CampaignsList = () => {
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={campaignsLoading}
                 className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center space-x-2"
               >
-                <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-4 h-4 ${campaignsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+                <span>{campaignsLoading ? 'Refreshing...' : 'Refresh'}</span>
               </button>
             </div>
           </div>
