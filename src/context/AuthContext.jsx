@@ -251,6 +251,148 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  // Background refresh function - silently updates data without showing loading states
+  const backgroundRefresh = useCallback(async () => {
+    if (!isAuthenticated || !currentUser) return;
+
+    console.log('🔄 Background refresh started...');
+    try {
+      // Silently refresh all data without setting loading states
+      const promises = [];
+
+      // Refresh users
+      promises.push((async () => {
+        try {
+          const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+          const response = await fetch(webhookUrl, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data)) {
+              const normalizedUsers = data.map(user => ({
+                ...user,
+                role: normalizeRole(user.role)
+              }));
+              setUsers(normalizedUsers);
+              localStorage.setItem('hyrax_users', JSON.stringify(normalizedUsers));
+            }
+          }
+        } catch (error) {
+          console.error('Background users refresh failed:', error);
+        }
+      })());
+
+      // Refresh campaigns
+      promises.push((async () => {
+        try {
+          const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+          if (webhookUrl) {
+            const response = await fetch(webhookUrl, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (Array.isArray(data)) {
+                const mappedCampaigns = data.map(campaign => ({
+                  id: campaign.id,
+                  name: campaign.campaign_name,
+                  slackId: campaign.slack_channel_ID
+                }));
+                setCampaigns(mappedCampaigns);
+                localStorage.setItem('hyrax_campaigns', JSON.stringify(mappedCampaigns));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Background campaigns refresh failed:', error);
+        }
+      })());
+
+      // Refresh tasks - get current page context from localStorage to know what to refresh
+      const currentPage = localStorage.getItem('hyrax_current_page');
+      const currentWeek = localStorage.getItem('hyrax_current_week');
+      
+      if (currentPage === 'tasks' || tasks.length > 0) {
+        promises.push((async () => {
+          try {
+            const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+            if (webhookUrl) {
+              const userEmail = currentUser?.email || '';
+              const adminPassword = localStorage.getItem('admin_password') || '';
+              const todayUTC = getTodayUTC();
+              const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+              const params = new URLSearchParams({
+                requested_by: userEmail,
+                code: code
+              });
+              
+              // Add week parameter if we have it stored
+              if (currentWeek && currentWeek !== 'all') {
+                params.append('week', currentWeek);
+              }
+              
+              const response = await fetch(`${webhookUrl}?${params}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                  const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
+                  setTasks(validTasks);
+                  localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Background tasks refresh failed:', error);
+          }
+        })());
+      }
+
+      // Refresh scheduled tasks
+      if (currentPage === 'scheduledTasks' || scheduledTasks.length > 0) {
+        promises.push((async () => {
+          try {
+            const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
+            if (webhookUrl) {
+              const userEmail = currentUser?.email || '';
+              const adminPassword = localStorage.getItem('admin_password') || '';
+              const todayUTC = getTodayUTC();
+              const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+              const params = new URLSearchParams({
+                requested_by: userEmail,
+                code: code
+              });
+              const response = await fetch(`${webhookUrl}?${params}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                  setScheduledTasks(data);
+                  localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(data));
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Background scheduled tasks refresh failed:', error);
+          }
+        })());
+      }
+
+      // Execute all refreshes in parallel
+      await Promise.all(promises);
+      console.log('✅ Background refresh completed');
+    } catch (error) {
+      console.error('Background refresh error:', error);
+    }
+  }, [isAuthenticated, currentUser, tasks.length, scheduledTasks.length]);
+
   // Check authentication on mount
   useEffect(() => {
     // Load users data immediately (needed for authentication)
@@ -272,6 +414,20 @@ export const AppProvider = ({ children }) => {
       clearInterval(usersRefreshInterval);
     };
   }, []);
+
+  // Background data refresh every 5 seconds when authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) return;
+
+    // Start background refresh
+    const refreshInterval = setInterval(() => {
+      backgroundRefresh();
+    }, 5000); // 5 seconds
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [isAuthenticated, currentUser, backgroundRefresh]);
 
   // Load campaigns data from webhook
   const loadCampaignsData = async () => {

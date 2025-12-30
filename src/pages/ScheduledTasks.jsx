@@ -92,6 +92,9 @@ const ScheduledTasks = () => {
     
     const loadData = async () => {
       if (mounted) {
+        // Store current page for background refresh
+        localStorage.setItem('hyrax_current_page', 'scheduledTasks');
+        
         await loadScheduledTasksFromWebhook();
         await loadCampaignsData();
       }
@@ -101,6 +104,10 @@ const ScheduledTasks = () => {
     
     return () => {
       mounted = false;
+      // Clear page marker when leaving
+      if (localStorage.getItem('hyrax_current_page') === 'scheduledTasks') {
+        localStorage.removeItem('hyrax_current_page');
+      }
     };
   }, []);
   

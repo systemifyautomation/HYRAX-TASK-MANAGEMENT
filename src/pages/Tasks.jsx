@@ -94,6 +94,23 @@ const Tasks = () => {
   const canGiveFeedback = currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN;
   const filtersRef = useRef(null);
   
+  // Debounce timer for background updates
+  const updateTimersRef = useRef({});
+  
+  // Debounced update function - updates state immediately, syncs to backend after delay
+  const debouncedUpdate = useCallback((taskId, updates, delay = 1000) => {
+    // Clear existing timer for this task
+    if (updateTimersRef.current[taskId]) {
+      clearTimeout(updateTimersRef.current[taskId]);
+    }
+    
+    // Set new timer
+    updateTimersRef.current[taskId] = setTimeout(() => {
+      updateTask(taskId, updates);
+      delete updateTimersRef.current[taskId];
+    }, delay);
+  }, [updateTask]);
+  
   // State declarations
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [newTask, setNewTask] = useState({});
@@ -111,6 +128,10 @@ const Tasks = () => {
     
     const loadData = async () => {
       if (mounted) {
+        // Store current page and week for background refresh
+        localStorage.setItem('hyrax_current_page', 'tasks');
+        localStorage.setItem('hyrax_current_week', selectedWeek);
+        
         await loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
         await loadCampaignsData();
       }
@@ -120,6 +141,11 @@ const Tasks = () => {
     
     return () => {
       mounted = false;
+      // Clear page marker when leaving
+      if (localStorage.getItem('hyrax_current_page') === 'tasks') {
+        localStorage.removeItem('hyrax_current_page');
+        localStorage.removeItem('hyrax_current_week');
+      }
     };
   }, [selectedWeek]);
   
@@ -1567,7 +1593,12 @@ const Tasks = () => {
                                                         onChange={(e) => {
                                                           const newLinks = [...(task.viewerLink || [])];
                                                           newLinks[idx] = e.target.value;
-                                                          updateTask(task.id, { viewerLink: newLinks });
+                                                          // Update immediately in state for instant UI response
+                                                          setTasks(prev => prev.map(t => 
+                                                            t.id === task.id ? { ...t, viewerLink: newLinks } : t
+                                                          ));
+                                                          // Debounce backend sync
+                                                          debouncedUpdate(task.id, { viewerLink: newLinks }, 500);
                                                         }}
                                                         className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Viewer link ${idx + 1}`}
@@ -1578,9 +1609,21 @@ const Tasks = () => {
                                                         </a>
                                                       )}
                                                       <button
-                                                        onClick={() => {
-                                                          const newLinks = task.viewerLink.filter((_, i) => i !== idx);
-                                                          updateTask(task.id, { viewerLink: newLinks });
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          // Use functional update to ensure we get the latest state
+                                                          setTasks(prev => {
+                                                            const updatedTasks = prev.map(t => {
+                                                              if (t.id === task.id) {
+                                                                const newLinks = t.viewerLink.filter((_, i) => i !== idx);
+                                                                // Also sync to backend
+                                                                setTimeout(() => updateTask(t.id, { viewerLink: newLinks }), 0);
+                                                                return { ...t, viewerLink: newLinks };
+                                                              }
+                                                              return t;
+                                                            });
+                                                            return updatedTasks;
+                                                          });
                                                         }}
                                                         className="text-red-500 hover:text-red-700"
                                                       >
@@ -1592,9 +1635,21 @@ const Tasks = () => {
                                                   <p className="text-xs text-gray-400 italic">No viewer links</p>
                                                 )}
                                                 <button
-                                                  onClick={() => {
-                                                    const newLinks = [...(task.viewerLink || []), ''];
-                                                    updateTask(task.id, { viewerLink: newLinks });
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Use functional update to ensure we get the latest state
+                                                    setTasks(prev => {
+                                                      const updatedTasks = prev.map(t => {
+                                                        if (t.id === task.id) {
+                                                          const newLinks = [...(t.viewerLink || []), ''];
+                                                          // Also sync to backend
+                                                          setTimeout(() => updateTask(t.id, { viewerLink: newLinks }), 0);
+                                                          return { ...t, viewerLink: newLinks };
+                                                        }
+                                                        return t;
+                                                      });
+                                                      return updatedTasks;
+                                                    });
                                                   }}
                                                   className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                                                 >
@@ -1614,15 +1669,32 @@ const Tasks = () => {
                                                         onChange={(e) => {
                                                           const newVariations = [...(task.caliVariation || [])];
                                                           newVariations[idx] = e.target.value;
-                                                          updateTask(task.id, { caliVariation: newVariations });
+                                                          // Update immediately in state for instant UI response
+                                                          setTasks(prev => prev.map(t => 
+                                                            t.id === task.id ? { ...t, caliVariation: newVariations } : t
+                                                          ));
+                                                          // Debounce backend sync
+                                                          debouncedUpdate(task.id, { caliVariation: newVariations }, 500);
                                                         }}
                                                         className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Variation ${idx + 1}`}
                                                       />
                                                       <button
-                                                        onClick={() => {
-                                                          const newVariations = task.caliVariation.filter((_, i) => i !== idx);
-                                                          updateTask(task.id, { caliVariation: newVariations });
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          // Use functional update to ensure we get the latest state
+                                                          setTasks(prev => {
+                                                            const updatedTasks = prev.map(t => {
+                                                              if (t.id === task.id) {
+                                                                const newVariations = t.caliVariation.filter((_, i) => i !== idx);
+                                                                // Also sync to backend
+                                                                setTimeout(() => updateTask(t.id, { caliVariation: newVariations }), 0);
+                                                                return { ...t, caliVariation: newVariations };
+                                                              }
+                                                              return t;
+                                                            });
+                                                            return updatedTasks;
+                                                          });
                                                         }}
                                                         className="text-red-500 hover:text-red-700"
                                                       >
@@ -1634,9 +1706,21 @@ const Tasks = () => {
                                                   <p className="text-xs text-gray-400 italic">No variations</p>
                                                 )}
                                                 <button
-                                                  onClick={() => {
-                                                    const newVariations = [...(task.caliVariation || []), ''];
-                                                    updateTask(task.id, { caliVariation: newVariations });
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Use functional update to ensure we get the latest state
+                                                    setTasks(prev => {
+                                                      const updatedTasks = prev.map(t => {
+                                                        if (t.id === task.id) {
+                                                          const newVariations = [...(t.caliVariation || []), ''];
+                                                          // Also sync to backend
+                                                          setTimeout(() => updateTask(t.id, { caliVariation: newVariations }), 0);
+                                                          return { ...t, caliVariation: newVariations };
+                                                        }
+                                                        return t;
+                                                      });
+                                                      return updatedTasks;
+                                                    });
                                                   }}
                                                   className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                                                 >
@@ -1656,7 +1740,12 @@ const Tasks = () => {
                                                         onChange={(e) => {
                                                           const newLinks = [...(task.slackPermalink || [])];
                                                           newLinks[idx] = e.target.value;
-                                                          updateTask(task.id, { slackPermalink: newLinks });
+                                                          // Update immediately in state for instant UI response
+                                                          setTasks(prev => prev.map(t => 
+                                                            t.id === task.id ? { ...t, slackPermalink: newLinks } : t
+                                                          ));
+                                                          // Debounce backend sync
+                                                          debouncedUpdate(task.id, { slackPermalink: newLinks }, 500);
                                                         }}
                                                         className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Slack link ${idx + 1}`}
@@ -1667,9 +1756,21 @@ const Tasks = () => {
                                                         </a>
                                                       )}
                                                       <button
-                                                        onClick={() => {
-                                                          const newLinks = task.slackPermalink.filter((_, i) => i !== idx);
-                                                          updateTask(task.id, { slackPermalink: newLinks });
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          // Use functional update to ensure we get the latest state
+                                                          setTasks(prev => {
+                                                            const updatedTasks = prev.map(t => {
+                                                              if (t.id === task.id) {
+                                                                const newLinks = t.slackPermalink.filter((_, i) => i !== idx);
+                                                                // Also sync to backend
+                                                                setTimeout(() => updateTask(t.id, { slackPermalink: newLinks }), 0);
+                                                                return { ...t, slackPermalink: newLinks };
+                                                              }
+                                                              return t;
+                                                            });
+                                                            return updatedTasks;
+                                                          });
                                                         }}
                                                         className="text-red-500 hover:text-red-700"
                                                       >
@@ -1681,9 +1782,21 @@ const Tasks = () => {
                                                   <p className="text-xs text-gray-400 italic">No slack links</p>
                                                 )}
                                                 <button
-                                                  onClick={() => {
-                                                    const newLinks = [...(task.slackPermalink || []), ''];
-                                                    updateTask(task.id, { slackPermalink: newLinks });
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Use functional update to ensure we get the latest state
+                                                    setTasks(prev => {
+                                                      const updatedTasks = prev.map(t => {
+                                                        if (t.id === task.id) {
+                                                          const newLinks = [...(t.slackPermalink || []), ''];
+                                                          // Also sync to backend
+                                                          setTimeout(() => updateTask(t.id, { slackPermalink: newLinks }), 0);
+                                                          return { ...t, slackPermalink: newLinks };
+                                                        }
+                                                        return t;
+                                                      });
+                                                      return updatedTasks;
+                                                    });
                                                   }}
                                                   className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                                                 >
