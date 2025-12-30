@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink, MessageSquare } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
-import { isAdmin } from '../constants/roles';
+import { isAdmin, isSuperAdmin, USER_ROLES } from '../constants/roles';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
@@ -91,6 +91,7 @@ const generateWeekOptions = () => {
 const Tasks = () => {
   const { currentUser, tasks, setTasks, users, campaigns, tasksLoading, campaignsLoading, loadTasksFromWebhook, loadCampaignsData, addTask, addTasks, updateTask, deleteTask, deleteTasks, addScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
+  const canGiveFeedback = currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN;
   const filtersRef = useRef(null);
   
   // State declarations
@@ -132,6 +133,7 @@ const Tasks = () => {
   }, [users, currentUser, columns]);
   const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
   const [feedbackModal, setFeedbackModal] = useState(null); // { taskId, type: 'copyApproval' | 'adApproval', currentFeedback }
+  const [copyLinkModal, setCopyLinkModal] = useState(null); // { taskId, url, currentFeedback, currentApproval }
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
   const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
@@ -238,8 +240,28 @@ const Tasks = () => {
       taskId: task.id,
       type,
       currentFeedback: task[feedbackKey] || '',
-      readOnly: true
+      readOnly: !canGiveFeedback
     });
+  };
+
+  const handleCopyLinkApprove = async () => {
+    if (copyLinkModal) {
+      const taskId = copyLinkModal.taskId;
+      setCopyLinkModal(null);
+      updateTask(taskId, { copyApproval: 'Approved' });
+    }
+  };
+
+  const handleCopyLinkFeedback = async () => {
+    if (copyLinkModal) {
+      const taskId = copyLinkModal.taskId;
+      const feedback = copyLinkModal.currentFeedback;
+      setCopyLinkModal(null);
+      updateTask(taskId, {
+        copyApproval: 'Left feedback',
+        copyApprovalFeedback: feedback
+      });
+    }
   };
 
   // Date picker helper functions
@@ -587,14 +609,31 @@ const Tasks = () => {
       case 'text':
       case 'url':
         return (
-          <input
-            key={`${task.id}-${column.key}`}
-            type="text"
-            defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
-            onChange={(e) => handleChange(e.target.value)}
-            className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
-            placeholder={column.key === 'quantity' ? 'x1' : column.name}
-          />
+          <div className="flex items-center space-x-2">
+            <input
+              key={`${task.id}-${column.key}`}
+              type="text"
+              defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
+              onChange={(e) => handleChange(e.target.value)}
+              className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
+              placeholder={column.key === 'quantity' ? 'x1' : column.name}
+            />
+            {column.key === 'copyLink' && value && !isNewTask && (
+              <button
+                onClick={() => setCopyLinkModal({
+                  taskId: task.id,
+                  url: value,
+                  currentFeedback: task.copyApprovalFeedback || '',
+                  currentApproval: task.copyApproval || '',
+                  showFeedbackInput: false
+                })}
+                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                title="Open and review"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         );
       
       case 'number':
@@ -2200,6 +2239,88 @@ const Tasks = () => {
         </div>
       </div>
       </div>
+      )}
+
+      {/* Copy Link Preview Modal */}
+      {copyLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full h-[90vh] flex flex-col" style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)' }}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-2xl font-bold text-gray-900">Copy Link Preview</h3>
+              <button onClick={() => setCopyLinkModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden p-6">
+              <iframe
+                src={copyLinkModal.url}
+                className="w-full h-full border border-gray-300 rounded-lg"
+                title="Copy Link Preview"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              />
+            </div>
+
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="space-y-4">
+                {copyLinkModal.showFeedbackInput && canGiveFeedback && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                    <textarea
+                      value={copyLinkModal.currentFeedback}
+                      onChange={(e) => setCopyLinkModal({ ...copyLinkModal, currentFeedback: e.target.value })}
+                      placeholder="Enter feedback details here..."
+                      rows={3}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      autoFocus
+                    />
+                  </div>
+                )}
+                
+                {!canGiveFeedback && copyLinkModal.currentFeedback && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Feedback (Read-only)</label>
+                    <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 whitespace-pre-wrap">
+                      {copyLinkModal.currentFeedback}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-3">
+                  {canGiveFeedback && (
+                    <>
+                      <button
+                        onClick={handleCopyLinkApprove}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-green-600/30 flex items-center justify-center space-x-2"
+                      >
+                        <Check className="w-5 h-5" />
+                        <span>Approve</span>
+                      </button>
+                      {!copyLinkModal.showFeedbackInput ? (
+                        <button
+                          onClick={() => setCopyLinkModal({ ...copyLinkModal, showFeedbackInput: true })}
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2"
+                        >
+                          <MessageSquare className="w-5 h-5" />
+                          <span>Leave Feedback</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleCopyLinkFeedback}
+                          disabled={!copyLinkModal.currentFeedback.trim()}
+                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <MessageSquare className="w-5 h-5" />
+                          <span>Submit Feedback</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Feedback Modal */}
