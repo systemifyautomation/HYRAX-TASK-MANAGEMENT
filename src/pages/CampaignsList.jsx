@@ -154,7 +154,7 @@ const CampaignsList = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {loading ? (
+                {campaignsLoading ? (
                   <tr>
                     <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
                       <div className="flex items-center justify-center space-x-2">

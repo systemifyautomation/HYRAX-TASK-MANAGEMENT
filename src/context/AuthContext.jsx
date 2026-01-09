@@ -211,8 +211,6 @@ export const AppProvider = ({ children }) => {
   // Load users from webhook
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
-    // Clear localStorage first to avoid showing stale data
-    localStorage.removeItem('hyrax_users');
     
     // Always load from n8n webhook - this is the source of truth
     try {
@@ -395,15 +393,19 @@ export const AppProvider = ({ children }) => {
 
   // Check authentication on mount
   useEffect(() => {
-    // Load users data immediately (needed for authentication)
-    loadUsers();
+    const initAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await verifyToken(token);
+      } else {
+        setLoading(false);
+      }
+      
+      // Load users data after authentication check
+      loadUsers();
+    };
     
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      verifyToken(token);
-    } else {
-      setLoading(false);
-    }
+    initAuth();
 
     // Refresh users from webhook every 5 minutes to keep data in sync
     const usersRefreshInterval = setInterval(() => {
@@ -432,8 +434,6 @@ export const AppProvider = ({ children }) => {
   // Load campaigns data from webhook
   const loadCampaignsData = async () => {
     setCampaignsLoading(true);
-    // Clear localStorage first to avoid showing stale data
-    localStorage.removeItem('hyrax_campaigns');
     
     try {
       const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
@@ -568,8 +568,6 @@ export const AppProvider = ({ children }) => {
       
       console.log('✓ Login complete!');
       
-      // Load app data
-      await loadInitialData(authenticatedUser);
       return true;
       
     } catch (error) {
