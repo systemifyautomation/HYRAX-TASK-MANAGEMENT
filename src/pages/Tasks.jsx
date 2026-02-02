@@ -6,6 +6,7 @@ import { isAdmin, isSuperAdmin, USER_ROLES } from '../constants/roles';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
+import UserTaskCard from '../components/UserTaskCard';
 
 // Start date: Monday November 24, 2025
 const WEEK_START_DATE = new Date(2025, 10, 24); // Month is 0-indexed, so 10 = November
@@ -162,6 +163,7 @@ const Tasks = () => {
   const [copyLinkModal, setCopyLinkModal] = useState(null); // { taskId, url, currentFeedback, currentApproval }
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
+  const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks } for managing user's tasks
   const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
   const [dateRangeEnd, setDateRangeEnd] = useState(''); // End date for date range filter
   const [showDatePicker, setShowDatePicker] = useState(false); // Show custom date picker
@@ -221,12 +223,25 @@ const Tasks = () => {
     // If admin/superadmin setting Copy Approval or Ad Approval to "Left feedback", open feedback modal
     if (isAdminUser && (columnKey === 'copyApproval' || columnKey === 'adApproval') && value === 'Left feedback') {
       const task = tasks.find(t => t.id === taskId);
-      const feedbackKey = columnKey === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
-      setFeedbackModal({
-        taskId,
-        type: columnKey,
-        currentFeedback: task?.[feedbackKey] || ''
-      });
+      
+      if (columnKey === 'copyApproval') {
+        // For copy approval, open the preview modal with feedback sidebar
+        setCopyLinkModal({
+          taskId,
+          url: task?.copyLink || '',
+          currentFeedback: task?.copyApprovalFeedback || '',
+          currentApproval: value,
+          showFeedbackInput: true
+        });
+      } else {
+        // For other approvals (like adApproval), use the regular feedback modal
+        const feedbackKey = 'adApprovalFeedback';
+        setFeedbackModal({
+          taskId,
+          type: columnKey,
+          currentFeedback: task?.[feedbackKey] || ''
+        });
+      }
     }
     
     // For text, url, and array fields: debounce the entire update (state + webhook)
@@ -261,13 +276,25 @@ const Tasks = () => {
   };
 
   const handleShowFeedback = (task, type) => {
-    const feedbackKey = type === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
-    setFeedbackModal({
-      taskId: task.id,
-      type,
-      currentFeedback: task[feedbackKey] || '',
-      readOnly: !canGiveFeedback
-    });
+    if (type === 'copyApproval') {
+      // For copy approval, show the preview modal with feedback sidebar
+      setCopyLinkModal({
+        taskId: task.id,
+        url: task.copyLink || '',
+        currentFeedback: task.copyApprovalFeedback || '',
+        currentApproval: task.copyApproval || '',
+        showFeedbackInput: canGiveFeedback
+      });
+    } else {
+      // For other types (like adApproval), use the regular feedback modal
+      const feedbackKey = type === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
+      setFeedbackModal({
+        taskId: task.id,
+        type,
+        currentFeedback: task[feedbackKey] || '',
+        readOnly: !canGiveFeedback
+      });
+    }
   };
 
   const handleCopyLinkApprove = async () => {
@@ -651,7 +678,7 @@ const Tasks = () => {
                   url: value,
                   currentFeedback: task.copyApprovalFeedback || '',
                   currentApproval: task.copyApproval || '',
-                  showFeedbackInput: false
+                  showFeedbackInput: true
                 })}
                 className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
                 title="Open and review"
@@ -982,8 +1009,8 @@ const Tasks = () => {
         </div>
       {/* Column Manager Modal */}
       {showColumnManager && isAdminUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-red-600 rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[85vh] overflow-y-auto" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-3xl w-full p-6 max-h-[85vh] overflow-y-auto" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-red-600">Manage Columns</h3>
               <button onClick={() => setShowColumnManager(false)} className="text-gray-400 hover:text-white transition-colors">
@@ -1375,7 +1402,7 @@ const Tasks = () => {
 
       {/* Cards View */}
       {displayType === 'cards' ? (
-        <div className="space-y-8">
+        <div className="space-y-8 p-6">
           {/* MEDIA BUYING - Grouped by Users, then Campaigns */}
           {users.filter(u => u.department === 'MEDIA BUYING').length > 0 && (
             <div>
@@ -1383,446 +1410,50 @@ const Tasks = () => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {users.filter(u => u.department === 'MEDIA BUYING').map(user => {
+                  // Get current week range
+                  const now = new Date();
+                  const currentWeekMonday = getMondayOfWeek(now);
+                  const currentWeekSunday = getSundayOfWeek(now);
+                  const currentWeekRange = getWeekDateRange(0);
+
                   // Get all tasks for this user - convert scriptAssigned to number for comparison
-                  let userTasks = filteredTasks.filter(task => parseInt(task.scriptAssigned) === user.id);
+                  let userTasks = filteredTasks.filter(task => {
+                    // Filter by user
+                    if (parseInt(task.scriptAssigned) !== user.id) return false;
+                    
+                    // Filter by current week
+                    if (task.week === currentWeekRange) return true;
+                    
+                    return false;
+                  });
                   
                   // Apply card-level campaign filter
                   const cardCampaignFilter = cardCampaignFilters[user.id] || '';
                   if (cardCampaignFilter) {
                     userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
                   }
-                  
-                  // Group tasks by campaign
-                  const tasksByCampaign = userTasks.reduce((acc, task) => {
-                    const campaignId = task.campaignId;
-                    if (!acc[campaignId]) {
-                      acc[campaignId] = [];
-                    }
-                    acc[campaignId].push(task);
-                    return acc;
-                  }, {});
+
+                  // Don't render card if user has no tasks
+                  if (userTasks.length === 0) return null;
 
                   return (
-                    <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
-                      {/* User Header */}
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 border-b border-gray-200">
-                        <div className="flex flex-col items-center">
-                          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
-                            {user.name.charAt(0)}
-                          </div>
-                          <h3 className="text-lg font-bold text-gray-900 text-center">{user.name}</h3>
-                          <p className="text-xs text-gray-500 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
-                        </div>
-                      </div>
-
-                      {/* Campaign Filter */}
-                      <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
-                        <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
-                        <select
-                          value={cardCampaignFilter}
-                          onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-                        >
-                          <option value="">All Campaigns</option>
-                          {campaigns.map((campaign) => (
-                            <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Campaigns List */}
-                      <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                        {Object.keys(tasksByCampaign).length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-sm text-gray-400 italic">No tasks</p>
-                          </div>
-                        ) : (
-                          Object.entries(tasksByCampaign).map(([campaignId, tasks]) => {
-                            const campaign = campaigns.find(c => c.id === parseInt(campaignId));
-                            
-                            return (
-                              <div key={campaignId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                                <h4 className="font-semibold text-sm text-gray-800 mb-2">{campaign?.name || 'Unknown Campaign'}</h4>
-                                
-                                <div className="space-y-2">
-                                  {tasks.map(task => {
-                                    const getPriorityColor = (priority) => {
-                                      switch(priority?.toLowerCase()) {
-                                        case 'critical': return 'bg-red-100 text-red-700';
-                                        case 'high': return 'bg-orange-100 text-orange-700';
-                                        case 'normal': return 'bg-blue-100 text-blue-700';
-                                        case 'low': return 'bg-gray-100 text-gray-700';
-                                        case 'paused': return 'bg-purple-100 text-purple-700';
-                                        default: return 'bg-gray-100 text-gray-700';
-                                      }
-                                    };
-
-                                    return (
-                                      <div key={task.id} className="text-xs bg-white p-3 rounded border border-gray-200">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <select
-                                            value={task.priority || 'Normal'}
-                                            onChange={(e) => updateTask(task.id, { priority: e.target.value })}
-                                            className={`px-2 py-1 rounded font-medium text-xs border-0 cursor-pointer ${getPriorityColor(task.priority)}`}
-                                          >
-                                            <option value="Critical">Critical</option>
-                                            <option value="High">High</option>
-                                            <option value="Normal">Normal</option>
-                                            <option value="Low">Low</option>
-                                            <option value="Paused">Paused</option>
-                                          </select>
-                                          <select
-                                            value={task.mediaType || ''}
-                                            onChange={(e) => updateTask(task.id, { mediaType: e.target.value })}
-                                            className="px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded cursor-pointer"
-                                          >
-                                            <option value="">Select...</option>
-                                            <option value="IMAGE">IMAGE</option>
-                                            <option value="VIDEO">VIDEO</option>
-                                          </select>
-                                        </div>
-                                        
-                                        <div className="space-y-2 mt-2">
-                                          {/* Copy Written */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Copy Written:</span>
-                                            <input
-                                              type="checkbox"
-                                              checked={task.copyWritten || false}
-                                              onChange={(e) => updateTask(task.id, { copyWritten: e.target.checked })}
-                                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                                            />
-                                            <span className={task.copyWritten ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                                              {task.copyWritten ? 'Yes' : 'No'}
-                                            </span>
-                                          </div>
-                                          
-                                          {/* Copy Link */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Copy Link:</span>
-                                            <input
-                                              type="text"
-                                              value={task.copyLink || ''}
-                                              onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
-                                              className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
-                                              placeholder="Enter link..."
-                                            />
-                                            {task.copyLink && (
-                                              <a href={task.copyLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                                <ExternalLink className="w-3 h-3" />
-                                              </a>
-                                            )}
-                                          </div>
-                                          
-                                          {/* Copy Approval */}
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Approval:</span>
-                                            <select
-                                              value={task.copyApproval || ''}
-                                              onChange={(e) => updateTask(task.id, { copyApproval: e.target.value })}
-                                              className={`flex-1 px-2 py-1 text-xs border rounded cursor-pointer ${
-                                                task.copyApproval === 'Approved' ? 'bg-green-100 text-green-700 border-green-200' :
-                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                                'bg-white text-gray-700 border-gray-200'
-                                              }`}
-                                            >
-                                              <option value="">Select...</option>
-                                              <option value="Approved">Approved</option>
-                                              <option value="Needs Review">Needs Review</option>
-                                              <option value="Left feedback">Left feedback</option>
-                                              <option value="Unchecked">Unchecked</option>
-                                              <option value="Revisit Later">Revisit Later</option>
-                                            </select>
-                                          </div>
-                                          
-                                          {/* Show More Button */}
-                                          <button
-                                            onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
-                                            className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
-                                          >
-                                            {expandedCards[task.id] ? (
-                                              <>
-                                                <ChevronLeft className="w-3 h-3 rotate-90" />
-                                                Show Less
-                                              </>
-                                            ) : (
-                                              <>
-                                                <ChevronRight className="w-3 h-3 rotate-90" />
-                                                Show More
-                                              </>
-                                            )}
-                                          </button>
-                                          
-                                          {/* Expandable Additional Info */}
-                                          {expandedCards[task.id] && (
-                                            <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
-                                              {/* Assigned To */}
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-600 w-24">Assigned To:</span>
-                                                <select
-                                                  value={task.assignedTo || ''}
-                                                  onChange={(e) => updateTask(task.id, { assignedTo: parseInt(e.target.value) })}
-                                                  className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
-                                                >
-                                                  <option value="">Select user...</option>
-                                                  {users.filter(u => {
-                                                    const dept = u.department?.trim().toUpperCase();
-                                                    return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
-                                                  }).map((user) => (
-                                                    <option key={user.id} value={user.id}>{user.name}</option>
-                                                  ))}
-                                                </select>
-                                              </div>
-                                              
-                                              {/* Campaign Name */}
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-600 w-24">Campaign:</span>
-                                                <span className="text-gray-800">{campaign?.name || 'Unknown'}</span>
-                                              </div>
-                                              
-                                              {/* Viewer Link */}
-                                              <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Viewer Links:</span>
-                                                {task.viewerLink && task.viewerLink.length > 0 ? (
-                                                  task.viewerLink.map((link, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2">
-                                                      <input
-                                                        type="text"
-                                                        value={link || ''}
-                                                        onChange={(e) => {
-                                                          const newLinks = [...(task.viewerLink || [])];
-                                                          newLinks[idx] = e.target.value;
-                                                          // Update immediately in state for instant UI response
-                                                          setTasks(prev => prev.map(t => 
-                                                            t.id === task.id ? { ...t, viewerLink: newLinks } : t
-                                                          ));
-                                                          // Debounce backend sync
-                                                          debouncedUpdate(task.id, { viewerLink: newLinks }, 500);
-                                                        }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
-                                                        placeholder={`Viewer link ${idx + 1}`}
-                                                      />
-                                                      {link && (
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                                          <ExternalLink className="w-3 h-3" />
-                                                        </a>
-                                                      )}
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          // Use functional update to ensure we get the latest state
-                                                          setTasks(prev => {
-                                                            const updatedTasks = prev.map(t => {
-                                                              if (t.id === task.id) {
-                                                                const newLinks = t.viewerLink.filter((_, i) => i !== idx);
-                                                                // Also sync to backend
-                                                                setTimeout(() => updateTask(t.id, { viewerLink: newLinks }), 0);
-                                                                return { ...t, viewerLink: newLinks };
-                                                              }
-                                                              return t;
-                                                            });
-                                                            return updatedTasks;
-                                                          });
-                                                        }}
-                                                        className="text-red-500 hover:text-red-700"
-                                                      >
-                                                        <X className="w-3 h-3" />
-                                                      </button>
-                                                    </div>
-                                                  ))
-                                                ) : (
-                                                  <p className="text-xs text-gray-400 italic">No viewer links</p>
-                                                )}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Use functional update to ensure we get the latest state
-                                                    setTasks(prev => {
-                                                      const updatedTasks = prev.map(t => {
-                                                        if (t.id === task.id) {
-                                                          const newLinks = [...(t.viewerLink || []), ''];
-                                                          // Also sync to backend
-                                                          setTimeout(() => updateTask(t.id, { viewerLink: newLinks }), 0);
-                                                          return { ...t, viewerLink: newLinks };
-                                                        }
-                                                        return t;
-                                                      });
-                                                      return updatedTasks;
-                                                    });
-                                                  }}
-                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                                >
-                                                  + Add Viewer Link
-                                                </button>
-                                              </div>
-                                              
-                                              {/* Cali Variation */}
-                                              <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Cali Variation:</span>
-                                                {task.caliVariation && task.caliVariation.length > 0 ? (
-                                                  task.caliVariation.map((variation, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2">
-                                                      <input
-                                                        type="text"
-                                                        value={variation || ''}
-                                                        onChange={(e) => {
-                                                          const newVariations = [...(task.caliVariation || [])];
-                                                          newVariations[idx] = e.target.value;
-                                                          // Update immediately in state for instant UI response
-                                                          setTasks(prev => prev.map(t => 
-                                                            t.id === task.id ? { ...t, caliVariation: newVariations } : t
-                                                          ));
-                                                          // Debounce backend sync
-                                                          debouncedUpdate(task.id, { caliVariation: newVariations }, 500);
-                                                        }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
-                                                        placeholder={`Variation ${idx + 1}`}
-                                                      />
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          // Use functional update to ensure we get the latest state
-                                                          setTasks(prev => {
-                                                            const updatedTasks = prev.map(t => {
-                                                              if (t.id === task.id) {
-                                                                const newVariations = t.caliVariation.filter((_, i) => i !== idx);
-                                                                // Also sync to backend
-                                                                setTimeout(() => updateTask(t.id, { caliVariation: newVariations }), 0);
-                                                                return { ...t, caliVariation: newVariations };
-                                                              }
-                                                              return t;
-                                                            });
-                                                            return updatedTasks;
-                                                          });
-                                                        }}
-                                                        className="text-red-500 hover:text-red-700"
-                                                      >
-                                                        <X className="w-3 h-3" />
-                                                      </button>
-                                                    </div>
-                                                  ))
-                                                ) : (
-                                                  <p className="text-xs text-gray-400 italic">No variations</p>
-                                                )}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Use functional update to ensure we get the latest state
-                                                    setTasks(prev => {
-                                                      const updatedTasks = prev.map(t => {
-                                                        if (t.id === task.id) {
-                                                          const newVariations = [...(t.caliVariation || []), ''];
-                                                          // Also sync to backend
-                                                          setTimeout(() => updateTask(t.id, { caliVariation: newVariations }), 0);
-                                                          return { ...t, caliVariation: newVariations };
-                                                        }
-                                                        return t;
-                                                      });
-                                                      return updatedTasks;
-                                                    });
-                                                  }}
-                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                                >
-                                                  + Add Variation
-                                                </button>
-                                              </div>
-                                              
-                                              {/* Slack Permalink */}
-                                              <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Slack Links:</span>
-                                                {task.slackPermalink && task.slackPermalink.length > 0 ? (
-                                                  task.slackPermalink.map((link, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2">
-                                                      <input
-                                                        type="text"
-                                                        value={link || ''}
-                                                        onChange={(e) => {
-                                                          const newLinks = [...(task.slackPermalink || [])];
-                                                          newLinks[idx] = e.target.value;
-                                                          // Update immediately in state for instant UI response
-                                                          setTasks(prev => prev.map(t => 
-                                                            t.id === task.id ? { ...t, slackPermalink: newLinks } : t
-                                                          ));
-                                                          // Debounce backend sync
-                                                          debouncedUpdate(task.id, { slackPermalink: newLinks }, 500);
-                                                        }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
-                                                        placeholder={`Slack link ${idx + 1}`}
-                                                      />
-                                                      {link && (
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                                          <ExternalLink className="w-3 h-3" />
-                                                        </a>
-                                                      )}
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          // Use functional update to ensure we get the latest state
-                                                          setTasks(prev => {
-                                                            const updatedTasks = prev.map(t => {
-                                                              if (t.id === task.id) {
-                                                                const newLinks = t.slackPermalink.filter((_, i) => i !== idx);
-                                                                // Also sync to backend
-                                                                setTimeout(() => updateTask(t.id, { slackPermalink: newLinks }), 0);
-                                                                return { ...t, slackPermalink: newLinks };
-                                                              }
-                                                              return t;
-                                                            });
-                                                            return updatedTasks;
-                                                          });
-                                                        }}
-                                                        className="text-red-500 hover:text-red-700"
-                                                      >
-                                                        <X className="w-3 h-3" />
-                                                      </button>
-                                                    </div>
-                                                  ))
-                                                ) : (
-                                                  <p className="text-xs text-gray-400 italic">No slack links</p>
-                                                )}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Use functional update to ensure we get the latest state
-                                                    setTasks(prev => {
-                                                      const updatedTasks = prev.map(t => {
-                                                        if (t.id === task.id) {
-                                                          const newLinks = [...(t.slackPermalink || []), ''];
-                                                          // Also sync to backend
-                                                          setTimeout(() => updateTask(t.id, { slackPermalink: newLinks }), 0);
-                                                          return { ...t, slackPermalink: newLinks };
-                                                        }
-                                                        return t;
-                                                      });
-                                                      return updatedTasks;
-                                                    });
-                                                  }}
-                                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                                >
-                                                  + Add Slack Link
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
+                    <UserTaskCard
+                      key={user.id}
+                      user={user}
+                      userTasks={userTasks}
+                      campaigns={campaigns}
+                      users={users}
+                      cardCampaignFilter={cardCampaignFilter}
+                      onCampaignFilterChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
+                      onClick={(user, tasks) => setUserTasksModal({ user, tasks })}
+                    />
                   );
                 })}
               </div>
             </div>
           )}
 
-          {/* VIDEO EDITING & GRAPHIC DESIGN - Grouped by Users with Campaigns */}
+          {/* VIDEO EDITING AND GRAPHIC DESIGN */}
           {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
             const departmentUsers = users.filter(u => u.department === department);
             
@@ -1834,8 +1465,17 @@ const Tasks = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {departmentUsers.map(user => {
+                    // Get current week range
+                    const now = new Date();
+                    const currentWeekMonday = getMondayOfWeek(now);
+                    const currentWeekSunday = getSundayOfWeek(now);
+                    const currentWeekRange = getWeekDateRange(0);
+
                     // Get all tasks for this user based on department
                     let userTasks = filteredTasks.filter(task => {
+                      // Filter by current week first
+                      if (task.week !== currentWeekRange) return false;
+
                       if (department === 'VIDEO EDITING') {
                         const mediaType = task.mediaType || task.type;
                         return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
@@ -1852,360 +1492,20 @@ const Tasks = () => {
                       userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
                     }
 
-                    // Group tasks by campaign
-                    const tasksByCampaign = userTasks.reduce((acc, task) => {
-                      const campaignId = task.campaignId || 'uncategorized';
-                      if (!acc[campaignId]) {
-                        acc[campaignId] = [];
-                      }
-                      acc[campaignId].push(task);
-                      return acc;
-                    }, {});
+                    // Don't render card if user has no tasks
+                    if (userTasks.length === 0) return null;
 
                     return (
-                      <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
-                        {/* User Header */}
-                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 border-b border-purple-700">
-                          <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3 border-2 border-white/30">
-                              {user.name.charAt(0)}
-                            </div>
-                            <h3 className="text-lg font-bold text-white text-center">{user.name}</h3>
-                            <p className="text-xs text-purple-100 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
-                          </div>
-                        </div>
-
-                        {/* Campaign Filter */}
-                        <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
-                          <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
-                          <select
-                            value={cardCampaignFilter}
-                            onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900"
-                          >
-                            <option value="">All Campaigns</option>
-                            {campaigns.map((campaign) => (
-                              <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Campaigns List */}
-                        <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-                          {Object.keys(tasksByCampaign).length === 0 ? (
-                            <div className="text-center py-8">
-                              <p className="text-sm text-gray-400 italic">No tasks assigned</p>
-                            </div>
-                          ) : (
-                            Object.entries(tasksByCampaign).map(([campaignId, tasks]) => {
-                              const campaign = campaigns.find(c => c.id === parseInt(campaignId));
-                              
-                              return (
-                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 overflow-hidden">
-                                  {/* Campaign Header */}
-                                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 px-3 py-2 border-b border-purple-200">
-                                    <h4 className="text-sm font-bold text-purple-900">
-                                      {campaign?.name || 'Uncategorized'}
-                                    </h4>
-                                    <p className="text-xs text-purple-600 mt-0.5">
-                                      {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Tasks for this campaign */}
-                                  <div className="p-3 space-y-3">
-                                    {tasks.map(task => {
-                                      const getPriorityColor = (priority) => {
-                                        switch(priority?.toLowerCase()) {
-                                          case 'critical': return 'bg-red-100 text-red-700';
-                                          case 'high': return 'bg-orange-100 text-orange-700';
-                                          case 'normal': return 'bg-blue-100 text-blue-700';
-                                          case 'low': return 'bg-gray-100 text-gray-700';
-                                          case 'paused': return 'bg-purple-100 text-purple-700';
-                                          default: return 'bg-gray-100 text-gray-700';
-                                        }
-                                      };
-
-                                      const assignedUser = users.find(u => u.id === parseInt(task.assignedTo));
-
-                                      return (
-                                        <div key={task.id} className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-md transition-shadow">
-                                          <div className="space-y-1.5">
-                                            {/* Assigned To */}
-                                            <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-gray-700 text-xs w-24">Assigned To:</span>
-                                              <select
-                                                value={task.assignedTo || ''}
-                                                onChange={(e) => updateTask(task.id, { assignedTo: parseInt(e.target.value) })}
-                                                className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                              >
-                                                <option value="">Select user...</option>
-                                                {users.filter(u => {
-                                                  const dept = u.department?.trim().toUpperCase();
-                                                  return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
-                                                }).map((user) => (
-                                                  <option key={user.id} value={user.id}>{user.name}</option>
-                                                ))}
-                                              </select>
-                                            </div>
-                                            
-                                            {/* Campaign Name */}
-                                            <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-gray-700 text-xs w-24">Campaign:</span>
-                                              <span className="text-gray-900 text-xs truncate">{campaign?.name || 'Unknown'}</span>
-                                            </div>
-                                            
-                                            {/* Viewer Links */}
-                                            <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Viewer Links:</span>
-                                              {task.viewerLink && task.viewerLink.length > 0 ? (
-                                                task.viewerLink.map((link, idx) => (
-                                                  <div key={idx} className="flex items-center gap-1">
-                                                    <input
-                                                      type="text"
-                                                      value={link || ''}
-                                                      onChange={(e) => {
-                                                        const newLinks = [...(task.viewerLink || [])];
-                                                        newLinks[idx] = e.target.value;
-                                                        updateTask(task.id, { viewerLink: newLinks });
-                                                      }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                      placeholder={`Viewer link ${idx + 1}`}
-                                                    />
-                                                    {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
-                                                        <ExternalLink className="w-3.5 h-3.5" />
-                                                      </a>
-                                                    )}
-                                                    <button
-                                                      onClick={() => {
-                                                        const newLinks = task.viewerLink.filter((_, i) => i !== idx);
-                                                        updateTask(task.id, { viewerLink: newLinks });
-                                                      }}
-                                                      className="text-red-500 hover:text-red-700"
-                                                    >
-                                                      <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  </div>
-                                                ))
-                                              ) : (
-                                                <p className="text-xs text-gray-400 italic">No viewer links</p>
-                                              )}
-                                              <button
-                                                onClick={() => {
-                                                  const newLinks = [...(task.viewerLink || []), ''];
-                                                  updateTask(task.id, { viewerLink: newLinks });
-                                                }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                                              >
-                                                + Add Viewer Link
-                                              </button>
-                                            </div>
-                                            
-                                            {/* Cali Variation */}
-                                            <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Cali Variation:</span>
-                                              {task.caliVariation && task.caliVariation.length > 0 ? (
-                                                task.caliVariation.map((variation, idx) => (
-                                                  <div key={idx} className="flex items-center gap-1">
-                                                    <input
-                                                      type="text"
-                                                      value={variation || ''}
-                                                      onChange={(e) => {
-                                                        const newVariations = [...(task.caliVariation || [])];
-                                                        newVariations[idx] = e.target.value;
-                                                        updateTask(task.id, { caliVariation: newVariations });
-                                                      }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                      placeholder={`Variation ${idx + 1}`}
-                                                    />
-                                                    <button
-                                                      onClick={() => {
-                                                        const newVariations = task.caliVariation.filter((_, i) => i !== idx);
-                                                        updateTask(task.id, { caliVariation: newVariations });
-                                                      }}
-                                                      className="text-red-500 hover:text-red-700"
-                                                    >
-                                                      <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  </div>
-                                                ))
-                                              ) : (
-                                                <p className="text-xs text-gray-400 italic">No variations</p>
-                                              )}
-                                              <button
-                                                onClick={() => {
-                                                  const newVariations = [...(task.caliVariation || []), ''];
-                                                  updateTask(task.id, { caliVariation: newVariations });
-                                                }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                                              >
-                                                + Add Variation
-                                              </button>
-                                            </div>
-                                            
-                                            {/* Slack Links */}
-                                            <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Slack Links:</span>
-                                              {task.slackPermalink && task.slackPermalink.length > 0 ? (
-                                                task.slackPermalink.map((link, idx) => (
-                                                  <div key={idx} className="flex items-center gap-1">
-                                                    <input
-                                                      type="text"
-                                                      value={link || ''}
-                                                      onChange={(e) => {
-                                                        const newLinks = [...(task.slackPermalink || [])];
-                                                        newLinks[idx] = e.target.value;
-                                                        updateTask(task.id, { slackPermalink: newLinks });
-                                                      }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                      placeholder={`Slack link ${idx + 1}`}
-                                                    />
-                                                    {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
-                                                        <ExternalLink className="w-3.5 h-3.5" />
-                                                      </a>
-                                                    )}
-                                                    <button
-                                                      onClick={() => {
-                                                        const newLinks = task.slackPermalink.filter((_, i) => i !== idx);
-                                                        updateTask(task.id, { slackPermalink: newLinks });
-                                                      }}
-                                                      className="text-red-500 hover:text-red-700"
-                                                    >
-                                                      <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  </div>
-                                                ))
-                                              ) : (
-                                                <p className="text-xs text-gray-400 italic">No slack links</p>
-                                              )}
-                                              <button
-                                                onClick={() => {
-                                                  const newLinks = [...(task.slackPermalink || []), ''];
-                                                  updateTask(task.id, { slackPermalink: newLinks });
-                                                }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                                              >
-                                                + Add Slack Link
-                                              </button>
-                                            </div>
-                                            
-                                            {/* Show More Button */}
-                                            <button
-                                              onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
-                                              className="mt-1 text-xs text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
-                                            >
-                                              {expandedCards[task.id] ? (
-                                                <>
-                                                  <ChevronLeft className="w-3 h-3 rotate-90" />
-                                                  Show Less
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <ChevronRight className="w-3 h-3 rotate-90" />
-                                                  Show More
-                                                </>
-                                              )}
-                                            </button>
-                                            
-                                            {/* Expandable Additional Info */}
-                                            {expandedCards[task.id] && (
-                                              <div className="mt-2 pt-2 border-t border-gray-200 space-y-1.5">
-                                                {/* Priority */}
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Priority:</span>
-                                                  <select
-                                                    value={task.priority || 'Normal'}
-                                                    onChange={(e) => updateTask(task.id, { priority: e.target.value })}
-                                                    className={`flex-1 px-2 py-1 text-xs rounded font-medium focus:ring-2 focus:ring-purple-500 ${getPriorityColor(task.priority)}`}
-                                                  >
-                                                    <option value="Critical">Critical</option>
-                                                    <option value="High">High</option>
-                                                    <option value="Normal">Normal</option>
-                                                    <option value="Low">Low</option>
-                                                    <option value="Paused">Paused</option>
-                                                  </select>
-                                                </div>
-
-                                                {/* Media Type */}
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Media Type:</span>
-                                                  <select
-                                                    value={task.mediaType || task.type || ''}
-                                                    onChange={(e) => updateTask(task.id, { mediaType: e.target.value })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                  >
-                                                    <option value="">Select...</option>
-                                                    <option value="IMAGE">Image</option>
-                                                    <option value="VIDEO">Video</option>
-                                                  </select>
-                                                </div>
-
-                                                {/* Copy Link */}
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Link:</span>
-                                                  <input
-                                                    type="text"
-                                                    value={task.copyLink || ''}
-                                                    onChange={(e) => updateTask(task.id, { copyLink: e.target.value })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                    placeholder="Enter copy link..."
-                                                  />
-                                                </div>
-
-                                                {/* Copy Status */}
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Status:</span>
-                                                  <select
-                                                    value={task.copyApproval || ''}
-                                                    onChange={(e) => updateTask(task.id, { copyApproval: e.target.value })}
-                                                    className={`flex-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 ${
-                                                      task.copyApproval === 'Approved' ? 'text-green-700' :
-                                                      task.copyApproval === 'Needs Review' ? 'text-orange-700' :
-                                                      task.copyApproval === 'Left feedback' ? 'text-blue-700' :
-                                                      'text-gray-700'
-                                                    }`}
-                                                  >
-                                                    <option value="">Select...</option>
-                                                    <option value="Approved">Approved</option>
-                                                    <option value="Needs Review">Needs Review</option>
-                                                    <option value="Left feedback">Left feedback</option>
-                                                    <option value="Unchecked">Unchecked</option>
-                                                    <option value="Revisit Later">Revisit Later</option>
-                                                  </select>
-                                                </div>
-                                                
-                                                {/* Script Writer */}
-                                                <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Script Writer:</span>
-                                                  <select
-                                                    value={task.scriptAssigned || ''}
-                                                    onChange={(e) => updateTask(task.id, { scriptAssigned: parseInt(e.target.value) })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                                                  >
-                                                    <option value="">Select user...</option>
-                                                    {users.filter(u => {
-                                                      const dept = u.department?.trim().toUpperCase();
-                                                      return dept === 'MEDIA BUYING';
-                                                    }).map((user) => (
-                                                      <option key={user.id} value={user.id}>{user.name}</option>
-                                                    ))}
-                                                  </select>
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
+                      <UserTaskCard
+                        key={user.id}
+                        user={user}
+                        userTasks={userTasks}
+                        campaigns={campaigns}
+                        users={users}
+                        cardCampaignFilter={cardCampaignFilter}
+                        onCampaignFilterChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
+                        onClick={(user, tasks) => setUserTasksModal({ user, tasks })}
+                      />
                     );
                   })}
                 </div>
@@ -2356,8 +1656,8 @@ const Tasks = () => {
 
       {/* Copy Link Preview Modal */}
       {copyLinkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full h-[90vh] flex flex-col" style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)' }}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full h-[90vh] flex flex-col" style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)' }}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h3 className="text-2xl font-bold text-gray-900">Copy Link Preview</h3>
               <button onClick={() => setCopyLinkModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -2365,71 +1665,75 @@ const Tasks = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-hidden p-6">
-              <iframe
-                src={copyLinkModal.url}
-                className="w-full h-full border border-gray-300 rounded-lg"
-                title="Copy Link Preview"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-              />
-            </div>
+            <div className="flex-1 flex overflow-hidden">
+              {/* Main Preview Area */}
+              <div className="flex-1 p-6 overflow-hidden">
+                <iframe
+                  src={copyLinkModal.url}
+                  className="w-full h-full border border-gray-300 rounded-lg"
+                  title="Copy Link Preview"
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                />
+              </div>
 
-            <div className="p-6 border-t border-gray-200 bg-gray-50">
-              <div className="space-y-4">
-                {copyLinkModal.showFeedbackInput && canGiveFeedback && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
-                    <textarea
-                      value={copyLinkModal.currentFeedback}
-                      onChange={(e) => setCopyLinkModal({ ...copyLinkModal, currentFeedback: e.target.value })}
-                      placeholder="Enter feedback details here..."
-                      rows={3}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                      autoFocus
-                    />
-                  </div>
-                )}
+              {/* Right Sidebar - Feedback Section */}
+              <div className="w-96 border-l border-gray-200 bg-gray-50 p-6 flex flex-col">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Feedback & Approval</h4>
                 
-                {!canGiveFeedback && copyLinkModal.currentFeedback && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Feedback (Read-only)</label>
-                    <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 whitespace-pre-wrap">
-                      {copyLinkModal.currentFeedback}
+                <div className="flex-1 space-y-4 overflow-y-auto">
+                  {copyLinkModal.showFeedbackInput && canGiveFeedback && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                      <textarea
+                        value={copyLinkModal.currentFeedback}
+                        onChange={(e) => setCopyLinkModal({ ...copyLinkModal, currentFeedback: e.target.value })}
+                        placeholder="Enter feedback details here..."
+                        rows={8}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                        autoFocus
+                      />
                     </div>
-                  </div>
-                )}
-
-                <div className="flex space-x-3">
-                  {canGiveFeedback && (
-                    <>
-                      <button
-                        onClick={handleCopyLinkApprove}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-green-600/30 flex items-center justify-center space-x-2"
-                      >
-                        <Check className="w-5 h-5" />
-                        <span>Approve</span>
-                      </button>
-                      {!copyLinkModal.showFeedbackInput ? (
-                        <button
-                          onClick={() => setCopyLinkModal({ ...copyLinkModal, showFeedbackInput: true })}
-                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2"
-                        >
-                          <MessageSquare className="w-5 h-5" />
-                          <span>Leave Feedback</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleCopyLinkFeedback}
-                          disabled={!copyLinkModal.currentFeedback.trim()}
-                          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <MessageSquare className="w-5 h-5" />
-                          <span>Submit Feedback</span>
-                        </button>
-                      )}
-                    </>
+                  )}
+                  
+                  {!canGiveFeedback && copyLinkModal.currentFeedback && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Feedback (Read-only)</label>
+                      <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 whitespace-pre-wrap">
+                        {copyLinkModal.currentFeedback}
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                {canGiveFeedback && (
+                  <div className="mt-4 space-y-3">
+                    <button
+                      onClick={handleCopyLinkApprove}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-green-600/30 flex items-center justify-center space-x-2"
+                    >
+                      <Check className="w-5 h-5" />
+                      <span>Approve</span>
+                    </button>
+                    {!copyLinkModal.showFeedbackInput ? (
+                      <button
+                        onClick={() => setCopyLinkModal({ ...copyLinkModal, showFeedbackInput: true })}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2"
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                        <span>Leave Feedback</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleCopyLinkFeedback}
+                        disabled={!copyLinkModal.currentFeedback.trim()}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                        <span>Submit Feedback</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2438,8 +1742,8 @@ const Tasks = () => {
 
       {/* Feedback Modal */}
       {feedbackModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-red-600 rounded-xl shadow-2xl max-w-2xl w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-2xl w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-red-600">
                 {feedbackModal.type === 'copyApproval' 
@@ -2495,9 +1799,272 @@ const Tasks = () => {
           </div>
         </div>
       )}
+
+      {/* User Tasks Management Modal */}
+      {userTasksModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex">
+          {/* Left Side - Link Previews (65%) */}
+          <div className="w-[65%] bg-gray-900 p-6 overflow-y-auto">
+            <div className="h-full flex flex-col space-y-4">
+              {userTasksModal.tasks.map((task) => (
+                <div key={task.id} className="flex-1 flex flex-col space-y-4">
+                  {task.copyLink && (
+                    <div className="flex-1 flex flex-col bg-gray-800 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-white mb-2">Copy Link Preview - {task.title}</h4>
+                      <iframe
+                        src={task.copyLink}
+                        className="w-full flex-1 border border-gray-600 rounded-lg bg-white"
+                        title={`Copy Link - ${task.title}`}
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      />
+                    </div>
+                  )}
+                  {task.viewerLink && task.viewerLink.length > 0 && (
+                    <div className="flex-1 flex flex-col bg-gray-800 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-white mb-2">Viewer Link Preview - {task.title}</h4>
+                      <iframe
+                        src={task.viewerLink[0]}
+                        className="w-full flex-1 border border-gray-600 rounded-lg bg-white"
+                        title={`Viewer Link - ${task.title}`}
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right Side - User Information (35%) */}
+          <div className="w-[35%] bg-white overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{userTasksModal.user.name}</h3>
+                  <p className="text-sm text-gray-500">{userTasksModal.user.department}</p>
+                </div>
+                <button onClick={() => setUserTasksModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {userTasksModal.tasks.map((task, taskIndex) => {
+                  const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                  
+                  // Parse quantity
+                  let requiredQuantity = 1;
+                  if (task.quantity) {
+                    if (typeof task.quantity === 'string') {
+                      const match = task.quantity.match(/x?(\d+)/i);
+                      if (match) requiredQuantity = parseInt(match[1]);
+                    } else if (typeof task.quantity === 'number') {
+                      requiredQuantity = task.quantity;
+                    }
+                  }
+
+                  return (
+                    <div key={task.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div className="mb-3 pb-2 border-b border-gray-200">
+                        <h4 className="text-sm font-semibold text-gray-900">{task.title}</h4>
+                        <p className="text-xs text-gray-500">{campaign?.name || 'Unknown Campaign'}</p>
+                      </div>
+
+                      {/* Compact grid layout for all fields */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {/* Campaign - Editable */}
+                        <div className="col-span-2">
+                          <label className="block font-medium text-gray-600 mb-1">Campaign</label>
+                          <select
+                            value={task.campaignId || ''}
+                            onChange={(e) => {
+                              const updatedTasks = [...userTasksModal.tasks];
+                              updatedTasks[taskIndex] = { ...task, campaignId: e.target.value };
+                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                              updateTask(task.id, { campaignId: e.target.value });
+                            }}
+                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                          >
+                            <option value="">Select Campaign</option>
+                            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+
+                        {/* Title - Editable */}
+                        <div className="col-span-2">
+                          <label className="block font-medium text-gray-600 mb-1">Title</label>
+                          <input
+                            type="text"
+                            value={task.title || ''}
+                            onChange={(e) => {
+                              const updatedTasks = [...userTasksModal.tasks];
+                              updatedTasks[taskIndex] = { ...task, title: e.target.value };
+                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                              updateTask(task.id, { title: e.target.value });
+                            }}
+                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                          />
+                        </div>
+
+                        {/* Due Date - Editable */}
+                        <div className="col-span-2">
+                          <label className="block font-medium text-gray-600 mb-1">Due Date</label>
+                          <input
+                            type="date"
+                            value={task.dueDate || ''}
+                            onChange={(e) => {
+                              const updatedTasks = [...userTasksModal.tasks];
+                              updatedTasks[taskIndex] = { ...task, dueDate: e.target.value };
+                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                              updateTask(task.id, { dueDate: e.target.value });
+                            }}
+                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                          />
+                        </div>
+
+                        {/* Media Buyer Specific */}
+                        {userTasksModal.user.department === 'MEDIA BUYING' && (
+                          <>
+                            <div className="col-span-2">
+                              <label className="block font-medium text-gray-600 mb-1">Script Assigned</label>
+                              <select
+                                value={task.scriptAssigned || ''}
+                                onChange={(e) => {
+                                  const updatedTasks = [...userTasksModal.tasks];
+                                  updatedTasks[taskIndex] = { ...task, scriptAssigned: e.target.value };
+                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                  updateTask(task.id, { scriptAssigned: e.target.value });
+                                }}
+                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                              >
+                                <option value="">Select User</option>
+                                {users.filter(u => u.department === 'SCRIPTWRITING').map(u => (
+                                  <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="col-span-2">
+                              <label className="block font-medium text-gray-600 mb-1">Copy Link</label>
+                              <input
+                                type="url"
+                                value={task.copyLink || ''}
+                                onChange={(e) => {
+                                  const updatedTasks = [...userTasksModal.tasks];
+                                  updatedTasks[taskIndex] = { ...task, copyLink: e.target.value };
+                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                  updateTask(task.id, { copyLink: e.target.value });
+                                }}
+                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                                placeholder="https://..."
+                              />
+                            </div>
+
+                            <div className="col-span-2">
+                              <label className="block font-medium text-gray-600 mb-1">Copy Approval</label>
+                              <select
+                                value={task.copyApproval || 'Not Done'}
+                                onChange={(e) => {
+                                  const updatedTasks = [...userTasksModal.tasks];
+                                  updatedTasks[taskIndex] = { ...task, copyApproval: e.target.value };
+                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                  updateTask(task.id, { copyApproval: e.target.value });
+                                }}
+                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                              >
+                                <option value="Not Done">Not Done</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Needs Review">Needs Review</option>
+                                <option value="Left feedback">Left feedback</option>
+                                <option value="Approved">Approved</option>
+                              </select>
+                            </div>
+
+                            {task.copyApprovalFeedback && (
+                              <div className="col-span-2">
+                                <label className="block font-medium text-gray-600 mb-1">Feedback</label>
+                                <div className="text-xs text-gray-900 bg-yellow-50 border border-yellow-200 rounded p-2 whitespace-pre-wrap">
+                                  {task.copyApprovalFeedback}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Video/Graphic Designer Specific */}
+                        {(userTasksModal.user.department === 'VIDEO EDITING' || userTasksModal.user.department === 'GRAPHIC DESIGN') && (
+                          <>
+                            <div className="col-span-2">
+                              <label className="block font-medium text-gray-600 mb-1">Quantity</label>
+                              <input
+                                type="text"
+                                value={task.quantity || ''}
+                                onChange={(e) => {
+                                  const updatedTasks = [...userTasksModal.tasks];
+                                  updatedTasks[taskIndex] = { ...task, quantity: e.target.value };
+                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                  updateTask(task.id, { quantity: e.target.value });
+                                }}
+                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                                placeholder="x1, x5, etc."
+                              />
+                            </div>
+
+                            <div className="col-span-2">
+                              <label className="block font-medium text-gray-600 mb-1">Ad Approvals</label>
+                              <div className="space-y-1">
+                                {Array.from({ length: requiredQuantity }, (_, i) => {
+                                  const currentApproval = Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i] 
+                                    ? (task.viewerLinkApproval[i] === true ? 'Approved' : task.viewerLinkApproval[i])
+                                    : 'Not Done';
+
+                                  return (
+                                    <div key={i} className="flex items-center space-x-2">
+                                      <span className="text-gray-600 w-10">#{i + 1}</span>
+                                      <select
+                                        value={currentApproval}
+                                        onChange={(e) => {
+                                          const updatedApprovals = Array.isArray(task.viewerLinkApproval) 
+                                            ? [...task.viewerLinkApproval] 
+                                            : [];
+                                          
+                                          while (updatedApprovals.length <= i) {
+                                            updatedApprovals.push('Not Done');
+                                          }
+                                          
+                                          updatedApprovals[i] = e.target.value;
+                                          
+                                          const updatedTasks = [...userTasksModal.tasks];
+                                          updatedTasks[taskIndex] = { ...task, viewerLinkApproval: updatedApprovals };
+                                          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                          updateTask(task.id, { viewerLinkApproval: updatedApprovals });
+                                        }}
+                                        className="flex-1 px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                                      >
+                                        <option value="Not Done">Not Done</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Needs Review">Needs Review</option>
+                                        <option value="Approved">Approved</option>
+                                      </select>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
       
-  )
+  );
 };
 
 export default Tasks;

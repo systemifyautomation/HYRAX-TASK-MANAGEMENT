@@ -437,8 +437,8 @@ const UserManagement = () => {
 
       {/* Add/Edit User Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-black border border-red-600 rounded-xl shadow-2xl max-w-lg w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-lg w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-red-600">
                 {editingUser ? 'Edit User' : 'Add New User'}

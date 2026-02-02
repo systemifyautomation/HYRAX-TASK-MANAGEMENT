@@ -777,6 +777,7 @@ export const AppProvider = ({ children }) => {
 
   // Task operations with localStorage and API persistence
   const addTask = async (taskData) => {
+    const currentTimestamp = new Date().toISOString();
     const newTask = {
       ...taskData,
       id: tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
@@ -792,8 +793,14 @@ export const AppProvider = ({ children }) => {
       slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
       slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
       slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      // Initialize timestamp fields
+      copyLinkAt: taskData.copyLink ? currentTimestamp : null,
+      copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
+      copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+      viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
+      viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
+      createdAt: currentTimestamp,
+      updatedAt: currentTimestamp,
     };
     
     // Update local state and localStorage immediately
@@ -856,6 +863,7 @@ export const AppProvider = ({ children }) => {
 
     // Generate new tasks with proper sequential IDs
     let currentMaxId = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) : 0;
+    const currentTimestamp = new Date().toISOString();
     const newTasks = tasksData.map((taskData) => {
       currentMaxId += 1;
       return {
@@ -873,8 +881,14 @@ export const AppProvider = ({ children }) => {
         slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
         slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
         slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        // Initialize timestamp fields
+        copyLinkAt: taskData.copyLink ? currentTimestamp : null,
+        copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
+        copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+        viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
+        viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
+        createdAt: currentTimestamp,
+        updatedAt: currentTimestamp,
       };
     });
     
@@ -933,10 +947,69 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateTask = async (taskId, updates) => {
+    // Track timestamps for specific field changes
+    const currentTimestamp = new Date().toISOString();
     const taskUpdates = {
       ...updates,
-      updatedAt: new Date().toISOString()
+      updatedAt: currentTimestamp
     };
+    
+    // Find the existing task to check for field changes
+    const existingTask = tasks.find(t => t.id === taskId);
+    
+    // Add timestamps for specific field updates
+    if (existingTask) {
+      // copyLinkAt - when copyLink is added or changed
+      if ('copyLink' in updates && updates.copyLink !== existingTask.copyLink) {
+        taskUpdates.copyLinkAt = currentTimestamp;
+      }
+      
+      // copyWrittenAt - when copyWritten status changes
+      if ('copyWritten' in updates && updates.copyWritten !== existingTask.copyWritten) {
+        taskUpdates.copyWrittenAt = currentTimestamp;
+      }
+      
+      // copyApprovalAt - when copyApproval status changes
+      if ('copyApproval' in updates && updates.copyApproval !== existingTask.copyApproval) {
+        taskUpdates.copyApprovalAt = currentTimestamp;
+      }
+      
+      // viewerLinkAt - array of timestamps matching viewerLink array
+      if ('viewerLink' in updates && Array.isArray(updates.viewerLink)) {
+        const existingViewerLink = Array.isArray(existingTask.viewerLink) ? existingTask.viewerLink : [];
+        const existingTimestamps = Array.isArray(existingTask.viewerLinkAt) ? existingTask.viewerLinkAt : [];
+        
+        // Create new timestamps array matching the updated viewerLink array
+        const newTimestamps = updates.viewerLink.map((link, index) => {
+          // If link changed or is new, use current timestamp
+          if (link !== existingViewerLink[index]) {
+            return currentTimestamp;
+          }
+          // Otherwise keep existing timestamp or use current if not available
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.viewerLinkAt = newTimestamps;
+      }
+      
+      // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
+      if ('viewerLinkApproval' in updates && Array.isArray(updates.viewerLinkApproval)) {
+        const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+        const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
+        
+        // Create new timestamps array matching the updated viewerLinkApproval array
+        const newTimestamps = updates.viewerLinkApproval.map((approval, index) => {
+          // If approval changed or is new, use current timestamp
+          if (approval !== existingApproval[index]) {
+            return currentTimestamp;
+          }
+          // Otherwise keep existing timestamp or use current if not available
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.viewerLinkApprovalAt = newTimestamps;
+      }
+    }
     
     // Find the complete updated task
     const updatedTask = tasks.find(t => t.id === taskId);
@@ -990,7 +1063,7 @@ export const AppProvider = ({ children }) => {
     try {
       await apiCall(`/tasks/${taskId}`, {
         method: 'PUT',
-        body: taskUpdates,
+        body: completeUpdatedTask,
       });
     } catch (error) {
       console.error('Failed to update task in file:', error);
@@ -1168,6 +1241,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const addScheduledTask = async (taskData) => {
+    const currentTimestamp = new Date().toISOString();
     const newTask = {
       ...taskData,
       id: scheduledTasks.length > 0 ? Math.max(...scheduledTasks.map(t => t.id)) + 1 : 1,
@@ -1181,8 +1255,14 @@ export const AppProvider = ({ children }) => {
       slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
       slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
       slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      // Initialize timestamp fields
+      copyLinkAt: taskData.copyLink ? currentTimestamp : null,
+      copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
+      copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+      viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
+      viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
+      createdAt: currentTimestamp,
+      updatedAt: currentTimestamp,
     };
     
     const updatedTasks = [...scheduledTasks, newTask];
@@ -1230,6 +1310,7 @@ export const AppProvider = ({ children }) => {
     }
 
     let currentMaxId = scheduledTasks.length > 0 ? Math.max(...scheduledTasks.map(t => t.id)) : 0;
+    const currentTimestamp = new Date().toISOString();
     const newTasks = tasksData.map((taskData) => {
       currentMaxId += 1;
       return {
@@ -1245,8 +1326,14 @@ export const AppProvider = ({ children }) => {
         slackPermalink: Array.isArray(taskData.slackPermalink) ? taskData.slackPermalink : [],
         slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
         slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        // Initialize timestamp fields
+        copyLinkAt: taskData.copyLink ? currentTimestamp : null,
+        copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
+        copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+        viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
+        viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
+        createdAt: currentTimestamp,
+        updatedAt: currentTimestamp,
       };
     });
 
@@ -1290,10 +1377,69 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateScheduledTask = async (taskId, updates) => {
+    // Track timestamps for specific field changes
+    const currentTimestamp = new Date().toISOString();
     const taskUpdates = {
       ...updates,
-      updatedAt: new Date().toISOString()
+      updatedAt: currentTimestamp
     };
+    
+    // Find the existing task to check for field changes
+    const existingTask = scheduledTasks.find(t => t.id === taskId);
+    
+    // Add timestamps for specific field updates
+    if (existingTask) {
+      // copyLinkAt - when copyLink is added or changed
+      if ('copyLink' in updates && updates.copyLink !== existingTask.copyLink) {
+        taskUpdates.copyLinkAt = currentTimestamp;
+      }
+      
+      // copyWrittenAt - when copyWritten status changes
+      if ('copyWritten' in updates && updates.copyWritten !== existingTask.copyWritten) {
+        taskUpdates.copyWrittenAt = currentTimestamp;
+      }
+      
+      // copyApprovalAt - when copyApproval status changes
+      if ('copyApproval' in updates && updates.copyApproval !== existingTask.copyApproval) {
+        taskUpdates.copyApprovalAt = currentTimestamp;
+      }
+      
+      // viewerLinkAt - array of timestamps matching viewerLink array
+      if ('viewerLink' in updates && Array.isArray(updates.viewerLink)) {
+        const existingViewerLink = Array.isArray(existingTask.viewerLink) ? existingTask.viewerLink : [];
+        const existingTimestamps = Array.isArray(existingTask.viewerLinkAt) ? existingTask.viewerLinkAt : [];
+        
+        // Create new timestamps array matching the updated viewerLink array
+        const newTimestamps = updates.viewerLink.map((link, index) => {
+          // If link changed or is new, use current timestamp
+          if (link !== existingViewerLink[index]) {
+            return currentTimestamp;
+          }
+          // Otherwise keep existing timestamp or use current if not available
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.viewerLinkAt = newTimestamps;
+      }
+      
+      // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
+      if ('viewerLinkApproval' in updates && Array.isArray(updates.viewerLinkApproval)) {
+        const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+        const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
+        
+        // Create new timestamps array matching the updated viewerLinkApproval array
+        const newTimestamps = updates.viewerLinkApproval.map((approval, index) => {
+          // If approval changed or is new, use current timestamp
+          if (approval !== existingApproval[index]) {
+            return currentTimestamp;
+          }
+          // Otherwise keep existing timestamp or use current if not available
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.viewerLinkApprovalAt = newTimestamps;
+      }
+    }
     
     // Find the complete updated task
     const updatedTask = scheduledTasks.find(t => t.id === taskId);

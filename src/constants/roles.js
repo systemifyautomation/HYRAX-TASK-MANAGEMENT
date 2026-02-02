@@ -77,3 +77,27 @@ export const getRoleLabel = (role) => {
 export const getAllRoles = () => {
   return Object.values(USER_ROLES);
 };
+
+// Department constants
+export const DEPARTMENTS = {
+  MEDIA_BUYING: 'MEDIA BUYING',
+  GRAPHIC_DESIGN: 'GRAPHIC DESIGN',
+  VIDEO_EDITING: 'VIDEO EDITING',
+};
+
+// Helper to check department
+export const isMediaBuyer = (department) => {
+  return department?.trim().toUpperCase() === DEPARTMENTS.MEDIA_BUYING;
+};
+
+export const isGraphicDesigner = (department) => {
+  return department?.trim().toUpperCase() === DEPARTMENTS.GRAPHIC_DESIGN;
+};
+
+export const isVideoEditor = (department) => {
+  return department?.trim().toUpperCase() === DEPARTMENTS.VIDEO_EDITING;
+};
+
+export const isCreative = (department) => {
+  return isGraphicDesigner(department) || isVideoEditor(department);
+};
