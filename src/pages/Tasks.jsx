@@ -8,6 +8,11 @@ import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
 import UserTaskCard from '../components/UserTaskCard';
 
+// Global storage for active uploads - survives component re-renders
+if (!window.HYRAX_ACTIVE_UPLOADS) {
+  window.HYRAX_ACTIVE_UPLOADS = {};
+}
+
 // Start date: Monday November 24, 2025
 const WEEK_START_DATE = new Date(2025, 10, 24); // Month is 0-indexed, so 10 = November
 
@@ -95,6 +100,9 @@ const Tasks = () => {
   const canGiveFeedback = currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN;
   const filtersRef = useRef(null);
   
+  // Store active upload requests to prevent HMR from interrupting them
+  const activeUploads = useRef({});
+  
   // Debounce timer for background updates
   const updateTimersRef = useRef({});
   
@@ -128,6 +136,12 @@ const Tasks = () => {
     let mounted = true;
     
     const loadData = async () => {
+      // CRITICAL: Do not reload if uploads are in progress
+      if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length > 0) {
+        console.warn('⚠️ Skipping data reload - uploads in progress');
+        return;
+      }
+      
       if (mounted) {
         // Store current page and week for background refresh
         localStorage.setItem('hyrax_current_page', 'tasks');
@@ -164,6 +178,8 @@ const Tasks = () => {
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
   const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks } for managing user's tasks
+  const [uploadingCreatives, setUploadingCreatives] = useState({}); // Track upload progress {taskId-adIndex: progress}
+  const [hasActiveUpload, setHasActiveUpload] = useState(false); // Prevent re-renders during upload
   const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
   const [dateRangeEnd, setDateRangeEnd] = useState(''); // End date for date range filter
   const [showDatePicker, setShowDatePicker] = useState(false); // Show custom date picker
@@ -316,6 +332,445 @@ const Tasks = () => {
       });
     }
   };
+
+  const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign) => {
+    const uploadKey = `${taskId}-${adIndex}`;
+    let lastProgressTime = Date.now();
+    let lastProgressBytes = 0;
+    
+    // Check if upload already in progress
+    if (window.HYRAX_ACTIVE_UPLOADS[uploadKey]) {
+      console.warn('Upload already in progress for', uploadKey);
+      return;
+    }
+    
+    console.log('=== UPLOAD START ===');
+    console.log('File:', file.name);
+    console.log('Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+    console.log('Type:', file.type);
+    console.log('Last Modified:', new Date(file.lastModified).toLocaleString());
+    
+    // CRITICAL: Browser/System Diagnostics
+    console.log('=== SYSTEM DIAGNOSTICS ===');
+    console.log('Browser:', navigator.userAgent);
+    console.log('Platform:', navigator.platform);
+    console.log('Memory (if available):', performance.memory ? {
+      usedJSHeapSize: (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
+      totalJSHeapSize: (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
+      jsHeapSizeLimit: (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + 'MB'
+    } : 'Not available');
+    console.log('Connection:', navigator.connection ? {
+      effectiveType: navigator.connection.effectiveType,
+      downlink: navigator.connection.downlink + 'Mbps',
+      rtt: navigator.connection.rtt + 'ms'
+    } : 'Not available');
+    console.log('Active uploads count:', Object.keys(window.HYRAX_ACTIVE_UPLOADS).length);
+    console.log('======================');
+    
+    // Check for known browser limitations
+    const fileSizeMB = file.size / 1024 / 1024;
+    if (fileSizeMB > 3072) {
+      alert('⚠️ File exceeds 3GB limit. Maximum supported file size is 3GB.');
+      return;
+    }
+
+    // Determine upload route: Large files (>= 50MB) go through server proxy to avoid webhook limits
+    const USE_SERVER_PROXY = fileSizeMB >= 50;
+    const uploadUrl = USE_SERVER_PROXY 
+      ? 'http://localhost:3001/api/upload-creative'
+      : 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+    
+    console.log(`📊 Upload strategy: ${USE_SERVER_PROXY ? 'SERVER PROXY' : 'DIRECT WEBHOOK'} (file: ${fileSizeMB.toFixed(2)}MB)`);
+
+    try {
+      // Mark that an upload is in progress - use global flag
+      setHasActiveUpload(true);
+      setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 0 }));
+      
+      // Warn about HMR during development
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ DEV MODE: DO NOT save/edit code files during upload!');
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('taskId', taskId);
+      formData.append('adIndex', adIndex);
+      
+      // Add assigned user details (person on the card)
+      if (assignedUser) {
+        formData.append('assignedUserId', assignedUser.id);
+        formData.append('assignedUserName', assignedUser.name);
+        formData.append('assignedUserDepartment', assignedUser.department || '');
+      }
+      
+      // Add campaign details
+      if (campaign) {
+        formData.append('campaignId', campaign.id);
+        formData.append('campaignName', campaign.name);
+      }
+      
+      // Add current user details (person who uploaded)
+      formData.append('uploadedByUserId', currentUser.id);
+      formData.append('uploadedByUserName', currentUser.name);
+      formData.append('uploadedByUserRole', currentUser.role || '');
+      
+      // Add task details
+      if (taskData) {
+        formData.append('taskTitle', taskData.title || '');
+        formData.append('taskDueDate', taskData.dueDate || '');
+        formData.append('taskQuantity', taskData.quantity || '');
+      }
+      
+      console.log('FormData prepared with', Array.from(formData.keys()).length, 'fields');
+      
+      // Use fetch with keepalive for better reliability with large files
+      const startTime = Date.now();
+      
+      // Create abort controller for timeout management
+      const controller = new AbortController();
+      // Calculate timeout based on file size: 1MB/sec upload speed + 5min buffer, minimum 15 minutes
+      const estimatedUploadSeconds = (file.size / 1024 / 1024); // Assume 1MB/sec
+      const timeoutSeconds = Math.max(900, estimatedUploadSeconds + 300); // 15 min minimum, or estimated time + 5 min buffer
+      console.log('Timeout set to:', Math.round(timeoutSeconds / 60), 'minutes', `(file: ${(file.size / 1024 / 1024).toFixed(0)}MB)`);
+      
+      const timeoutId = setTimeout(() => {
+        console.error('Upload timeout reached');
+        controller.abort();
+      }, timeoutSeconds * 1000);
+      
+      // Track progress using XHR wrapped in fetch-like API
+      const uploadPromise = new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        console.log('🔧 Creating XHR object...');
+        console.log('XHR created, ready state:', xhr.readyState);
+        
+        // Store xhr reference GLOBALLY to prevent HMR/re-render from destroying it
+        window.HYRAX_ACTIVE_UPLOADS[uploadKey] = xhr;
+        activeUploads.current[uploadKey] = xhr;
+        
+        console.log('📝 XHR stored in global window object');
+        
+        // Monitor ALL state changes
+        xhr.addEventListener('readystatechange', () => {
+          console.log('🔄 Ready state changed:', xhr.readyState, [
+            'UNSENT', 'OPENED', 'HEADERS_RECEIVED', 'LOADING', 'DONE'
+          ][xhr.readyState]);
+        });
+        
+        // Progress tracking
+        let lastLogTime = Date.now();
+        let progressEventCount = 0;
+        
+        xhr.upload.addEventListener('loadstart', (e) => {
+          console.log('🚀 UPLOAD.loadstart event fired!');
+          console.log('Upload started at:', new Date().toLocaleTimeString());
+          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 1 }));
+        });
+        
+        xhr.upload.addEventListener('progress', (e) => {
+          progressEventCount++;
+          const now = Date.now();
+          
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            const uploadedMB = (e.loaded / 1024 / 1024).toFixed(2);
+            const totalMB = (e.total / 1024 / 1024).toFixed(2);
+            
+            // Calculate speed
+            const timeDiff = (now - lastProgressTime) / 1000; // seconds
+            const bytesDiff = e.loaded - lastProgressBytes;
+            const speedMBps = timeDiff > 0 ? (bytesDiff / 1024 / 1024 / timeDiff).toFixed(2) : 0;
+            
+            // Log every 5% or every 3 seconds
+            if (percentComplete % 5 === 0 || now - lastLogTime > 3000) {
+              console.log(`📤 ${percentComplete}% (${uploadedMB}/${totalMB}MB) | Speed: ${speedMBps}MB/s`);
+              lastLogTime = now;
+            }
+            
+            setUploadingCreatives(prev => ({ ...prev, [uploadKey]: Math.min(percentComplete, 99) }));
+            
+            lastProgressTime = now;
+            lastProgressBytes = e.loaded;
+          } else {
+            console.warn('⚠️ Progress event but length not computable');
+          }
+        });
+        
+        xhr.upload.addEventListener('load', () => {
+          console.log('✅ UPLOAD.load - Upload data sent completely, waiting for server response...');
+          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 99 }));
+        });
+        
+        xhr.upload.addEventListener('error', (e) => {
+          console.error('❌ UPLOAD.error event:', e);
+        });
+        
+        xhr.upload.addEventListener('abort', (e) => {
+          console.error('❌ UPLOAD.abort event:', e);
+          console.error('Abort triggered at progress:', progressEventCount, 'events');
+          console.error('Last bytes uploaded:', lastProgressBytes);
+        });
+        
+        xhr.addEventListener('loadstart', () => {
+          console.log('🚀 XHR.loadstart event fired');
+        });
+        
+        xhr.addEventListener('load', () => {
+          clearTimeout(timeoutId);
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          console.log(`✅ Server responded in ${elapsed}s with status: ${xhr.status}`);
+          console.log('Response headers:', xhr.getAllResponseHeaders());
+          
+          // Clean up global reference
+          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+          
+          if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('Response:', xhr.responseText.substring(0, 500));
+            try {
+              const result = JSON.parse(xhr.responseText);
+              resolve(result);
+            } catch (e) {
+              console.warn('Response is not JSON, treating as success');
+              resolve({});
+            }
+          } else if (xhr.status === 413) {
+            // 413 Payload Too Large
+            console.error('❌ Upload failed: File too large for server');
+            console.error('Response:', xhr.responseText);
+            console.error('File size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+            reject(new Error(`File too large for webhook server. The n8n webhook has a size limit. File: ${(file.size / 1024 / 1024).toFixed(2)}MB. Contact admin to increase webhook body size limit.`));
+          } else {
+            console.error('❌ Upload failed with status:', xhr.status);
+            console.error('Response:', xhr.responseText);
+            console.error('Response headers:', xhr.getAllResponseHeaders());
+            reject(new Error(`Server returned status ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
+          }
+        });
+        
+        xhr.addEventListener('error', (e) => {
+          clearTimeout(timeoutId);
+          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+          console.error('❌ XHR.error event');
+          console.error('Event details:', e);
+          console.error('Ready state:', xhr.readyState);
+          console.error('Status:', xhr.status);
+          console.error('Status text:', xhr.statusText);
+          reject(new Error('Network error - connection lost or server unreachable'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+          clearTimeout(timeoutId);
+          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+          console.error('❌ XHR.abort event');
+          console.error('⚠️ ABORT DETAILS:');
+          console.error('  - Ready state:', xhr.readyState);
+          console.error('  - Status:', xhr.status);
+          console.error('  - Progress events received:', progressEventCount);
+          console.error('  - Bytes uploaded:', lastProgressBytes, '/', file.size);
+          console.error('  - Time elapsed:', ((Date.now() - startTime) / 1000).toFixed(1), 'seconds');
+          console.error('  - Active uploads before abort:', Object.keys(window.HYRAX_ACTIVE_UPLOADS).length);
+          
+          // Try to detect what triggered the abort
+          console.error('🔍 ABORT CAUSE DETECTION:');
+          if (progressEventCount === 0) {
+            console.error('  ❌ NO progress events - upload never started');
+            console.error('  Possible causes: CORS preflight failed, network blocked, or browser canceled');
+          } else if (lastProgressBytes < file.size * 0.1) {
+            console.error('  ❌ Aborted early (< 10% uploaded)');
+            console.error('  Possible causes: Connection dropped, server rejected, or browser memory issue');
+          } else {
+            console.error('  ❌ Aborted mid-upload');
+            console.error('  Possible causes: Component re-render, HMR, or user action');
+          }
+          
+          // Check if any other code might have aborted it
+          console.trace('Abort stack trace');
+          
+          reject(new Error(`Upload aborted after ${((Date.now() - startTime) / 1000).toFixed(1)}s (${progressEventCount} progress events, ${(lastProgressBytes / 1024 / 1024).toFixed(2)}MB uploaded)`));
+        });
+        
+        xhr.addEventListener('timeout', () => {
+          clearTimeout(timeoutId);
+          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+          console.error('❌ XHR timeout');
+          reject(new Error(`Upload timeout after ${Math.round(timeoutSeconds / 60)} minutes`));
+        });
+        
+        xhr.open('POST', uploadUrl, true);
+        console.log('✅ XHR.open() called to:', uploadUrl, '| ready state:', xhr.readyState);
+        
+        xhr.timeout = timeoutSeconds * 1000;
+        console.log('⏱️ Timeout set to:', timeoutSeconds, 'seconds');
+        
+        console.log('📡 About to call xhr.send()...');
+        console.log('FormData size estimate:', file.size + 1000, 'bytes'); // file + metadata
+        console.log('Browser:', navigator.userAgent);
+        
+        try {
+          xhr.send(formData);
+          console.log('✅ xhr.send() called successfully, ready state:', xhr.readyState);
+        } catch (e) {
+          console.error('❌ xhr.send() threw an error:', e);
+          reject(e);
+        }
+        
+        console.log('⏳ Waiting for upload to start...');
+        
+        // Safety check - if no progress after 10 seconds, something is wrong
+        setTimeout(() => {
+          if (progressEventCount === 0) {
+            console.error('❌ NO PROGRESS EVENTS after 10 seconds!');
+            console.error('Ready state:', xhr.readyState);
+            console.error('Status:', xhr.status);
+            console.error('This might indicate:');
+            console.error('  - Browser is buffering large file');
+            console.error('  - CORS preflight blocking');
+            console.error('  - Network issue');
+            console.error('  - File too large for browser');
+            console.error('  - Server not responding to POST');
+            
+            // Try to get network info
+            if (performance.getEntriesByType) {
+              const resources = performance.getEntriesByType('resource');
+              const recentRequests = resources.slice(-5);
+              console.log('Recent network requests:', recentRequests.map(r => ({
+                name: r.name,
+                duration: r.duration,
+                transferSize: r.transferSize
+              })));
+            }
+          }
+        }, 10000);
+        
+        // Monitor for unexpected re-renders during upload
+        const renderCheckInterval = setInterval(() => {
+          if (xhr.readyState !== XMLHttpRequest.DONE) {
+            console.log('⏱️ Upload still active - Progress events:', progressEventCount, 
+                       '| Bytes:', (lastProgressBytes / 1024 / 1024).toFixed(2), 'MB',
+                       '| State:', xhr.readyState);
+            
+            // Check if the XHR is still in global storage
+            if (!window.HYRAX_ACTIVE_UPLOADS[uploadKey]) {
+              console.error('⚠️ WARNING: XHR removed from global storage during upload!');
+            }
+          } else {
+            clearInterval(renderCheckInterval);
+          }
+        }, 5000); // Check every 5 seconds
+      });
+      
+      const result = await uploadPromise;
+      
+      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      const avgSpeed = ((file.size / 1024 / 1024) / totalTime).toFixed(2);
+      console.log(`✅ UPLOAD SUCCESS in ${totalTime}s (avg ${avgSpeed}MB/s)`);
+      
+      // Update upload progress to 100%
+      setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 100 }));
+      
+      // Clear upload state after a short delay
+      setTimeout(() => {
+        setUploadingCreatives(prev => {
+          const newState = { ...prev };
+          delete newState[uploadKey];
+          return newState;
+        });
+        // Remove from active uploads
+        delete activeUploads.current[uploadKey];
+        delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+        // Clear active upload flag if no more uploads
+        if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+          setHasActiveUpload(false);
+        }
+      }, 2000);
+      
+      // If the webhook returns a viewer link, update the task
+      // Handle both direct viewerLink and nested data.viewerLink responses
+      const viewerLink = result.viewerLink || result.data?.viewerLink;
+      if (viewerLink) {
+        const task = tasks.find(t => t.id === taskId);
+        const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
+        
+        while (updatedViewerLinks.length <= adIndex) {
+          updatedViewerLinks.push('');
+        }
+        
+        updatedViewerLinks[adIndex] = viewerLink;
+        updateTask(taskId, { viewerLink: updatedViewerLinks });
+        
+        // Update modal state if it's open
+        if (userTasksModal) {
+          const updatedTasks = userTasksModal.tasks.map(t => 
+            t.id === taskId ? { ...t, viewerLink: updatedViewerLinks } : t
+          );
+          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+        }
+      }
+      
+    } catch (error) {
+      console.error('=== UPLOAD FAILED ===');
+      console.error('Error:', error.message);
+      console.error('Stack:', error.stack);
+      console.error('File:', file?.name, '|', (file?.size / 1024 / 1024).toFixed(2), 'MB');
+      console.error('Type:', file?.type);
+      console.error('==================');
+      
+      // Determine if it's a server issue
+      const isServerIssue = error.message.includes('status 5') || 
+                           error.message.includes('timeout') || 
+                           error.message.includes('Server');
+      
+      let userMessage = `❌ Upload Failed\n\n${error.message}\n\nFile: ${file?.name}\nSize: ${(file?.size / 1024 / 1024).toFixed(2)}MB`;
+      
+      if (isServerIssue && file.size > 100 * 1024 * 1024) { // > 100MB
+        userMessage += '\n\n⚠️ LARGE FILE DETECTED\nThe webhook server may not support files this large.\n\nSolutions:\n1. Compress the video\n2. Use a lower resolution/bitrate\n3. Contact the webhook administrator';
+      }
+      
+      userMessage += '\n\nCheck console (F12) for technical details.';
+      
+      alert(userMessage);
+      
+      setUploadingCreatives(prev => {
+        const newState = { ...prev };
+        delete newState[uploadKey];
+        return newState;
+      });
+      // Remove from active uploads
+      delete activeUploads.current[uploadKey];
+      delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+      // Clear active upload flag if no more uploads
+      if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+        setHasActiveUpload(false);
+      }
+    }
+  };
+  
+  // Cleanup active uploads on component unmount (NOT on re-render)
+  useEffect(() => {
+    return () => {
+      // Only abort if component is actually unmounting (navigating away)
+      console.log('Cleanup effect - checking global uploads:', Object.keys(window.HYRAX_ACTIVE_UPLOADS).length);
+      
+      // Only abort if the component is truly unmounting, not just re-rendering
+      setTimeout(() => {
+        if (window.location.pathname !== '/tasks') {
+          console.log('User navigated away - aborting uploads');
+          Object.entries(window.HYRAX_ACTIVE_UPLOADS).forEach(([key, xhr]) => {
+            if (xhr && xhr.readyState !== XMLHttpRequest.DONE) {
+              console.log('Aborting upload:', key);
+              xhr.abort();
+            }
+          });
+          // Clear all global uploads
+          window.HYRAX_ACTIVE_UPLOADS = {};
+        } else {
+          console.log('Still on tasks page - keeping uploads alive');
+        }
+      }, 100);
+    };
+  }, []); // Empty deps - only run on true mount/unmount
 
   // Date picker helper functions
   const handleQuickFilter = (filter) => {
@@ -1837,10 +2292,11 @@ const Tasks = () => {
 
           {/* Right Side - User Information (35%) */}
           <div className="w-[35%] bg-white overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+            <div className="p-8">
+              {/* Header */}
+              <div className="flex items-start justify-between mb-8">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{userTasksModal.user.name}</h3>
+                  <h1 className="text-2xl font-bold text-gray-900 mb-1">{userTasksModal.user.name}</h1>
                   <p className="text-sm text-gray-500">{userTasksModal.user.department}</p>
                 </div>
                 <button onClick={() => setUserTasksModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -1848,129 +2304,83 @@ const Tasks = () => {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {userTasksModal.tasks.map((task, taskIndex) => {
-                  const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
-                  
-                  // Parse quantity
-                  let requiredQuantity = 1;
-                  if (task.quantity) {
-                    if (typeof task.quantity === 'string') {
-                      const match = task.quantity.match(/x?(\d+)/i);
-                      if (match) requiredQuantity = parseInt(match[1]);
-                    } else if (typeof task.quantity === 'number') {
-                      requiredQuantity = task.quantity;
+              {/* Tasks grouped by campaign */}
+              <div className="space-y-8">
+                {Object.entries(
+                  userTasksModal.tasks.reduce((groups, task) => {
+                    const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                    const campaignName = campaign?.name || 'No Campaign';
+                    if (!groups[campaignName]) {
+                      groups[campaignName] = [];
                     }
-                  }
-
+                    groups[campaignName].push(task);
+                    return groups;
+                  }, {})
+                ).map(([campaignName, campaignTasks]) => {
+                  // Find campaign object for this group
+                  const campaignObj = campaigns.find(c => c.name === campaignName);
+                  
                   return (
-                    <div key={task.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                      <div className="mb-3 pb-2 border-b border-gray-200">
-                        <h4 className="text-sm font-semibold text-gray-900">{task.title}</h4>
-                        <p className="text-xs text-gray-500">{campaign?.name || 'Unknown Campaign'}</p>
-                      </div>
+                  <div key={campaignName}>
+                    {/* Campaign Header */}
+                    <div className="mb-4 pb-2 border-b-2 border-gray-300">
+                      <h2 className="text-xl font-bold text-gray-900">{campaignName}</h2>
+                    </div>
 
-                      {/* Compact grid layout for all fields */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        {/* Campaign - Editable */}
-                        <div className="col-span-2">
-                          <label className="block font-medium text-gray-600 mb-1">Campaign</label>
-                          <select
-                            value={task.campaignId || ''}
-                            onChange={(e) => {
-                              const updatedTasks = [...userTasksModal.tasks];
-                              updatedTasks[taskIndex] = { ...task, campaignId: e.target.value };
-                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                              updateTask(task.id, { campaignId: e.target.value });
-                            }}
-                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                          >
-                            <option value="">Select Campaign</option>
-                            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                        </div>
+                    {/* Tasks in this campaign */}
+                    <div className="space-y-6">
+                      {campaignTasks.map((task, taskIndex) => {
+                        const actualTaskIndex = userTasksModal.tasks.findIndex(t => t.id === task.id);
+                        const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                        
+                        // Calculate ad offset: sum of all previous tasks' quantities in this campaign
+                        const adOffset = campaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
+                          let qty = 1;
+                          if (prevTask.quantity) {
+                            if (typeof prevTask.quantity === 'string') {
+                              const match = prevTask.quantity.match(/x?(\d+)/i);
+                              if (match) qty = parseInt(match[1]);
+                            } else if (typeof prevTask.quantity === 'number') {
+                              qty = prevTask.quantity;
+                            }
+                          }
+                          return sum + qty;
+                        }, 0);
+                        
+                        // Parse quantity
+                        let requiredQuantity = 1;
+                        if (task.quantity) {
+                          if (typeof task.quantity === 'string') {
+                            const match = task.quantity.match(/x?(\d+)/i);
+                            if (match) requiredQuantity = parseInt(match[1]);
+                          } else if (typeof task.quantity === 'number') {
+                            requiredQuantity = task.quantity;
+                          }
+                        }
 
-                        {/* Title - Editable */}
-                        <div className="col-span-2">
-                          <label className="block font-medium text-gray-600 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={task.title || ''}
-                            onChange={(e) => {
-                              const updatedTasks = [...userTasksModal.tasks];
-                              updatedTasks[taskIndex] = { ...task, title: e.target.value };
-                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                              updateTask(task.id, { title: e.target.value });
-                            }}
-                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                          />
-                        </div>
-
-                        {/* Due Date - Editable */}
-                        <div className="col-span-2">
-                          <label className="block font-medium text-gray-600 mb-1">Due Date</label>
-                          <input
-                            type="date"
-                            value={task.dueDate || ''}
-                            onChange={(e) => {
-                              const updatedTasks = [...userTasksModal.tasks];
-                              updatedTasks[taskIndex] = { ...task, dueDate: e.target.value };
-                              setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                              updateTask(task.id, { dueDate: e.target.value });
-                            }}
-                            className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                          />
-                        </div>
-
-                        {/* Media Buyer Specific */}
-                        {userTasksModal.user.department === 'MEDIA BUYING' && (
-                          <>
-                            <div className="col-span-2">
-                              <label className="block font-medium text-gray-600 mb-1">Script Assigned</label>
-                              <select
-                                value={task.scriptAssigned || ''}
-                                onChange={(e) => {
-                                  const updatedTasks = [...userTasksModal.tasks];
-                                  updatedTasks[taskIndex] = { ...task, scriptAssigned: e.target.value };
-                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                                  updateTask(task.id, { scriptAssigned: e.target.value });
-                                }}
-                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                              >
-                                <option value="">Select User</option>
-                                {users.filter(u => u.department === 'SCRIPTWRITING').map(u => (
-                                  <option key={u.id} value={u.id}>{u.name}</option>
-                                ))}
-                              </select>
+                        return (
+                          <div key={task.id} className="pb-6">
+                            {/* Task Title */}
+                            <div className="mb-4">
+                              <h3 className="text-base font-semibold text-gray-700">{task.title}</h3>
                             </div>
 
-                            <div className="col-span-2">
-                              <label className="block font-medium text-gray-600 mb-1">Copy Link</label>
-                              <input
-                                type="url"
-                                value={task.copyLink || ''}
-                                onChange={(e) => {
-                                  const updatedTasks = [...userTasksModal.tasks];
-                                  updatedTasks[taskIndex] = { ...task, copyLink: e.target.value };
-                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                                  updateTask(task.id, { copyLink: e.target.value });
-                                }}
-                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                                placeholder="https://..."
-                              />
-                            </div>
-
-                            <div className="col-span-2">
-                              <label className="block font-medium text-gray-600 mb-1">Copy Approval</label>
+                      {/* Media Buyer - Copy Content Section */}
+                      {userTasksModal.user.department === 'MEDIA BUYING' && (
+                        <div className="space-y-6">
+                          {/* Copy Content Section */}
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h2 className="text-lg font-semibold text-gray-900">Copy Content</h2>
                               <select
                                 value={task.copyApproval || 'Not Done'}
                                 onChange={(e) => {
                                   const updatedTasks = [...userTasksModal.tasks];
-                                  updatedTasks[taskIndex] = { ...task, copyApproval: e.target.value };
+                                  updatedTasks[actualTaskIndex] = { ...task, copyApproval: e.target.value };
                                   setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
                                   updateTask(task.id, { copyApproval: e.target.value });
                                 }}
-                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                               >
                                 <option value="Not Done">Not Done</option>
                                 <option value="In Progress">In Progress</option>
@@ -1980,47 +2390,74 @@ const Tasks = () => {
                               </select>
                             </div>
 
-                            {task.copyApprovalFeedback && (
-                              <div className="col-span-2">
-                                <label className="block font-medium text-gray-600 mb-1">Feedback</label>
-                                <div className="text-xs text-gray-900 bg-yellow-50 border border-yellow-200 rounded p-2 whitespace-pre-wrap">
-                                  {task.copyApprovalFeedback}
-                                </div>
+                            <div className="space-y-4">
+                              {/* Assigned To */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Assigned To</label>
+                                <select
+                                  value={task.scriptAssigned || ''}
+                                  onChange={(e) => {
+                                    const updatedTasks = [...userTasksModal.tasks];
+                                    updatedTasks[actualTaskIndex] = { ...task, scriptAssigned: e.target.value };
+                                    setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                    updateTask(task.id, { scriptAssigned: e.target.value });
+                                  }}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="">Select Scriptwriter</option>
+                                  {users.filter(u => u.department === 'SCRIPTWRITING').map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                  ))}
+                                </select>
                               </div>
-                            )}
-                          </>
-                        )}
 
-                        {/* Video/Graphic Designer Specific */}
-                        {(userTasksModal.user.department === 'VIDEO EDITING' || userTasksModal.user.department === 'GRAPHIC DESIGN') && (
-                          <>
-                            <div className="col-span-2">
-                              <label className="block font-medium text-gray-600 mb-1">Quantity</label>
-                              <input
-                                type="text"
-                                value={task.quantity || ''}
-                                onChange={(e) => {
-                                  const updatedTasks = [...userTasksModal.tasks];
-                                  updatedTasks[taskIndex] = { ...task, quantity: e.target.value };
-                                  setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                                  updateTask(task.id, { quantity: e.target.value });
-                                }}
-                                className="w-full px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
-                                placeholder="x1, x5, etc."
-                              />
+                              {/* Copy Link */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Copy Link</label>
+                                <input
+                                  type="url"
+                                  value={task.copyLink || ''}
+                                  onChange={(e) => {
+                                    const updatedTasks = [...userTasksModal.tasks];
+                                    updatedTasks[actualTaskIndex] = { ...task, copyLink: e.target.value };
+                                    setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                    updateTask(task.id, { copyLink: e.target.value });
+                                  }}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="https://..."
+                                />
+                              </div>
+
+                              {/* Feedback Display */}
+                              {task.copyApprovalFeedback && (
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                                  <div className="px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-gray-700 whitespace-pre-wrap">
+                                    {task.copyApprovalFeedback}
+                                  </div>
+                                </div>
+                              )}
                             </div>
+                          </div>
+                        </div>
+                      )}
 
-                            <div className="col-span-2">
-                              <label className="block font-medium text-gray-600 mb-1">Ad Approvals</label>
-                              <div className="space-y-1">
-                                {Array.from({ length: requiredQuantity }, (_, i) => {
-                                  const currentApproval = Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i] 
-                                    ? (task.viewerLinkApproval[i] === true ? 'Approved' : task.viewerLinkApproval[i])
-                                    : 'Not Done';
+                      {/* Video/Graphic Designer - Ad Creatives Section */}
+                      {(userTasksModal.user.department === 'VIDEO EDITING' || userTasksModal.user.department === 'GRAPHIC DESIGN') && (
+                        <div className="space-y-6">
+                          <div>
+                            <div className="space-y-4">
+                              {Array.from({ length: requiredQuantity }, (_, i) => {
+                                const currentApproval = Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i] 
+                                  ? (task.viewerLinkApproval[i] === true ? 'Approved' : task.viewerLinkApproval[i])
+                                  : 'Not Done';
+                                const currentLink = task.viewerLink && task.viewerLink[i] ? task.viewerLink[i] : '';
+                                const adNumber = adOffset + i + 1;
 
-                                  return (
-                                    <div key={i} className="flex items-center space-x-2">
-                                      <span className="text-gray-600 w-10">#{i + 1}</span>
+                                return (
+                                  <div key={i} className="border border-gray-200 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h3 className="text-sm font-semibold text-gray-900">Ad {adNumber}</h3>
                                       <select
                                         value={currentApproval}
                                         onChange={(e) => {
@@ -2035,11 +2472,11 @@ const Tasks = () => {
                                           updatedApprovals[i] = e.target.value;
                                           
                                           const updatedTasks = [...userTasksModal.tasks];
-                                          updatedTasks[taskIndex] = { ...task, viewerLinkApproval: updatedApprovals };
+                                          updatedTasks[actualTaskIndex] = { ...task, viewerLinkApproval: updatedApprovals };
                                           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
                                           updateTask(task.id, { viewerLinkApproval: updatedApprovals });
                                         }}
-                                        className="flex-1 px-2 py-1 bg-white border border-gray-300 rounded text-gray-900"
+                                        className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                       >
                                         <option value="Not Done">Not Done</option>
                                         <option value="In Progress">In Progress</option>
@@ -2047,14 +2484,73 @@ const Tasks = () => {
                                         <option value="Approved">Approved</option>
                                       </select>
                                     </div>
-                                  );
-                                })}
-                              </div>
+                                    
+                                    {currentLink ? (
+                                      <div className="text-xs text-blue-600 break-all">
+                                        <a href={currentLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                          {currentLink}
+                                        </a>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        {uploadingCreatives[`${task.id}-${i}`] !== undefined ? (
+                                          <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+                                            <div className="text-blue-600 mb-2">
+                                              <svg className="w-8 h-8 mx-auto animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                              </svg>
+                                            </div>
+                                            <p className="text-sm text-blue-600 font-medium">Uploading... {uploadingCreatives[`${task.id}-${i}`]}%</p>
+                                            {import.meta.env.DEV && (
+                                              <p className="text-xs text-orange-600 font-semibold mt-3 px-4 py-2 bg-orange-100 rounded border border-orange-300">
+                                                ⚠️ DEV MODE: Don't save/edit files until upload completes!
+                                              </p>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <label className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                                            <input
+                                              key={`upload-${task.id}-${i}-${uploadingCreatives[`${task.id}-${i}`] || 'ready'}`}
+                                              type="file"
+                                              accept="video/*,image/*"
+                                              className="hidden"
+                                              onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                  handleCreativeUpload(
+                                                    task.id, 
+                                                    i, 
+                                                    file, 
+                                                    task, 
+                                                    userTasksModal.user, 
+                                                    campaign
+                                                  );
+                                                }
+                                              }}
+                                            />
+                                            <div className="text-gray-400 mb-2">
+                                              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                              </svg>
+                                            </div>
+                                            <p className="text-sm text-gray-600 font-medium text-center mb-1">Click to upload creative</p>
+                                            <p className="text-xs text-gray-500 text-center">Videos & Images • Up to 2GB</p>
+                                          </label>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        </div>
+                      )}
+                          </div>
+                        );
+                      })}
                     </div>
+                  </div>
                   );
                 })}
               </div>

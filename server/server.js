@@ -3,6 +3,9 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
 const path = require('path');
+const multer = require('multer');
+const FormData = require('form-data');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
@@ -12,13 +15,42 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const CORS_ORIGIN = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'];
 const DATA_DIR = process.env.DATA_DIR || './data';
 
+// Configure multer for file uploads - store in memory for immediate forwarding
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 3 * 1024 * 1024 * 1024, // 3GB max file size
+    fieldSize: 3 * 1024 * 1024 * 1024, // 3GB max field size
+  }
+});
+
+// For chunked uploads - store chunks temporarily
+const uploadDir = path.join(__dirname, 'uploads', 'chunks');
+const uploadDisk = multer({
+  storage: multer.diskStorage({
+    destination: async (req, file, cb) => {
+      const dir = path.join(uploadDir, req.body.uploadId || 'temp');
+      await fs.mkdir(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const chunkIndex = req.body.chunkIndex || 0;
+      cb(null, `chunk-${chunkIndex}`);
+    }
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max chunk size
+  }
+});
+
 // Middleware
 app.use(cors({
   origin: CORS_ORIGIN,
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Increase limits for JSON and URL-encoded data
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Security middleware
 app.use((req, res, next) => {
@@ -621,6 +653,244 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// POST /api/upload-chunk - Handle chunked uploads
+app.post('/api/upload-chunk', uploadDisk.single('chunk'), async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, fileName, ...metadata } = req.body;
+    
+    console.log(`Received chunk ${parseInt(chunkIndex) + 1}/${totalChunks} for upload ${uploadId}`);
+    
+    if (!uploadId || chunkIndex === undefined || !totalChunks) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: uploadId, chunkIndex, totalChunks'
+      });
+    }
+    
+    const chunkDir = path.join(uploadDir, uploadId);
+    const currentChunk = parseInt(chunkIndex);
+    const total = parseInt(totalChunks);
+    
+    // Check if this is the last chunk
+    if (currentChunk === total - 1) {
+      console.log('Last chunk received, assembling file...');
+      
+      // Assemble all chunks
+      const chunks = [];
+      for (let i = 0; i < total; i++) {
+        const chunkPath = path.join(chunkDir, `chunk-${i}`);
+        try {
+          const chunkData = await fs.readFile(chunkPath);
+          chunks.push(chunkData);
+        } catch (error) {
+          console.error(`Missing chunk ${i}:`, error.message);
+          return res.status(400).json({
+            success: false,
+            error: `Missing chunk ${i}. Please retry upload.`
+          });
+        }
+      }
+      
+      // Combine chunks into single buffer
+      const completeFile = Buffer.concat(chunks);
+      console.log(`Assembled file: ${(completeFile.length / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Create FormData to forward to webhook
+      const formData = new FormData();
+      formData.append('file', completeFile, {
+        filename: fileName || 'upload',
+        contentType: metadata.fileType || 'application/octet-stream',
+      });
+      
+      // Forward all metadata
+      Object.keys(metadata).forEach(key => {
+        if (metadata[key] !== undefined) {
+          formData.append(key, metadata[key]);
+        }
+      });
+      
+      console.log('📤 Forwarding assembled file to webhook...');
+      const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+      
+      try {
+        const webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          body: formData,
+          headers: formData.getHeaders(),
+          timeout: 900000, // 15 minutes
+        });
+        
+        const responseText = await webhookResponse.text();
+        console.log('Webhook response:', webhookResponse.status);
+        
+        // Clean up chunks
+        await fs.rm(chunkDir, { recursive: true, force: true }).catch(e => 
+          console.warn('Failed to clean up chunks:', e.message)
+        );
+        
+        if (webhookResponse.ok) {
+          let responseData;
+          try {
+            responseData = JSON.parse(responseText);
+          } catch (e) {
+            responseData = { message: responseText };
+          }
+          
+          res.json({
+            success: true,
+            data: responseData,
+            message: 'File uploaded successfully',
+            complete: true
+          });
+        } else {
+          res.status(webhookResponse.status).json({
+            success: false,
+            error: 'Webhook rejected the upload',
+            message: responseText,
+            complete: true
+          });
+        }
+      } catch (error) {
+        console.error('Webhook error:', error);
+        
+        // Clean up on error
+        await fs.rm(chunkDir, { recursive: true, force: true }).catch(() => {});
+        
+        res.status(503).json({
+          success: false,
+          error: 'Failed to forward to webhook',
+          message: error.message,
+          complete: true
+        });
+      }
+    } else {
+      // Not the last chunk, just acknowledge receipt
+      res.json({
+        success: true,
+        message: `Chunk ${currentChunk + 1}/${total} received`,
+        complete: false
+      });
+    }
+    
+  } catch (error) {
+    console.error('Chunk upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process chunk',
+      message: error.message
+    });
+  }
+});
+
+// POST /api/upload-creative - Handle file uploads and forward to webhook
+app.post('/api/upload-creative', upload.single('file'), async (req, res) => {
+  try {
+    console.log('=== UPLOAD REQUEST RECEIVED ===');
+    console.log('File:', req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: (req.file.size / 1024 / 1024).toFixed(2) + 'MB'
+    } : 'No file');
+    console.log('Body fields:', Object.keys(req.body).join(', '));
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    // Validate file size (3GB max)
+    const maxSize = 3 * 1024 * 1024 * 1024;
+    if (req.file.size > maxSize) {
+      return res.status(413).json({
+        success: false,
+        error: `File too large. Maximum size is ${maxSize / 1024 / 1024 / 1024}GB`
+      });
+    }
+
+    // Create FormData to forward to webhook
+    const formData = new FormData();
+    
+    // Add the file as a Buffer stream
+    formData.append('file', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+    
+    // Forward all other fields from the request
+    Object.keys(req.body).forEach(key => {
+      formData.append(key, req.body[key]);
+    });
+
+    console.log('📤 Forwarding to webhook...');
+    const webhookUrl = 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+    
+    // Forward to the webhook with generous timeout
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders(),
+      timeout: 900000, // 15 minutes timeout
+    });
+
+    console.log('Webhook response status:', webhookResponse.status);
+    
+    // Get response body
+    const responseText = await webhookResponse.text();
+    console.log('Webhook response:', responseText.substring(0, 500));
+
+    if (webhookResponse.ok) {
+      // Try to parse as JSON, otherwise return as text
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        responseData = { message: responseText };
+      }
+
+      res.json({
+        success: true,
+        data: responseData,
+        message: 'File uploaded successfully'
+      });
+    } else {
+      console.error('Webhook error:', webhookResponse.status, responseText);
+      res.status(webhookResponse.status).json({
+        success: false,
+        error: 'Webhook rejected the upload',
+        message: responseText,
+        webhookStatus: webhookResponse.status
+      });
+    }
+
+  } catch (error) {
+    console.error('=== UPLOAD ERROR ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    
+    // Determine error type
+    let statusCode = 500;
+    let errorMessage = error.message;
+    
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      statusCode = 413;
+      errorMessage = 'File too large';
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      statusCode = 503;
+      errorMessage = 'Webhook server unavailable';
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      error: 'Failed to upload file',
+      message: errorMessage,
+      details: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -648,14 +918,18 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// Set server timeout to 15 minutes for large file uploads
+const server = app.listen(PORT, () => {
   console.log(`\n🚀 Hyrax Campaign API server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🔐 Auth endpoint: http://localhost:${PORT}/api/auth/login`);
   console.log(`📁 Campaigns endpoint: http://localhost:${PORT}/api/campaigns`);
   console.log(`👥 Users endpoint: http://localhost:${PORT}/api/users`);
   console.log(`✅ Tasks endpoint: http://localhost:${PORT}/api/tasks`);
+  console.log(`📤 Upload endpoint: http://localhost:${PORT}/api/upload-creative`);
   console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`⚡ Max file size: 3GB`);
+  console.log(`⏱️  Request timeout: 15 minutes`);
   
   if (process.env.NODE_ENV === 'production') {
     console.log(`⚠️  Production mode: Ensure JWT_SECRET is properly configured`);
@@ -664,5 +938,9 @@ app.listen(PORT, () => {
   }
   console.log(``);
 });
+
+server.timeout = 900000; // 15 minutes
+server.keepAliveTimeout = 920000; // Slightly longer than timeout
+server.headersTimeout = 930000; // Slightly longer than keepAliveTimeout
 
 module.exports = app;
