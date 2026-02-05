@@ -281,7 +281,35 @@ const Tasks = () => {
         const feedbackArray = task?.[feedbackKey] || [];
         const newFeedbackArray = [...feedbackArray];
         newFeedbackArray[feedbackModal.itemIndex] = feedback;
-        updateTask(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
+        
+        // If it's viewerLink feedback, also update the approval status to "Needs Review"
+        if (feedbackModal.columnKey === 'viewerLink') {
+          const approvalArray = task?.viewerLinkApproval || [];
+          const newApprovalArray = [...approvalArray];
+          while (newApprovalArray.length <= feedbackModal.itemIndex) {
+            newApprovalArray.push('Not Done');
+          }
+          newApprovalArray[feedbackModal.itemIndex] = 'Needs Review';
+          
+          updateTask(feedbackModal.taskId, { 
+            [feedbackKey]: newFeedbackArray,
+            viewerLinkApproval: newApprovalArray
+          });
+          
+          // Update modal state if it's open
+          if (userTasksModal) {
+            const updatedTasks = userTasksModal.tasks.map(t => 
+              t.id === feedbackModal.taskId ? { 
+                ...t, 
+                [feedbackKey]: newFeedbackArray,
+                viewerLinkApproval: newApprovalArray
+              } : t
+            );
+            setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+          }
+        } else {
+          updateTask(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
+        }
       } else {
         // Handle approval column feedback
         feedbackKey = feedbackModal.type === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
@@ -730,23 +758,37 @@ const Tasks = () => {
         
         const task = tasks.find(t => t.id === taskId);
         const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
+        const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
         
         while (updatedViewerLinks.length <= adIndex) {
           updatedViewerLinks.push('');
         }
         
+        while (updatedApprovals.length <= adIndex) {
+          updatedApprovals.push('Not Done');
+        }
+        
         updatedViewerLinks[adIndex] = uploadedUrl;
-        updateTask(taskId, { viewerLink: updatedViewerLinks });
+        updatedApprovals[adIndex] = 'Needs Review'; // Auto-set to Needs Review after upload
+        
+        updateTask(taskId, { 
+          viewerLink: updatedViewerLinks,
+          viewerLinkApproval: updatedApprovals
+        });
         
         // Update modal state if it's open
         if (userTasksModal) {
           const updatedTasks = userTasksModal.tasks.map(t => 
-            t.id === taskId ? { ...t, viewerLink: updatedViewerLinks } : t
+            t.id === taskId ? { 
+              ...t, 
+              viewerLink: updatedViewerLinks,
+              viewerLinkApproval: updatedApprovals
+            } : t
           );
           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
         }
         
-        console.log('✅ Task updated with viewer link at index', adIndex);
+        console.log('✅ Task updated with viewer link at index', adIndex, 'and status set to Needs Review');
       } else {
         console.warn('⚠️ No URL found in n8n response:', result);
       }
@@ -2193,7 +2235,7 @@ const Tasks = () => {
 
       {/* Feedback Modal */}
       {feedbackModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-2xl w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-red-600">
@@ -2360,6 +2402,26 @@ const Tasks = () => {
                         const fileIdMatch = currentAd.link.match(/\/d\/([a-zA-Z0-9_-]+)/);
                         if (fileIdMatch) {
                           embedUrl = `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+                        }
+                      }
+                      
+                      // Convert YouTube links to embeddable format
+                      if (currentAd.link.includes('youtube.com') || currentAd.link.includes('youtu.be')) {
+                        let videoId = null;
+                        
+                        // Extract video ID from various YouTube URL formats
+                        if (currentAd.link.includes('youtube.com/watch')) {
+                          const urlParams = new URLSearchParams(new URL(currentAd.link).search);
+                          videoId = urlParams.get('v');
+                        } else if (currentAd.link.includes('youtu.be/')) {
+                          videoId = currentAd.link.split('youtu.be/')[1]?.split('?')[0];
+                        } else if (currentAd.link.includes('youtube.com/embed/')) {
+                          // Already in embed format
+                          videoId = currentAd.link.split('youtube.com/embed/')[1]?.split('?')[0];
+                        }
+                        
+                        if (videoId) {
+                          embedUrl = `https://www.youtube.com/embed/${videoId}`;
                         }
                       }
                       
@@ -2601,67 +2663,134 @@ const Tasks = () => {
                                                   {currentLink}
                                                 </a>
                                               </div>
-                                              <div className="flex gap-2">
-                                                <button
-                                                  onClick={() => {
-                                                    // Find the index of this creative in the preview list
-                                                    const allLinks = [];
-                                                    userTasksModal.tasks.forEach((t) => {
-                                                      if (t.viewerLink && t.viewerLink.length > 0) {
-                                                        t.viewerLink.forEach((link, idx) => {
-                                                          if (link) {
-                                                            allLinks.push({ taskId: t.id, linkIndex: idx });
-                                                          }
-                                                        });
-                                                      }
-                                                    });
-                                                    
-                                                    const previewIndex = allLinks.findIndex(
-                                                      item => item.taskId === task.id && item.linkIndex === slotIndex
-                                                    );
-                                                    
-                                                    if (previewIndex !== -1) {
-                                                      setCurrentPreviewIndex(previewIndex);
-                                                    }
-                                                  }}
-                                                  className="flex-1 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                                                >
-                                                  Preview
-                                                </button>
-                                                <label className="flex-1 px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-300 rounded-md hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors cursor-pointer text-center">
-                                                  {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
-                                                    <span className="flex items-center justify-center gap-2">
-                                                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                      </svg>
-                                                      Processing...
-                                                    </span>
-                                                  ) : (
-                                                    'Replace'
-                                                  )}
-                                                  <input
-                                                    type="file"
-                                                    accept={isVideoEditor ? ".mp4,video/mp4" : ".jpg,.jpeg,.png,image/jpeg,image/png"}
-                                                    className="hidden"
-                                                    disabled={uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined}
-                                                    onChange={(e) => {
-                                                      const file = e.target.files[0];
-                                                      if (file) {
-                                                        if (confirm(`Replace the existing ${isVideoEditor ? 'video' : 'image'}?`)) {
-                                                          handleCreativeUpload(
-                                                            task.id, 
-                                                            slotIndex, 
-                                                            file, 
-                                                            task, 
-                                                            userTasksModal.user, 
-                                                            campaign
-                                                          );
+                                              
+                                              {/* Action Buttons Row */}
+                                              <div className="space-y-2">
+                                                {/* Preview and Replace */}
+                                                <div className="flex gap-2">
+                                                  <button
+                                                    onClick={() => {
+                                                      // Find the index of this creative in the preview list
+                                                      const allLinks = [];
+                                                      userTasksModal.tasks.forEach((t) => {
+                                                        if (t.viewerLink && t.viewerLink.length > 0) {
+                                                          t.viewerLink.forEach((link, idx) => {
+                                                            if (link) {
+                                                              allLinks.push({ taskId: t.id, linkIndex: idx });
+                                                            }
+                                                          });
                                                         }
+                                                      });
+                                                      
+                                                      const previewIndex = allLinks.findIndex(
+                                                        item => item.taskId === task.id && item.linkIndex === slotIndex
+                                                      );
+                                                      
+                                                      if (previewIndex !== -1) {
+                                                        setCurrentPreviewIndex(previewIndex);
                                                       }
                                                     }}
-                                                  />
-                                                </label>
+                                                    className="flex-1 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                                  >
+                                                    Preview
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      if (confirm('Are you sure you want to delete this creative?')) {
+                                                        // Remove the link from the array
+                                                        const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
+                                                        const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
+                                                        const updatedFeedback = Array.isArray(task.viewerLinkFeedback) ? [...task.viewerLinkFeedback] : [];
+                                                        
+                                                        // Set to empty string instead of removing to preserve indices
+                                                        updatedViewerLinks[slotIndex] = '';
+                                                        updatedApprovals[slotIndex] = 'Not Done';
+                                                        updatedFeedback[slotIndex] = '';
+                                                        
+                                                        // Update backend
+                                                        updateTask(task.id, { 
+                                                          viewerLink: updatedViewerLinks,
+                                                          viewerLinkApproval: updatedApprovals,
+                                                          viewerLinkFeedback: updatedFeedback
+                                                        });
+                                                        
+                                                        // Update modal state
+                                                        const updatedTasks = [...userTasksModal.tasks];
+                                                        updatedTasks[actualTaskIndex] = { 
+                                                          ...task, 
+                                                          viewerLink: updatedViewerLinks,
+                                                          viewerLinkApproval: updatedApprovals,
+                                                          viewerLinkFeedback: updatedFeedback
+                                                        };
+                                                        setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                                      }
+                                                    }}
+                                                    className="flex-1 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-300 rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                                                  >
+                                                    Delete
+                                                  </button>
+                                                </div>
+                                                
+                                                {/* Manager Actions - Feedback and Approval */}
+                                                {(currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && (
+                                                  <div className="flex gap-2">
+                                                    <button
+                                                      onClick={() => {
+                                                        // Get existing feedback if any
+                                                        const existingFeedback = task.viewerLinkFeedback && task.viewerLinkFeedback[slotIndex] 
+                                                          ? task.viewerLinkFeedback[slotIndex] 
+                                                          : '';
+                                                        
+                                                        setFeedbackModal({
+                                                          taskId: task.id,
+                                                          columnKey: 'viewerLink',
+                                                          itemIndex: slotIndex,
+                                                          currentFeedback: existingFeedback,
+                                                          readOnly: false
+                                                        });
+                                                      }}
+                                                      className="flex-1 px-4 py-2 text-sm font-medium text-yellow-600 bg-yellow-50 border border-yellow-300 rounded-md hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors"
+                                                    >
+                                                      Leave Feedback
+                                                    </button>
+                                                    <button
+                                                      onClick={() => {
+                                                        if (confirm('Approve this creative?')) {
+                                                          const updatedApprovals = Array.isArray(task.viewerLinkApproval) 
+                                                            ? [...task.viewerLinkApproval] 
+                                                            : [];
+                                                          
+                                                          while (updatedApprovals.length <= slotIndex) {
+                                                            updatedApprovals.push('Not Done');
+                                                          }
+                                                          
+                                                          updatedApprovals[slotIndex] = 'Approved';
+                                                          
+                                                          const updatedTasks = [...userTasksModal.tasks];
+                                                          updatedTasks[actualTaskIndex] = { 
+                                                            ...task, 
+                                                            viewerLinkApproval: updatedApprovals
+                                                          };
+                                                          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                                          updateTask(task.id, { 
+                                                            viewerLinkApproval: updatedApprovals
+                                                          });
+                                                        }
+                                                      }}
+                                                      className="flex-1 px-4 py-2 text-sm font-medium text-green-600 bg-green-50 border border-green-300 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                                                    >
+                                                      Approve
+                                                    </button>
+                                                  </div>
+                                                )}
+                                                
+                                                {/* Display existing feedback */}
+                                                {task.viewerLinkFeedback && task.viewerLinkFeedback[slotIndex] && (
+                                                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                                    <p className="text-xs font-semibold text-gray-700 mb-1">Manager Feedback:</p>
+                                                    <p className="text-xs text-gray-600 whitespace-pre-wrap">{task.viewerLinkFeedback[slotIndex]}</p>
+                                                  </div>
+                                                )}
                                               </div>
                                             </div>
                                           ) : (
