@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "cd server && npm run dev",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "vercel-build": "npm run build"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.4",
     "date-fns": "^4.1.0",
+    "gapi-script": "^1.2.0",
     "lucide-react": "^0.560.0",
     "node-fetch": "^3.3.2",
     "react": "^19.2.0",

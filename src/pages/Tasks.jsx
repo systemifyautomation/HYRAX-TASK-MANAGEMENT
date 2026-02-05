@@ -178,6 +178,7 @@ const Tasks = () => {
   const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
   const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks } for managing user's tasks
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0); // Current ad preview index
   const [uploadingCreatives, setUploadingCreatives] = useState({}); // Track upload progress {taskId-adIndex: progress}
   const [hasActiveUpload, setHasActiveUpload] = useState(false); // Prevent re-renders during upload
   const [dateRangeStart, setDateRangeStart] = useState(''); // Start date for date range filter
@@ -333,7 +334,46 @@ const Tasks = () => {
     }
   };
 
+  const handleCancelUpload = (uploadKey) => {
+    // Get the XHR object from global storage
+    const xhr = window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+    
+    if (xhr) {
+      console.log('🛑 Canceling upload:', uploadKey);
+      xhr.abort();
+      
+      // Clean up
+      delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+      if (activeUploads.current[uploadKey]) {
+        delete activeUploads.current[uploadKey];
+      }
+      
+      // Remove from uploading state
+      setUploadingCreatives(prev => {
+        const newState = { ...prev };
+        delete newState[uploadKey];
+        return newState;
+      });
+      
+      // Check if there are any remaining active uploads
+      if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+        setHasActiveUpload(false);
+      }
+      
+      console.log('✅ Upload canceled successfully');
+    } else {
+      console.warn('⚠️ No active upload found for:', uploadKey);
+    }
+  };
+
   const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign) => {
+    // Check file size first - must be under 99MB
+    const fileSizeMB = file.size / 1024 / 1024;
+    if (fileSizeMB > 99) {
+      alert(`⚠️ File size limit exceeded!\n\nFile: ${file.name}\nSize: ${fileSizeMB.toFixed(2)} MB\n\nMaximum allowed: 99 MB\n\nPlease compress your video and try again.`);
+      return;
+    }
+    
     const uploadKey = `${taskId}-${adIndex}`;
     let lastProgressTime = Date.now();
     let lastProgressBytes = 0;
@@ -368,19 +408,14 @@ const Tasks = () => {
     console.log('======================');
     
     // Check for known browser limitations
-    const fileSizeMB = file.size / 1024 / 1024;
     if (fileSizeMB > 3072) {
       alert('⚠️ File exceeds 3GB limit. Maximum supported file size is 3GB.');
       return;
     }
 
-    // Determine upload route: Large files (>= 50MB) go through server proxy to avoid webhook limits
-    const USE_SERVER_PROXY = fileSizeMB >= 50;
-    const uploadUrl = USE_SERVER_PROXY 
-      ? 'http://localhost:3001/api/upload-creative'
-      : 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
-    
-    console.log(`📊 Upload strategy: ${USE_SERVER_PROXY ? 'SERVER PROXY' : 'DIRECT WEBHOOK'} (file: ${fileSizeMB.toFixed(2)}MB)`);
+    // All files upload directly to n8n webhook
+    const uploadUrl = 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+    console.log(`📊 Uploading directly to n8n (file: ${fileSizeMB.toFixed(2)}MB)`);
 
     try {
       // Mark that an upload is in progress - use global flag
@@ -686,10 +721,13 @@ const Tasks = () => {
         }
       }, 2000);
       
-      // If the webhook returns a viewer link, update the task
-      // Handle both direct viewerLink and nested data.viewerLink responses
-      const viewerLink = result.viewerLink || result.data?.viewerLink;
-      if (viewerLink) {
+      // Extract URL from n8n response
+      // n8n returns JSON body with "url" field containing the video/image URL
+      const uploadedUrl = result.url || result.data?.url || result.viewerLink || result.data?.viewerLink;
+      
+      if (uploadedUrl) {
+        console.log('✅ Received URL from n8n:', uploadedUrl);
+        
         const task = tasks.find(t => t.id === taskId);
         const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
         
@@ -697,7 +735,7 @@ const Tasks = () => {
           updatedViewerLinks.push('');
         }
         
-        updatedViewerLinks[adIndex] = viewerLink;
+        updatedViewerLinks[adIndex] = uploadedUrl;
         updateTask(taskId, { viewerLink: updatedViewerLinks });
         
         // Update modal state if it's open
@@ -707,6 +745,10 @@ const Tasks = () => {
           );
           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
         }
+        
+        console.log('✅ Task updated with viewer link at index', adIndex);
+      } else {
+        console.warn('⚠️ No URL found in n8n response:', result);
       }
       
     } catch (error) {
@@ -1430,10 +1472,14 @@ const Tasks = () => {
       <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="page-title">
-            Tasks
-          </h1>
-          <p className="text-gray-600 mt-2">Manage all tasks in a powerful spreadsheet view</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="page-title">
+                Tasks
+              </h1>
+              <p className="text-gray-600 mt-2">Manage all tasks in a powerful spreadsheet view</p>
+            </div>
+          </div>
           
           {/* Stats Bar */}
           <div className="grid grid-cols-4 gap-4 mt-6">
@@ -1858,56 +1904,6 @@ const Tasks = () => {
       {/* Cards View */}
       {displayType === 'cards' ? (
         <div className="space-y-8 p-6">
-          {/* MEDIA BUYING - Grouped by Users, then Campaigns */}
-          {users.filter(u => u.department === 'MEDIA BUYING').length > 0 && (
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">MEDIA BUYING</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {users.filter(u => u.department === 'MEDIA BUYING').map(user => {
-                  // Get current week range
-                  const now = new Date();
-                  const currentWeekMonday = getMondayOfWeek(now);
-                  const currentWeekSunday = getSundayOfWeek(now);
-                  const currentWeekRange = getWeekDateRange(0);
-
-                  // Get all tasks for this user - convert scriptAssigned to number for comparison
-                  let userTasks = filteredTasks.filter(task => {
-                    // Filter by user
-                    if (parseInt(task.scriptAssigned) !== user.id) return false;
-                    
-                    // Filter by current week
-                    if (task.week === currentWeekRange) return true;
-                    
-                    return false;
-                  });
-                  
-                  // Apply card-level campaign filter
-                  const cardCampaignFilter = cardCampaignFilters[user.id] || '';
-                  if (cardCampaignFilter) {
-                    userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
-                  }
-
-                  // Don't render card if user has no tasks
-                  if (userTasks.length === 0) return null;
-
-                  return (
-                    <UserTaskCard
-                      key={user.id}
-                      user={user}
-                      userTasks={userTasks}
-                      campaigns={campaigns}
-                      users={users}
-                      cardCampaignFilter={cardCampaignFilter}
-                      onCampaignFilterChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                      onClick={(user, tasks) => setUserTasksModal({ user, tasks })}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* VIDEO EDITING AND GRAPHIC DESIGN */}
           {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
             const departmentUsers = users.filter(u => u.department === department);
@@ -2258,36 +2254,129 @@ const Tasks = () => {
       {/* User Tasks Management Modal */}
       {userTasksModal && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex">
-          {/* Left Side - Link Previews (65%) */}
-          <div className="w-[65%] bg-gray-900 p-6 overflow-y-auto">
-            <div className="h-full flex flex-col space-y-4">
-              {userTasksModal.tasks.map((task) => (
-                <div key={task.id} className="flex-1 flex flex-col space-y-4">
-                  {task.copyLink && (
-                    <div className="flex-1 flex flex-col bg-gray-800 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-white mb-2">Copy Link Preview - {task.title}</h4>
-                      <iframe
-                        src={task.copyLink}
-                        className="w-full flex-1 border border-gray-600 rounded-lg bg-white"
-                        title={`Copy Link - ${task.title}`}
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                      />
-                    </div>
-                  )}
-                  {task.viewerLink && task.viewerLink.length > 0 && (
-                    <div className="flex-1 flex flex-col bg-gray-800 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-white mb-2">Viewer Link Preview - {task.title}</h4>
-                      <iframe
-                        src={task.viewerLink[0]}
-                        className="w-full flex-1 border border-gray-600 rounded-lg bg-white"
-                        title={`Viewer Link - ${task.title}`}
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          {/* Left Side - Video Previews (65%) */}
+          <div className="w-[65%] bg-gray-900 p-6 overflow-hidden flex flex-col">
+            {(() => {
+              // Collect all viewer links from all tasks with proper ad numbering
+              const allLinks = [];
+              
+              // Group tasks by campaign to calculate proper ad offset
+              const tasksByCampaign = userTasksModal.tasks.reduce((groups, task) => {
+                const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                const campaignName = campaign?.name || 'No Campaign';
+                if (!groups[campaignName]) {
+                  groups[campaignName] = [];
+                }
+                groups[campaignName].push(task);
+                return groups;
+              }, {});
+              
+              // Build links with correct ad numbers
+              Object.entries(tasksByCampaign).forEach(([campaignName, campaignTasks]) => {
+                campaignTasks.forEach((task, taskIndex) => {
+                  // Calculate ad offset: sum of all previous tasks' quantities in this campaign
+                  const adOffset = campaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
+                    let qty = 1;
+                    if (prevTask.quantity) {
+                      if (typeof prevTask.quantity === 'string') {
+                        const match = prevTask.quantity.match(/x?(\d+)/i);
+                        if (match) qty = parseInt(match[1]);
+                      } else if (typeof prevTask.quantity === 'number') {
+                        qty = prevTask.quantity;
+                      }
+                    }
+                    return sum + qty;
+                  }, 0);
+                  
+                  if (task.viewerLink && task.viewerLink.length > 0) {
+                    const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                    task.viewerLink.forEach((link, index) => {
+                      if (link) {
+                        allLinks.push({
+                          link,
+                          taskId: task.id,
+                          linkIndex: index,
+                          taskTitle: task.title,
+                          campaignName: campaign?.name || 'No Campaign',
+                          adIndex: adOffset + index + 1
+                        });
+                      }
+                    });
+                  }
+                });
+              });
+
+              if (allLinks.length === 0) {
+                return (
+                  <div className="h-full flex items-center justify-center">
+                    <p className="text-gray-400 text-lg">No previews available</p>
+                  </div>
+                );
+              }
+
+              const currentAd = allLinks[currentPreviewIndex] || allLinks[0];
+
+              return (
+                <>
+                  {/* Preview Header with Navigation */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-semibold text-lg">
+                      {currentAd.campaignName} / Ad {currentAd.adIndex}
+                    </h3>
+                    {allLinks.length > 1 && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setCurrentPreviewIndex(Math.max(0, currentPreviewIndex - 1))}
+                          disabled={currentPreviewIndex === 0}
+                          className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <span className="text-white text-sm font-medium">
+                          {currentPreviewIndex + 1} / {allLinks.length}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPreviewIndex(Math.min(allLinks.length - 1, currentPreviewIndex + 1))}
+                          disabled={currentPreviewIndex === allLinks.length - 1}
+                          className="p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Preview Content */}
+                  <div className="flex-1 bg-gray-800 rounded-lg p-4 min-h-0 flex items-center justify-center">
+                    {(() => {
+                      let embedUrl = currentAd.link;
+                      
+                      // Convert Google Drive links to embeddable format
+                      if (currentAd.link.includes('drive.google.com')) {
+                        const fileIdMatch = currentAd.link.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                        if (fileIdMatch) {
+                          embedUrl = `https://drive.google.com/file/d/${fileIdMatch[1]}/preview`;
+                        }
+                      }
+                      
+                      return (
+                        <iframe
+                          key={embedUrl}
+                          src={embedUrl}
+                          className="w-full h-full border border-gray-600 rounded-lg bg-white"
+                          title={`Ad ${currentAd.adIndex} - ${currentAd.taskTitle}`}
+                          allow="autoplay"
+                        />
+                      );
+                    })()}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* Right Side - User Information (35%) */}
@@ -2365,8 +2454,8 @@ const Tasks = () => {
                               <h3 className="text-base font-semibold text-gray-700">{task.title}</h3>
                             </div>
 
-                      {/* Media Buyer - Copy Content Section */}
-                      {userTasksModal.user.department === 'MEDIA BUYING' && (
+                            {/* Media Buyer - Copy Content Section */}
+                            {userTasksModal.user.department === 'MEDIA BUYING' && (
                         <div className="space-y-6">
                           {/* Copy Content Section */}
                           <div>
@@ -2442,103 +2531,200 @@ const Tasks = () => {
                         </div>
                       )}
 
-                      {/* Video/Graphic Designer - Ad Creatives Section */}
-                      {(userTasksModal.user.department === 'VIDEO EDITING' || userTasksModal.user.department === 'GRAPHIC DESIGN') && (
+                            {/* Video/Graphic Designer - Ad Creatives Section */}
+                            {(userTasksModal.user.department === 'VIDEO EDITING' || userTasksModal.user.department === 'GRAPHIC DESIGN') && (
                         <div className="space-y-6">
                           <div>
                             <div className="space-y-4">
                               {Array.from({ length: requiredQuantity }, (_, i) => {
-                                const currentApproval = Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i] 
-                                  ? (task.viewerLinkApproval[i] === true ? 'Approved' : task.viewerLinkApproval[i])
-                                  : 'Not Done';
-                                const currentLink = task.viewerLink && task.viewerLink[i] ? task.viewerLink[i] : '';
-                                const adNumber = adOffset + i + 1;
-
+                                // For VIDEO EDITING: Each video has 2 formats (Facebook and Reel)
+                                // For GRAPHIC DESIGN: Each image is just one creative
+                                const isVideoEditor = userTasksModal.user.department === 'VIDEO EDITING';
+                                const formatsPerCreative = isVideoEditor ? 2 : 1;
+                                const formats = isVideoEditor ? ['Facebook Format', 'Reel'] : [''];
+                                
                                 return (
                                   <div key={i} className="border border-gray-200 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <h3 className="text-sm font-semibold text-gray-900">Ad {adNumber}</h3>
-                                      <select
-                                        value={currentApproval}
-                                        onChange={(e) => {
-                                          const updatedApprovals = Array.isArray(task.viewerLinkApproval) 
-                                            ? [...task.viewerLinkApproval] 
-                                            : [];
-                                          
-                                          while (updatedApprovals.length <= i) {
-                                            updatedApprovals.push('Not Done');
-                                          }
-                                          
-                                          updatedApprovals[i] = e.target.value;
-                                          
-                                          const updatedTasks = [...userTasksModal.tasks];
-                                          updatedTasks[actualTaskIndex] = { ...task, viewerLinkApproval: updatedApprovals };
-                                          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-                                          updateTask(task.id, { viewerLinkApproval: updatedApprovals });
-                                        }}
-                                        className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      >
-                                        <option value="Not Done">Not Done</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Needs Review">Needs Review</option>
-                                        <option value="Approved">Approved</option>
-                                      </select>
+                                    <div className="mb-3">
+                                      <h3 className="text-sm font-semibold text-gray-900">
+                                        {isVideoEditor ? `Video ${adOffset + i + 1}` : `Ad ${adOffset + i + 1}`}
+                                      </h3>
                                     </div>
                                     
-                                    {currentLink ? (
-                                      <div className="text-xs text-blue-600 break-all">
-                                        <a href={currentLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                                          {currentLink}
-                                        </a>
-                                      </div>
-                                    ) : (
-                                      <div>
-                                        {uploadingCreatives[`${task.id}-${i}`] !== undefined ? (
-                                          <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
-                                            <div className="text-blue-600 mb-2">
-                                              <svg className="w-8 h-8 mx-auto animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                              </svg>
+                                    {formats.map((format, formatIndex) => {
+                                      const slotIndex = isVideoEditor ? (i * 2 + formatIndex) : i;
+                                      const currentApproval = Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[slotIndex] 
+                                        ? (task.viewerLinkApproval[slotIndex] === true ? 'Approved' : task.viewerLinkApproval[slotIndex])
+                                        : 'Not Done';
+                                      const currentLink = task.viewerLink && task.viewerLink[slotIndex] ? task.viewerLink[slotIndex] : '';
+                                      
+                                      return (
+                                        <div key={formatIndex} className={formatIndex > 0 ? 'mt-4 pt-4 border-t border-gray-200' : ''}>
+                                          {isVideoEditor && (
+                                            <div className="mb-2">
+                                              <span className="text-sm font-medium text-gray-700">{format}</span>
                                             </div>
-                                            <p className="text-sm text-blue-600 font-medium">Uploading... {uploadingCreatives[`${task.id}-${i}`]}%</p>
-                                            {import.meta.env.DEV && (
-                                              <p className="text-xs text-orange-600 font-semibold mt-3 px-4 py-2 bg-orange-100 rounded border border-orange-300">
-                                                ⚠️ DEV MODE: Don't save/edit files until upload completes!
-                                              </p>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <label className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
-                                            <input
-                                              key={`upload-${task.id}-${i}-${uploadingCreatives[`${task.id}-${i}`] || 'ready'}`}
-                                              type="file"
-                                              accept="video/*,image/*"
-                                              className="hidden"
+                                          )}
+                                          
+                                          <div className="flex items-center justify-end mb-3">
+                                            <select
+                                              value={currentApproval}
                                               onChange={(e) => {
-                                                const file = e.target.files[0];
-                                                if (file) {
-                                                  handleCreativeUpload(
-                                                    task.id, 
-                                                    i, 
-                                                    file, 
-                                                    task, 
-                                                    userTasksModal.user, 
-                                                    campaign
-                                                  );
+                                                const updatedApprovals = Array.isArray(task.viewerLinkApproval) 
+                                                  ? [...task.viewerLinkApproval] 
+                                                  : [];
+                                                
+                                                while (updatedApprovals.length <= slotIndex) {
+                                                  updatedApprovals.push('Not Done');
                                                 }
+                                                
+                                                updatedApprovals[slotIndex] = e.target.value;
+                                                
+                                                const updatedTasks = [...userTasksModal.tasks];
+                                                updatedTasks[actualTaskIndex] = { ...task, viewerLinkApproval: updatedApprovals };
+                                                setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                                updateTask(task.id, { viewerLinkApproval: updatedApprovals });
                                               }}
-                                            />
-                                            <div className="text-gray-400 mb-2">
-                                              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                              </svg>
+                                              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                              <option value="Not Done">Not Done</option>
+                                              <option value="In Progress">In Progress</option>
+                                              <option value="Needs Review">Needs Review</option>
+                                              <option value="Approved">Approved</option>
+                                            </select>
+                                          </div>
+                                          
+                                          {currentLink ? (
+                                            <div className="space-y-3">
+                                              <div className="text-xs text-blue-600 break-all">
+                                                <a href={currentLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                                  {currentLink}
+                                                </a>
+                                              </div>
+                                              <div className="flex gap-2">
+                                                <button
+                                                  onClick={() => {
+                                                    // Find the index of this creative in the preview list
+                                                    const allLinks = [];
+                                                    userTasksModal.tasks.forEach((t) => {
+                                                      if (t.viewerLink && t.viewerLink.length > 0) {
+                                                        t.viewerLink.forEach((link, idx) => {
+                                                          if (link) {
+                                                            allLinks.push({ taskId: t.id, linkIndex: idx });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    
+                                                    const previewIndex = allLinks.findIndex(
+                                                      item => item.taskId === task.id && item.linkIndex === slotIndex
+                                                    );
+                                                    
+                                                    if (previewIndex !== -1) {
+                                                      setCurrentPreviewIndex(previewIndex);
+                                                    }
+                                                  }}
+                                                  className="flex-1 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                                >
+                                                  Preview
+                                                </button>
+                                                <label className="flex-1 px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-300 rounded-md hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors cursor-pointer text-center">
+                                                  {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
+                                                    <span className="flex items-center justify-center gap-2">
+                                                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                      </svg>
+                                                      Processing...
+                                                    </span>
+                                                  ) : (
+                                                    'Replace'
+                                                  )}
+                                                  <input
+                                                    type="file"
+                                                    accept={isVideoEditor ? ".mp4,video/mp4" : ".jpg,.jpeg,.png,image/jpeg,image/png"}
+                                                    className="hidden"
+                                                    disabled={uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined}
+                                                    onChange={(e) => {
+                                                      const file = e.target.files[0];
+                                                      if (file) {
+                                                        if (confirm(`Replace the existing ${isVideoEditor ? 'video' : 'image'}?`)) {
+                                                          handleCreativeUpload(
+                                                            task.id, 
+                                                            slotIndex, 
+                                                            file, 
+                                                            task, 
+                                                            userTasksModal.user, 
+                                                            campaign
+                                                          );
+                                                        }
+                                                      }
+                                                    }}
+                                                  />
+                                                </label>
+                                              </div>
                                             </div>
-                                            <p className="text-sm text-gray-600 font-medium text-center mb-1">Click to upload creative</p>
-                                            <p className="text-xs text-gray-500 text-center">Videos & Images • Up to 2GB</p>
-                                          </label>
-                                        )}
-                                      </div>
-                                    )}
+                                          ) : (
+                                            <div>
+                                              {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
+                                                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+                                                  <div className="text-blue-600 mb-2">
+                                                    <svg className="w-8 h-8 mx-auto animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                  </div>
+                                                  <p className="text-sm text-blue-600 font-medium mb-3">Uploading... {uploadingCreatives[`${task.id}-${slotIndex}`]}%</p>
+                                                  <button
+                                                    onClick={() => handleCancelUpload(`${task.id}-${slotIndex}`)}
+                                                    className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                                                  >
+                                                    Cancel Upload
+                                                  </button>
+                                                  {import.meta.env.DEV && (
+                                                    <p className="text-xs text-orange-600 font-semibold mt-3 px-4 py-2 bg-orange-100 rounded border border-orange-300">
+                                                      ⚠️ DEV MODE: Don't save/edit files until upload completes!
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <label className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                                                  <input
+                                                    key={`upload-${task.id}-${slotIndex}-${uploadingCreatives[`${task.id}-${slotIndex}`] || 'ready'}`}
+                                                    type="file"
+                                                    accept={isVideoEditor ? ".mp4,video/mp4" : ".jpg,.jpeg,.png,image/jpeg,image/png"}
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                      const file = e.target.files[0];
+                                                      if (file) {
+                                                        handleCreativeUpload(
+                                                          task.id, 
+                                                          slotIndex, 
+                                                          file, 
+                                                          task, 
+                                                          userTasksModal.user, 
+                                                          campaign
+                                                        );
+                                                      }
+                                                    }}
+                                                  />
+                                                  <div className="text-gray-400 mb-2">
+                                                    <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                                    </svg>
+                                                  </div>
+                                                  <p className="text-sm text-gray-600 font-medium text-center mb-1">
+                                                    Click to upload {isVideoEditor ? format.toLowerCase() : 'creative'}
+                                                  </p>
+                                                  <p className="text-xs text-gray-500 text-center">
+                                                    {isVideoEditor ? 'MP4 files • Up to 99 MB' : 'JPG/PNG files • Up to 99 MB'}
+                                                  </p>
+                                                </label>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 );
                               })}
@@ -2558,8 +2744,7 @@ const Tasks = () => {
           </div>
         </div>
       )}
-      </div>
-      
+    </div>
   );
 };
 
