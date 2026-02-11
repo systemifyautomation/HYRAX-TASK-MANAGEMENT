@@ -946,7 +946,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const updateTask = async (taskId, updates) => {
+  const updateTask = async (taskId, updates, additionalQueryParams = {}) => {
     // Track timestamps for specific field changes
     const currentTimestamp = new Date().toISOString();
     const taskUpdates = {
@@ -1037,7 +1037,8 @@ export const AppProvider = ({ children }) => {
       } else {
         // Prepare URL with updated_tasks in query parameters
         const params = new URLSearchParams({
-          updated_tasks: JSON.stringify([completeUpdatedTask])
+          updated_tasks: JSON.stringify([completeUpdatedTask]),
+          ...additionalQueryParams // Add any additional query parameters (e.g., previous_url, new_url)
         });
 
         const response = await fetch(`${webhookUrl}?${params}`, {

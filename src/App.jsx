@@ -7,6 +7,7 @@ import Tasks from './pages/Tasks';
 import ScheduledTasks from './pages/ScheduledTasks';
 import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
+import AdAccounts from './pages/AdAccounts';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -71,6 +72,7 @@ const AppRouter = () => {
                 <Route path="/scheduled-tasks" element={<ScheduledTasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
                 <Route path="/users" element={<UserManagement />} />
+                <Route path="/ad-accounts" element={<AdAccounts />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

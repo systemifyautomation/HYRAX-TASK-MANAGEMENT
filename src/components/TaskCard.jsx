@@ -53,7 +53,7 @@ const TaskCard = ({ user }) => {
         const validLinks = viewerLinks.filter(link => link && link.trim());
         if (validLinks.length === 0) return false;
         
-        return validLinks.every((link, idx) => approvals?.[idx] === 'Approved');
+        return validLinks.every((link, idx) => approvals?.[idx] === 'Approved' || approvals?.[idx] === 'Uploaded');
       }).length;
       
       return { completed: completedTasks, total: userTasks.length };
@@ -69,7 +69,7 @@ const TaskCard = ({ user }) => {
         const validLinks = task.viewerLink.filter(link => link && link.trim());
         if (validLinks.length > 0) {
           const allApproved = validLinks.every((link, i) => 
-            task.viewerLinkApproval?.[i] === 'Approved'
+            task.viewerLinkApproval?.[i] === 'Approved' || task.viewerLinkApproval?.[i] === 'Uploaded'
           );
           status = allApproved ? 'Approved' : 'In Progress';
         }

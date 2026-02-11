@@ -46,7 +46,7 @@ const UserTaskCard = ({
         if (Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval.length > 0) {
           // Handle both boolean true and string "Approved"
           const approvedCount = task.viewerLinkApproval.filter(approval => 
-            approval === 'Approved' || approval === true
+            approval === 'Approved' || approval === 'Uploaded' || approval === true
           ).length;
           const cappedCount = Math.min(approvedCount, requiredQuantity);
           totalApproved += cappedCount;
@@ -85,7 +85,7 @@ const UserTaskCard = ({
         // Check if this specific viewer link is approved
         if (Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i]) {
           const approval = task.viewerLinkApproval[i];
-          if (approval === 'Approved' || approval === true) {
+          if (approval === 'Approved' || approval === 'Uploaded' || approval === true) {
             status = 'Approved';
           } else if (task.viewerLink && task.viewerLink[i] && task.viewerLink[i].trim()) {
             status = 'In Progress';
@@ -160,7 +160,7 @@ const UserTaskCard = ({
             return true; // No viewer links approved yet, so not completed
           }
 
-          const approvedCount = task.viewerLinkApproval.filter(approval => approval === 'Approved' || approval === true).length;
+          const approvedCount = task.viewerLinkApproval.filter(approval => approval === 'Approved' || approval === 'Uploaded' || approval === true).length;
           return approvedCount < requiredQuantity; // Not all required viewer links are approved
         }
 

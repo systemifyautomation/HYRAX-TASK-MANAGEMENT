@@ -274,7 +274,7 @@ const Tasks = () => {
     }
   };
 
-  const handleSaveFeedback = (feedback) => {
+  const handleSaveFeedback = async (feedback) => {
     if (feedbackModal) {
       let feedbackKey;
       
@@ -310,6 +310,36 @@ const Tasks = () => {
               } : t
             );
             setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+          }
+
+          // Send feedback to n8n webhook
+          try {
+            const creativeUrl = task?.viewerLink?.[feedbackModal.itemIndex];
+            if (creativeUrl) {
+              const password = localStorage.getItem('admin_password') || '';
+              const today = new Date().toISOString().split('T')[0];
+              const hashInput = `${password}${currentUser.email}${today}`;
+              const encoder = new TextEncoder();
+              const data = encoder.encode(hashInput);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const code = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+              await fetch('https://workflows.wearehyrax.com/webhook/add-feedback-to-history', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  code: code,
+                  requested_by: currentUser.email,
+                  creative_url: creativeUrl,
+                  feedback: feedback
+                })
+              });
+            }
+          } catch (error) {
+            console.error('Error sending feedback to webhook:', error);
           }
         } else {
           updateTask(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
@@ -398,7 +428,7 @@ const Tasks = () => {
     }
   };
 
-  const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign) => {
+  const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign, previousUrl = null) => {
     // Check file size first - must be under 99MB
     const fileSizeMB = file.size / 1024 / 1024;
     if (fileSizeMB > 99) {
@@ -665,8 +695,18 @@ const Tasks = () => {
           reject(new Error(`Upload timeout after ${Math.round(timeoutSeconds / 60)} minutes`));
         });
         
-        xhr.open('POST', uploadUrl, true);
-        console.log('✅ XHR.open() called to:', uploadUrl, '| ready state:', xhr.readyState);
+        // Build URL with query parameters for replace operation
+        let finalUploadUrl = uploadUrl;
+        if (previousUrl) {
+          const urlParams = new URLSearchParams();
+          urlParams.append('previous_url', previousUrl);
+          // new_url will be set by the webhook after upload completes
+          finalUploadUrl = `${uploadUrl}?${urlParams.toString()}`;
+          console.log('🔄 Replace mode - previous_url:', previousUrl);
+        }
+        
+        xhr.open('POST', finalUploadUrl, true);
+        console.log('✅ XHR.open() called to:', finalUploadUrl, '| ready state:', xhr.readyState);
         
         xhr.timeout = timeoutSeconds * 1000;
         console.log('⏱️ Timeout set to:', timeoutSeconds, 'seconds');
@@ -775,10 +815,18 @@ const Tasks = () => {
         updatedViewerLinks[adIndex] = uploadedUrl;
         updatedApprovals[adIndex] = 'Needs Review'; // Auto-set to Needs Review after upload
         
+        // Prepare additional query parameters
+        const queryParams = {
+          new_url: uploadedUrl
+        };
+        if (previousUrl) {
+          queryParams.previous_url = previousUrl;
+        }
+        
         updateTask(taskId, { 
           viewerLink: updatedViewerLinks,
           viewerLinkApproval: updatedApprovals
-        });
+        }, queryParams);
         
         // Update modal state if it's open
         if (userTasksModal) {
