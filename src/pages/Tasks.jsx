@@ -842,7 +842,41 @@ const Tasks = () => {
         
         console.log('✅ Task updated with viewer link at index', adIndex, 'and status set to Needs Review');
       } else {
-        console.warn('⚠️ No URL found in n8n response:', result);
+        // Empty response from n8n - workflow issue
+        console.error('❌ Empty response from n8n workflow');
+        
+        const errorMessage = `❌ Backend Processing Error
+
+The upload completed but the workflow failed to process it correctly.
+
+File: ${file?.name}
+Size: ${(file?.size / 1024 / 1024).toFixed(2)}MB
+
+📝 What to do:
+1. Please re-upload the creative
+2. If this happens repeatedly, contact Max
+
+This usually indicates a temporary workflow issue.`;
+        
+        alert(errorMessage);
+        
+        // Clean up upload state
+        setUploadingCreatives(prev => {
+          const newState = { ...prev };
+          delete newState[uploadKey];
+          return newState;
+        });
+        
+        // Remove from active uploads
+        delete activeUploads.current[uploadKey];
+        delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+        
+        // Clear active upload flag if no more uploads
+        if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+          setHasActiveUpload(false);
+        }
+        
+        return; // Exit early, don't continue to catch block
       }
       
     } catch (error) {

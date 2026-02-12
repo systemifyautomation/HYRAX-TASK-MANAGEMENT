@@ -201,8 +201,29 @@ const UserTasksModal = ({
   const getEmbedUrl = (url) => {
     if (!url) return url;
 
-    // Google Drive: Convert /file/d/{id}/view to /file/d/{id}/preview
+    // Google Drive: Convert to proper embed format
     if (url.includes('drive.google.com')) {
+      // Extract file ID from various Google Drive URL formats
+      let fileId = null;
+      
+      // Format: https://drive.google.com/file/d/{id}/view
+      const fileMatch = url.match(/\/file\/d\/([^\/]+)/);
+      if (fileMatch) {
+        fileId = fileMatch[1];
+      }
+      
+      // Format: https://drive.google.com/open?id={id}
+      const openMatch = url.match(/[?&]id=([^&]+)/);
+      if (openMatch) {
+        fileId = openMatch[1];
+      }
+      
+      // If we found a file ID, return the proper embed URL
+      if (fileId) {
+        return `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+      
+      // Fallback: just replace /view with /preview
       return url.replace('/view', '/preview');
     }
 
@@ -412,31 +433,13 @@ const UserTasksModal = ({
                                 }
                               }}
                             >
-                              <div className="flex items-center justify-between mb-5">
-                                <div className="flex items-center gap-2.5">
-                                  <span className="text-lg font-semibold text-gray-900">
-                                    Ad {adNumber}
-                                  </span>
-                                  {formatLabel && (
-                                    <span className="text-xs px-2.5 py-1 bg-red-500 text-white rounded-full font-medium">
-                                      {formatLabel}
-                                    </span>
-                                  )}
-                                </div>
-                                {task.viewerLinkApproval && task.viewerLinkApproval[slotIndex] && (
-                                  <span 
-                                    className={`text-xs px-4 py-2 rounded-full font-bold uppercase tracking-wide ${
-                                      task.viewerLinkApproval[slotIndex] === 'Approved'
-                                        ? 'bg-green-500 text-white shadow-sm'
-                                        : task.viewerLinkApproval[slotIndex] === 'Uploaded'
-                                        ? 'bg-blue-500 text-white shadow-sm'
-                                        : task.viewerLinkApproval[slotIndex] === 'Needs Review'
-                                        ? 'bg-orange-500 text-white shadow-sm'
-                                        : 'bg-gray-200 text-gray-700'
-                                    }`}
-                                    title={task.viewerLinkApproval[slotIndex] === 'Approved' ? 'The creative will be uploaded to Facebook within 30min' : ''}
-                                  >
-                                    {task.viewerLinkApproval[slotIndex]}
+                              <div className="flex items-center gap-2.5 mb-5">
+                                <span className="text-lg font-semibold text-gray-900">
+                                  Ad {adNumber}
+                                </span>
+                                {formatLabel && (
+                                  <span className="text-xs px-2.5 py-1 bg-red-500 text-white rounded-full font-medium">
+                                    {formatLabel}
                                   </span>
                                 )}
                               </div>
