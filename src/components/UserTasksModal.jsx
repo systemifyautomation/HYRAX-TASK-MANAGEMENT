@@ -1,6 +1,7 @@
 import { X, ChevronLeft, ChevronRight, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { USER_ROLES } from '../constants/roles';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Hash function to generate code
 const hashThreeInputs = async (input1, input2, input3) => {
@@ -33,13 +34,32 @@ const UserTasksModal = ({
   setFeedbackModal,
   updateTask,
   handleCreativeUpload,
-  handleCancelUpload
+  handleCancelUpload,
+  onClose,
+  isFeedbackModalOpen
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [adDetailsOpen, setAdDetailsOpen] = useState(null); // { taskId, adIndex, taskData }
   const [adVersions, setAdVersions] = useState([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
   const [activeTab, setActiveTab] = useState('versions'); // 'versions' or 'feedback'
+  const slugify = (value) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const getCampaignSlug = (campaignId, fallbackName) => {
+    const campaign = campaigns?.find(c => parseInt(c.id) === parseInt(campaignId));
+    const source = campaign?.slug || campaign?.name || fallbackName || campaign?.id;
+    return slugify(source);
+  };
 
   // Fetch ad version history when sidebar opens
   useEffect(() => {
@@ -141,16 +161,17 @@ const UserTasksModal = ({
     fetchAdVersions();
   }, [adDetailsOpen, currentUser]);
 
-  if (!userTasksModal) return null;
+  const safeUser = userTasksModal?.user || {};
+  const safeTasks = userTasksModal?.tasks || [];
 
-  const isVideoEditor = userTasksModal.user.department === 'VIDEO EDITING';
-  const isGraphicDesigner = userTasksModal.user.department === 'GRAPHIC DESIGN';
+  const isVideoEditor = safeUser.department === 'VIDEO EDITING';
+  const isGraphicDesigner = safeUser.department === 'GRAPHIC DESIGN';
 
   // Collect all viewer links from all tasks with proper ad numbering
   const allLinks = [];
   
   // Group tasks by campaign to calculate proper ad offset
-  const tasksByCampaign = userTasksModal.tasks.reduce((groups, task) => {
+  const tasksByCampaign = safeTasks.reduce((groups, task) => {
     const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
     const campaignName = campaign?.name || 'No Campaign';
     if (!groups[campaignName]) {
@@ -183,6 +204,7 @@ const UserTasksModal = ({
               taskId: task.id,
               taskTitle: task.title,
               campaignName: campaign?.name || 'No Campaign',
+              campaignId: task.campaignId,
               adNumber: adNumber,
               formatLabel: formatLabel,
               linkIndex: linkIndex,
@@ -196,6 +218,35 @@ const UserTasksModal = ({
   });
 
   const currentAd = allLinks[currentPreviewIndex] || allLinks[0];
+
+  useEffect(() => {
+    if (!userTasksModal) return;
+    const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
+    const basePath = '/cards';
+
+    if (!currentAd) {
+      const fallbackPath = userSlug ? `${basePath}/${userSlug}` : basePath;
+      if (location.pathname !== fallbackPath) {
+        navigate(fallbackPath, { replace: true });
+      }
+      return;
+    }
+
+    const campaignSlug = getCampaignSlug(currentAd.campaignId, currentAd.campaignName) || 'no-campaign';
+    let tabSegment = 'preview';
+
+    if (isFeedbackModalOpen) {
+      tabSegment = 'feedback';
+    } else if (adDetailsOpen) {
+      tabSegment = activeTab === 'versions' ? 'versions' : 'comments';
+    }
+
+    const path = `${basePath}/${userSlug}/${campaignSlug}/ad_${currentAd.adNumber}/${tabSegment}`;
+
+    if (location.pathname !== path) {
+      navigate(path, { replace: true });
+    }
+  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen]);
 
   // Convert URL to embeddable format
   const getEmbedUrl = (url) => {
@@ -243,6 +294,8 @@ const UserTasksModal = ({
 
     return url;
   };
+
+  if (!userTasksModal) return null;
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex">
@@ -364,7 +417,7 @@ const UserTasksModal = ({
               <h1 className="text-2xl font-bold text-gray-900 mb-1">{userTasksModal.user.name}</h1>
               <p className="text-sm text-gray-500">{userTasksModal.user.department}</p>
             </div>
-            <button onClick={() => setUserTasksModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={() => (onClose ? onClose() : setUserTasksModal(null))} className="text-gray-400 hover:text-gray-600 transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -554,7 +607,11 @@ const UserTasksModal = ({
                                             columnKey: 'viewerLink',
                                             itemIndex: slotIndex,
                                             currentFeedback: existingFeedback,
-                                            readOnly: false
+                                            readOnly: false,
+                                            adNumber: adNumber,
+                                            campaignId: task.campaignId,
+                                            campaignName: campaign?.name || 'No Campaign',
+                                            userId: userTasksModal.user.id
                                           });
                                         }}
                                         className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"

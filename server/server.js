@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 const multer = require('multer');
 const FormData = require('form-data');
@@ -64,6 +65,10 @@ app.use((req, res, next) => {
 const campaignsFilePath = path.join(__dirname, DATA_DIR, 'campaigns.json');
 const usersFilePath = path.join(__dirname, DATA_DIR, 'users.json');
 const tasksFilePath = path.join(__dirname, DATA_DIR, 'tasks.json');
+
+// Client build (for SPA routing)
+const clientBuildPath = path.join(__dirname, '..', 'dist');
+const clientIndexPath = path.join(clientBuildPath, 'index.html');
 
 // Helper function to read campaigns data
 async function readCampaigns() {
@@ -899,6 +904,18 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Serve client for non-API routes (SPA routing)
+if (fsSync.existsSync(clientIndexPath)) {
+  app.use(express.static(clientBuildPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    return res.sendFile(clientIndexPath);
+  });
+}
 
 // Error handler
 app.use((err, req, res, next) => {

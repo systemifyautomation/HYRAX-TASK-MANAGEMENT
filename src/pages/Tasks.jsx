@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink, MessageSquare } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
@@ -100,6 +101,8 @@ const generateWeekOptions = () => {
 
 const Tasks = () => {
   const { currentUser, tasks, setTasks, users, campaigns, tasksLoading, campaignsLoading, loadTasksFromWebhook, loadCampaignsData, addTask, addTasks, updateTask, deleteTask, deleteTasks, addScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isAdminUser = isAdmin(currentUser.role);
   const canGiveFeedback = currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN;
   const filtersRef = useRef(null);
@@ -194,12 +197,207 @@ const Tasks = () => {
     key: 'selection'
   }]);
   const [selectedQuickFilter, setSelectedQuickFilter] = useState('all');
+  const syncingFromUrlRef = useRef(false);
   
   const [newColumn, setNewColumn] = useState({
     name: '',
     type: 'text',
     dropdownOptions: [],
   });
+
+  const slugify = (value) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const getUserSlug = (userId) => {
+    const user = users?.find(u => parseInt(u.id) === parseInt(userId));
+    return user ? slugify(user.slug || user.name || user.email || user.username || user.id) : '';
+  };
+
+  const getCampaignSlug = (campaignId) => {
+    const campaign = campaigns?.find(c => parseInt(c.id) === parseInt(campaignId));
+    return campaign ? slugify(campaign.slug || campaign.name || campaign.id) : '';
+  };
+
+  const getUserIdFromSlug = (slug) => {
+    if (!slug) return '';
+    const match = users?.find(u => slugify(u.slug || u.name || u.email || u.username || u.id) === slug);
+    return match ? String(match.id) : '';
+  };
+
+  const getCampaignIdFromSlug = (slug) => {
+    if (!slug) return '';
+    const match = campaigns?.find(c => slugify(c.slug || c.name || c.id) === slug);
+    return match ? String(match.id) : '';
+  };
+
+  const applyQuickFilterDates = (filter) => {
+    const today = new Date();
+    let startDate = null;
+    let endDate = null;
+
+    switch (filter) {
+      case 'today':
+        startDate = today;
+        endDate = today;
+        break;
+      case 'yesterday':
+        startDate = subDays(today, 1);
+        endDate = subDays(today, 1);
+        break;
+      case 'last7':
+        startDate = subDays(today, 7);
+        endDate = today;
+        break;
+      case 'last30':
+        startDate = subDays(today, 30);
+        endDate = today;
+        break;
+      default:
+        startDate = null;
+        endDate = null;
+    }
+
+    if (startDate && endDate) {
+      setDateRange([{ startDate, endDate, key: 'selection' }]);
+      setDateRangeStart(format(startDate, 'yyyy-MM-dd'));
+      setDateRangeEnd(format(endDate, 'yyyy-MM-dd'));
+    } else {
+      setDateRangeStart('');
+      setDateRangeEnd('');
+    }
+  };
+
+  const parseFiltersFromPath = useCallback(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (!segments.length) return;
+
+    const baseView = segments[0];
+    if (baseView === 'cards') {
+      setDisplayType('cards');
+    } else if (baseView === 'lists') {
+      setDisplayType('list');
+    } else {
+      return;
+    }
+
+    const isModalPath = segments.some(segment => segment.startsWith('ad_')) || segments.includes('preview') || segments.includes('versions');
+    if (isModalPath) {
+      return;
+    }
+
+    let nextSelectedUser = '';
+    let nextSelectedCampaign = '';
+    let nextSelectedWeek = selectedWeek;
+    let nextDateStart = '';
+    let nextDateEnd = '';
+    let nextQuickFilter = 'all';
+
+    for (let i = 1; i < segments.length; i++) {
+      const key = segments[i];
+      if (key === 'user' && segments[i + 1]) {
+        nextSelectedUser = getUserIdFromSlug(decodeURIComponent(segments[i + 1]));
+        i++;
+        continue;
+      }
+      if (key === 'campaign' && segments[i + 1]) {
+        nextSelectedCampaign = getCampaignIdFromSlug(decodeURIComponent(segments[i + 1]));
+        i++;
+        continue;
+      }
+      if (key === 'week' && segments[i + 1]) {
+        const decodedWeek = decodeURIComponent(segments[i + 1]);
+        nextSelectedWeek = decodedWeek || 'all';
+        i++;
+        continue;
+      }
+      if (key === 'date' && segments[i + 1] && segments[i + 2]) {
+        nextDateStart = decodeURIComponent(segments[i + 1]);
+        nextDateEnd = decodeURIComponent(segments[i + 2]);
+        i += 2;
+        continue;
+      }
+      if (key === 'quick' && segments[i + 1]) {
+        nextQuickFilter = decodeURIComponent(segments[i + 1]);
+        i++;
+      }
+    }
+
+    syncingFromUrlRef.current = true;
+    setSelectedUser(nextSelectedUser || '');
+    setSelectedCampaign(nextSelectedCampaign || '');
+    setSelectedWeek(nextSelectedWeek || 'all');
+    setSelectedQuickFilter(nextQuickFilter || 'all');
+    if (nextQuickFilter && nextQuickFilter !== 'all') {
+      applyQuickFilterDates(nextQuickFilter);
+    } else {
+      setDateRangeStart(nextDateStart || '');
+      setDateRangeEnd(nextDateEnd || '');
+    }
+  }, [location.pathname, users, campaigns, selectedWeek]);
+
+  useEffect(() => {
+    parseFiltersFromPath();
+  }, [parseFiltersFromPath]);
+
+  const buildFilterPath = useCallback(() => {
+    const basePath = displayType === 'cards' ? '/cards' : '/lists';
+    const segments = [];
+
+    if (selectedUser) {
+      const slug = getUserSlug(selectedUser);
+      if (slug) segments.push('user', encodeURIComponent(slug));
+    }
+
+    if (selectedCampaign) {
+      const slug = getCampaignSlug(selectedCampaign);
+      if (slug) segments.push('campaign', encodeURIComponent(slug));
+    }
+
+    if (selectedWeek && selectedWeek !== 'all') {
+      segments.push('week', encodeURIComponent(selectedWeek));
+    }
+
+    if (dateRangeStart && dateRangeEnd) {
+      segments.push('date', encodeURIComponent(dateRangeStart), encodeURIComponent(dateRangeEnd));
+    }
+
+    if (selectedQuickFilter && selectedQuickFilter !== 'all') {
+      segments.push('quick', encodeURIComponent(selectedQuickFilter));
+    }
+
+    return segments.length ? `${basePath}/${segments.join('/')}` : basePath;
+  }, [displayType, selectedUser, selectedCampaign, selectedWeek, dateRangeStart, dateRangeEnd, selectedQuickFilter, users, campaigns]);
+
+  const handleCloseUserTasksModal = useCallback(() => {
+    setUserTasksModal(null);
+    const nextPath = buildFilterPath();
+    if (location.pathname !== nextPath) {
+      navigate(nextPath, { replace: true });
+    }
+  }, [buildFilterPath, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (syncingFromUrlRef.current) {
+      syncingFromUrlRef.current = false;
+      return;
+    }
+
+    if (userTasksModal) {
+      return;
+    }
+
+    const nextPath = buildFilterPath();
+    if (location.pathname !== nextPath) {
+      navigate(nextPath, { replace: true });
+    }
+  }, [buildFilterPath, location.pathname, navigate, userTasksModal]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -925,7 +1123,9 @@ This usually indicates a temporary workflow issue.`;
       
       // Only abort if the component is truly unmounting, not just re-rendering
       setTimeout(() => {
-        if (window.location.pathname !== '/tasks') {
+        const path = window.location.pathname;
+        const isTasksRoute = path === '/' || path.startsWith('/cards') || path.startsWith('/lists');
+        if (!isTasksRoute) {
           console.log('User navigated away - aborting uploads');
           Object.entries(window.HYRAX_ACTIVE_UPLOADS).forEach(([key, xhr]) => {
             if (xhr && xhr.readyState !== XMLHttpRequest.DONE) {
@@ -945,27 +1145,9 @@ This usually indicates a temporary workflow issue.`;
   // Date picker helper functions
   const handleQuickFilter = (filter) => {
     setSelectedQuickFilter(filter);
-    const today = new Date();
-    
-    switch(filter) {
-      case 'all':
-        setDateRangeStart('');
-        setDateRangeEnd('');
-        setShowDatePicker(false);
-        break;
-      case 'today':
-        setDateRange([{ startDate: today, endDate: today, key: 'selection' }]);
-        break;
-      case 'yesterday':
-        const yesterday = subDays(today, 1);
-        setDateRange([{ startDate: yesterday, endDate: yesterday, key: 'selection' }]);
-        break;
-      case 'last7':
-        setDateRange([{ startDate: subDays(today, 7), endDate: today, key: 'selection' }]);
-        break;
-      case 'last30':
-        setDateRange([{ startDate: subDays(today, 30), endDate: today, key: 'selection' }]);
-        break;
+    applyQuickFilterDates(filter);
+    if (filter === 'all') {
+      setShowDatePicker(false);
     }
   };
 
@@ -1860,7 +2042,12 @@ This usually indicates a temporary workflow issue.`;
                         users={users}
                         cardCampaignFilter={cardCampaignFilter}
                         onCampaignFilterChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                        onClick={(user, tasks) => setUserTasksModal({ user, tasks })}
+                        onClick={(user, tasks) => {
+                          setCurrentPreviewIndex(0);
+                          setUserTasksModal({ user, tasks });
+                          const userSlug = getUserSlug(user.id) || 'user';
+                          navigate(`/cards/${userSlug}`, { replace: true });
+                        }}
                       />
                     );
                   })}
@@ -2039,6 +2226,8 @@ This usually indicates a temporary workflow issue.`;
         updateTask={updateTask}
         handleCreativeUpload={handleCreativeUpload}
         handleCancelUpload={handleCancelUpload}
+        onClose={handleCloseUserTasksModal}
+        isFeedbackModalOpen={Boolean(feedbackModal && feedbackModal.columnKey === 'viewerLink')}
       />
     </div>
   );

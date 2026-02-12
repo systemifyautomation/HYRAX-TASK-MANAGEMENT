@@ -69,6 +69,8 @@ const AppRouter = () => {
             <AppLayout>
               <Routes>
                 <Route path="/" element={<Tasks />} />
+                <Route path="/cards/*" element={<Tasks />} />
+                <Route path="/lists/*" element={<Tasks />} />
                 <Route path="/scheduled-tasks" element={<ScheduledTasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
                 <Route path="/users" element={<UserManagement />} />
