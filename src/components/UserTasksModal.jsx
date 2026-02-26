@@ -248,8 +248,7 @@ const UserTasksModal = ({
     }
   }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen]);
 
-  // Convert URL to embeddable format
-  const getEmbedUrl = (url) => {
+  const getPreviewUrl = (url) => {
     if (!url) return url;
 
     // Google Drive: Convert to proper embed format
@@ -293,6 +292,26 @@ const UserTasksModal = ({
     }
 
     return url;
+  };
+
+  const isVideoUrl = (url = '') => {
+    const lower = url.toLowerCase();
+    return lower.includes('youtube.com') ||
+      lower.includes('youtu.be') ||
+      lower.endsWith('.mp4') ||
+      lower.endsWith('.webm') ||
+      lower.endsWith('.mov') ||
+      lower.includes('video');
+  };
+
+  const isImageUrl = (url = '') => {
+    const lower = url.toLowerCase();
+    return lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.gif') ||
+      lower.endsWith('.webp') ||
+      lower.endsWith('.avif');
   };
 
   if (!userTasksModal) return null;
@@ -373,14 +392,44 @@ const UserTasksModal = ({
 
             {/* Preview Area */}
             <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
-              <iframe
-                src={getEmbedUrl(selectedVersionPreview?.url || currentAd?.url)}
-                className="w-full h-full"
-                title={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              {(() => {
+                const sourceUrl = selectedVersionPreview?.url || currentAd?.url;
+                const previewUrl = getPreviewUrl(sourceUrl);
+
+                if (isImageUrl(previewUrl)) {
+                  return (
+                    <div className="w-full h-full flex items-center justify-center bg-black">
+                      <img
+                        src={previewUrl}
+                        alt={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  );
+                }
+
+                if (isVideoUrl(previewUrl) && !previewUrl.includes('youtube.com/embed/')) {
+                  return (
+                    <video
+                      src={previewUrl}
+                      className="w-full h-full"
+                      controls
+                      playsInline
+                    />
+                  );
+                }
+
+                return (
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full"
+                    title={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                );
+              })()}
             </div>
 
             {/* Navigation Controls */}

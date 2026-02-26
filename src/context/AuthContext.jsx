@@ -185,14 +185,9 @@ export const AppProvider = ({ children }) => {
     }
   ]);
 
-  // API base URL with environment variable support
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 
-    (import.meta.env.PROD 
-      ? `${window.location.origin}/api` 
-      : 'http://localhost:3001/api');
-
-  // Check if we should use API or localStorage only - disable API in production unless explicitly enabled
-  const USE_API = (import.meta.env.VITE_USE_API === 'true') || (!import.meta.env.PROD && import.meta.env.VITE_USE_API !== 'false');
+  // Frontend-only mode: backend API is disabled
+  const API_BASE = '';
+  const USE_API = false;
   
   // Debug logging
   console.log('Environment check:', {
@@ -520,10 +515,10 @@ export const AppProvider = ({ children }) => {
       console.log('=== LOGIN ATTEMPT ===');
       console.log('Email:', email);
       
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const loginWebhookUrl = import.meta.env.VITE_LOGIN_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-tasks-login';
       
-      // Call the API login endpoint which handles webhook authentication
-      const response = await fetch(`${apiBaseUrl}/auth`, {
+      // Call login webhook directly in frontend-only mode
+      const response = await fetch(loginWebhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
