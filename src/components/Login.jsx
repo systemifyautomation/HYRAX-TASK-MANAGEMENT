@@ -90,9 +90,45 @@ const Login = () => {
       // Normalize the role from webhook format
       const normalizedRole = normalizeRole(webhookData.role);
 
+      const resolveUserId = () => {
+        const directCandidates = [
+          webhookData.id,
+          webhookData.userId,
+          webhookData.user_id,
+          webhookData.userid,
+          webhookData.user?.id,
+          webhookData.user?.userId,
+          webhookData.user?.user_id,
+        ];
+
+        for (const value of directCandidates) {
+          if (value !== undefined && value !== null && `${value}`.trim() !== '') {
+            return `${value}`;
+          }
+        }
+
+        try {
+          const cachedUsers = JSON.parse(localStorage.getItem('hyrax_users') || '[]');
+          if (Array.isArray(cachedUsers)) {
+            const match = cachedUsers.find(user =>
+              `${user?.email || ''}`.toLowerCase() === `${email || ''}`.toLowerCase()
+            );
+            if (match?.id !== undefined && match?.id !== null && `${match.id}`.trim() !== '') {
+              return `${match.id}`;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to resolve user ID from cached users:', error);
+        }
+
+        return '';
+      };
+
+      const resolvedUserId = resolveUserId();
+
       // Authenticate user with webhook response data
       const authenticatedUser = {
-        id: Date.now(), // Generate a temporary ID
+        id: resolvedUserId,
         email: email,
         name: webhookData.name || email.split('@')[0],
         role: normalizedRole,

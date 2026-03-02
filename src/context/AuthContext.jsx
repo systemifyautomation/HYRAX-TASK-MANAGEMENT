@@ -770,6 +770,157 @@ export const AppProvider = ({ children }) => {
     return `${day}/${month}/${year}`;
   };
 
+  const slugify = (value) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  };
+
+  const sendCreativeApprovedWebhook = async (creativeData = [], taskData = null) => {
+    const webhookUrl = import.meta.env.VITE_TASKS_CREATIVE_APPROVED_WEBHOOK_URL;
+    const taskId = taskData?.id ?? null;
+    const campaignId = taskData?.campaignId ?? null;
+    const userId = taskData?.assignedTo ?? null;
+    const campaignName = taskData?.campaignName || campaigns.find(c => c.id === parseInt(campaignId))?.name || '';
+    
+    // Find user and campaign for path construction
+    const user = users.find(u => String(u.id) === String(userId));
+    const campaign = campaigns.find(c => String(c.id) === String(campaignId));
+    const userSlug = user ? slugify(user.slug || user.name || user.email || user.username || user.id) : '';
+    const campaignSlug = campaign ? slugify(campaign.slug || campaign.name || campaign.id) : '';
+    
+    // Calculate ad number helper
+    const calculateAdNumber = (linkIndex, userDepartment) => {
+      const isVideoEditor = userDepartment === 'VIDEO EDITING';
+      return Math.floor(linkIndex / (isVideoEditor ? 2 : 1)) + 1;
+    };
+
+    if (!Array.isArray(creativeData) || creativeData.length === 0) {
+      return;
+    }
+
+    if (!webhookUrl) {
+      console.error('VITE_TASKS_CREATIVE_APPROVED_WEBHOOK_URL not configured');
+      return;
+    }
+
+    await Promise.all(creativeData.map(async (item) => {
+      const creativeUrl = item.url;
+      const adIndex = item.index;
+      const slackPermalink = item.permalink || '';
+      const adNumber = calculateAdNumber(adIndex, user?.department);
+      
+      // Construct path: /userSlug/campaignSlug/ad_N/preview
+      const path = `/${userSlug}/${campaignSlug}/ad_${adNumber}/preview`;
+      
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            creative_url: creativeUrl,
+            task_id: taskId,
+            campaign_id: campaignId,
+            campaign_name: campaignName,
+            path: path,
+            creative_index: adIndex,
+            slack_permalink: slackPermalink
+          })
+        });
+
+        if (!response.ok) {
+          console.error('Failed to send creative approved webhook:', response.status, creativeUrl);
+        }
+      } catch (error) {
+        console.error('Failed to send creative approved webhook:', error);
+      }
+    }));
+  };
+
+  const applyCreativeApprovalGuardsAndCleanup = (existingTask, incomingUpdates = {}) => {
+    const sanitizedUpdates = { ...incomingUpdates };
+    const newlyApprovedCreativeUrls = [];
+    const newlyApprovedCreativeData = []; // Store URL and index
+
+    if (!existingTask) {
+      return { sanitizedUpdates, newlyApprovedCreativeUrls, newlyApprovedCreativeData };
+    }
+
+    const existingApprovals = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+    const existingLinks = Array.isArray(existingTask.viewerLink) ? existingTask.viewerLink : [];
+    const existingFeedback = Array.isArray(existingTask.viewerLinkFeedback) ? existingTask.viewerLinkFeedback : [];
+    const existingSlackPermalinks = Array.isArray(existingTask.slackPermalink) ? existingTask.slackPermalink : [];
+
+    const isLockedCreative = (index) => existingApprovals[index] === 'Approved' || existingApprovals[index] === 'Uploaded';
+
+    if (Array.isArray(sanitizedUpdates.viewerLink)) {
+      sanitizedUpdates.viewerLink = [...sanitizedUpdates.viewerLink];
+      sanitizedUpdates.viewerLink.forEach((_, index) => {
+        if (isLockedCreative(index)) {
+          sanitizedUpdates.viewerLink[index] = existingLinks[index] || '';
+        }
+      });
+    }
+
+    if (Array.isArray(sanitizedUpdates.viewerLinkFeedback)) {
+      sanitizedUpdates.viewerLinkFeedback = [...sanitizedUpdates.viewerLinkFeedback];
+      sanitizedUpdates.viewerLinkFeedback.forEach((_, index) => {
+        if (isLockedCreative(index)) {
+          sanitizedUpdates.viewerLinkFeedback[index] = existingFeedback[index] || '';
+        }
+      });
+    }
+
+    if (Array.isArray(sanitizedUpdates.viewerLinkApproval)) {
+      sanitizedUpdates.viewerLinkApproval = [...sanitizedUpdates.viewerLinkApproval];
+
+      sanitizedUpdates.viewerLinkApproval.forEach((approval, index) => {
+        if (isLockedCreative(index)) {
+          sanitizedUpdates.viewerLinkApproval[index] = existingApprovals[index];
+          return;
+        }
+
+        if (approval === 'Approved') {
+          const sourceLinks = Array.isArray(sanitizedUpdates.viewerLink) ? sanitizedUpdates.viewerLink : existingLinks;
+          const creativeUrl = sourceLinks[index];
+          const slackPermalink = existingSlackPermalinks[index] || '';
+
+          if (typeof creativeUrl === 'string' && creativeUrl.trim()) {
+            newlyApprovedCreativeUrls.push(creativeUrl.trim());
+            newlyApprovedCreativeData.push({
+              url: creativeUrl.trim(),
+              index: index,
+              permalink: slackPermalink
+            });
+          }
+
+          // Mark as uploaded and remove stored creative records for optimization
+          sanitizedUpdates.viewerLinkApproval[index] = 'Uploaded';
+
+          const nextLinks = Array.isArray(sanitizedUpdates.viewerLink) ? [...sanitizedUpdates.viewerLink] : [...existingLinks];
+          nextLinks[index] = '';
+          sanitizedUpdates.viewerLink = nextLinks;
+
+          const nextFeedback = Array.isArray(sanitizedUpdates.viewerLinkFeedback) ? [...sanitizedUpdates.viewerLinkFeedback] : [...existingFeedback];
+          nextFeedback[index] = '';
+          sanitizedUpdates.viewerLinkFeedback = nextFeedback;
+        }
+      });
+    }
+
+    return {
+      sanitizedUpdates,
+      newlyApprovedCreativeUrls: [...new Set(newlyApprovedCreativeUrls)],
+      newlyApprovedCreativeData
+    };
+  };
+
   // Task operations with localStorage and API persistence
   const addTask = async (taskData) => {
     const currentTimestamp = new Date().toISOString();
@@ -942,40 +1093,41 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateTask = async (taskId, updates, additionalQueryParams = {}) => {
+    // Find the existing task and enforce immutable approved/uploaded creatives
+    const existingTask = tasks.find(t => t.id === taskId);
+    const { sanitizedUpdates, newlyApprovedCreativeUrls, newlyApprovedCreativeData } = applyCreativeApprovalGuardsAndCleanup(existingTask, updates);
+
     // Track timestamps for specific field changes
     const currentTimestamp = new Date().toISOString();
     const taskUpdates = {
-      ...updates,
+      ...sanitizedUpdates,
       updatedAt: currentTimestamp
     };
-    
-    // Find the existing task to check for field changes
-    const existingTask = tasks.find(t => t.id === taskId);
     
     // Add timestamps for specific field updates
     if (existingTask) {
       // copyLinkAt - when copyLink is added or changed
-      if ('copyLink' in updates && updates.copyLink !== existingTask.copyLink) {
+      if ('copyLink' in sanitizedUpdates && sanitizedUpdates.copyLink !== existingTask.copyLink) {
         taskUpdates.copyLinkAt = currentTimestamp;
       }
       
       // copyWrittenAt - when copyWritten status changes
-      if ('copyWritten' in updates && updates.copyWritten !== existingTask.copyWritten) {
+      if ('copyWritten' in sanitizedUpdates && sanitizedUpdates.copyWritten !== existingTask.copyWritten) {
         taskUpdates.copyWrittenAt = currentTimestamp;
       }
       
       // copyApprovalAt - when copyApproval status changes
-      if ('copyApproval' in updates && updates.copyApproval !== existingTask.copyApproval) {
+      if ('copyApproval' in sanitizedUpdates && sanitizedUpdates.copyApproval !== existingTask.copyApproval) {
         taskUpdates.copyApprovalAt = currentTimestamp;
       }
       
       // viewerLinkAt - array of timestamps matching viewerLink array
-      if ('viewerLink' in updates && Array.isArray(updates.viewerLink)) {
+      if ('viewerLink' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLink)) {
         const existingViewerLink = Array.isArray(existingTask.viewerLink) ? existingTask.viewerLink : [];
         const existingTimestamps = Array.isArray(existingTask.viewerLinkAt) ? existingTask.viewerLinkAt : [];
         
         // Create new timestamps array matching the updated viewerLink array
-        const newTimestamps = updates.viewerLink.map((link, index) => {
+        const newTimestamps = sanitizedUpdates.viewerLink.map((link, index) => {
           // If link changed or is new, use current timestamp
           if (link !== existingViewerLink[index]) {
             return currentTimestamp;
@@ -988,12 +1140,12 @@ export const AppProvider = ({ children }) => {
       }
       
       // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
-      if ('viewerLinkApproval' in updates && Array.isArray(updates.viewerLinkApproval)) {
+      if ('viewerLinkApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLinkApproval)) {
         const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
         const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
         
         // Create new timestamps array matching the updated viewerLinkApproval array
-        const newTimestamps = updates.viewerLinkApproval.map((approval, index) => {
+        const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
           // If approval changed or is new, use current timestamp
           if (approval !== existingApproval[index]) {
             return currentTimestamp;
@@ -1054,6 +1206,8 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to send task update to webhook:', error);
     }
+
+    await sendCreativeApprovedWebhook(newlyApprovedCreativeData, completeUpdatedTask);
     
     // Persist to JSON file via API
     try {
@@ -1373,40 +1527,41 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateScheduledTask = async (taskId, updates) => {
+    // Find the existing task and enforce immutable approved/uploaded creatives
+    const existingTask = scheduledTasks.find(t => t.id === taskId);
+    const { sanitizedUpdates, newlyApprovedCreativeUrls, newlyApprovedCreativeData } = applyCreativeApprovalGuardsAndCleanup(existingTask, updates);
+
     // Track timestamps for specific field changes
     const currentTimestamp = new Date().toISOString();
     const taskUpdates = {
-      ...updates,
+      ...sanitizedUpdates,
       updatedAt: currentTimestamp
     };
-    
-    // Find the existing task to check for field changes
-    const existingTask = scheduledTasks.find(t => t.id === taskId);
     
     // Add timestamps for specific field updates
     if (existingTask) {
       // copyLinkAt - when copyLink is added or changed
-      if ('copyLink' in updates && updates.copyLink !== existingTask.copyLink) {
+      if ('copyLink' in sanitizedUpdates && sanitizedUpdates.copyLink !== existingTask.copyLink) {
         taskUpdates.copyLinkAt = currentTimestamp;
       }
       
       // copyWrittenAt - when copyWritten status changes
-      if ('copyWritten' in updates && updates.copyWritten !== existingTask.copyWritten) {
+      if ('copyWritten' in sanitizedUpdates && sanitizedUpdates.copyWritten !== existingTask.copyWritten) {
         taskUpdates.copyWrittenAt = currentTimestamp;
       }
       
       // copyApprovalAt - when copyApproval status changes
-      if ('copyApproval' in updates && updates.copyApproval !== existingTask.copyApproval) {
+      if ('copyApproval' in sanitizedUpdates && sanitizedUpdates.copyApproval !== existingTask.copyApproval) {
         taskUpdates.copyApprovalAt = currentTimestamp;
       }
       
       // viewerLinkAt - array of timestamps matching viewerLink array
-      if ('viewerLink' in updates && Array.isArray(updates.viewerLink)) {
+      if ('viewerLink' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLink)) {
         const existingViewerLink = Array.isArray(existingTask.viewerLink) ? existingTask.viewerLink : [];
         const existingTimestamps = Array.isArray(existingTask.viewerLinkAt) ? existingTask.viewerLinkAt : [];
         
         // Create new timestamps array matching the updated viewerLink array
-        const newTimestamps = updates.viewerLink.map((link, index) => {
+        const newTimestamps = sanitizedUpdates.viewerLink.map((link, index) => {
           // If link changed or is new, use current timestamp
           if (link !== existingViewerLink[index]) {
             return currentTimestamp;
@@ -1419,12 +1574,12 @@ export const AppProvider = ({ children }) => {
       }
       
       // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
-      if ('viewerLinkApproval' in updates && Array.isArray(updates.viewerLinkApproval)) {
+      if ('viewerLinkApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLinkApproval)) {
         const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
         const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
         
         // Create new timestamps array matching the updated viewerLinkApproval array
-        const newTimestamps = updates.viewerLinkApproval.map((approval, index) => {
+        const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
           // If approval changed or is new, use current timestamp
           if (approval !== existingApproval[index]) {
             return currentTimestamp;
@@ -1482,6 +1637,8 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to send scheduled task update to webhook:', error);
     }
+
+    await sendCreativeApprovedWebhook(newlyApprovedCreativeData, completeUpdatedTask);
   };
 
   const deleteScheduledTask = async (taskId) => {

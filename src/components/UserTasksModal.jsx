@@ -1,5 +1,5 @@
-import { X, ChevronLeft, ChevronRight, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { USER_ROLES } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -45,6 +45,9 @@ const UserTasksModal = ({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
   const [activeTab, setActiveTab] = useState('versions'); // 'versions' or 'feedback'
+  const [expandedCampaign, setExpandedCampaign] = useState(null); // Track which campaign is expanded
+  const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
+  
   const slugify = (value) => {
     if (!value) return '';
     return value
@@ -219,10 +222,55 @@ const UserTasksModal = ({
 
   const currentAd = allLinks[currentPreviewIndex] || allLinks[0];
 
+  const getRequestedTabFromPath = useCallback((pathname) => {
+    const segments = pathname.split('/').filter(Boolean);
+    const lastSegment = segments[segments.length - 1];
+    return ['preview', 'versions', 'comments', 'feedback'].includes(lastSegment) ? lastSegment : null;
+  }, []);
+
+  const navigateToPreviewPath = useCallback(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (!segments.length) return;
+    const currentTab = getRequestedTabFromPath(location.pathname);
+    if (currentTab && currentTab !== 'preview') {
+      setFeedbackModal(null);
+      const previewPath = `/${[...segments.slice(0, -1), 'preview'].join('/')}`;
+      navigate(previewPath, { replace: true });
+    }
+  }, [location.pathname, navigate, getRequestedTabFromPath, setFeedbackModal]);
+
+  useEffect(() => {
+    if (!userTasksModal || !currentAd) return;
+
+    const requestedTab = getRequestedTabFromPath(location.pathname);
+    if (requestedTab === 'versions' || requestedTab === 'comments') {
+      const targetTask = userTasksModal.tasks.find(task => task.id === currentAd.taskId);
+      if (targetTask) {
+        if (!adDetailsOpen || adDetailsOpen.taskId !== currentAd.taskId || adDetailsOpen.adIndex !== currentAd.linkIndex) {
+          setAdDetailsOpen({
+            taskId: targetTask.id,
+            adIndex: currentAd.linkIndex,
+            taskData: targetTask,
+            adNumber: currentAd.adNumber
+          });
+        }
+        setActiveTab(requestedTab === 'versions' ? 'versions' : 'feedback');
+      }
+    } else if (requestedTab === 'preview' || requestedTab === 'feedback') {
+      // Close ad details sidebar when navigating back to preview or feedback
+      if (adDetailsOpen) {
+        setAdDetailsOpen(null);
+        setSelectedVersionPreview(null);
+        setFeedbackModal(null);
+      }
+    }
+  }, [userTasksModal, currentAd, location.pathname, getRequestedTabFromPath]);
+
   useEffect(() => {
     if (!userTasksModal) return;
     const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
     const basePath = '/cards';
+    const requestedTab = getRequestedTabFromPath(location.pathname);
 
     if (!currentAd) {
       const fallbackPath = userSlug ? `${basePath}/${userSlug}` : basePath;
@@ -233,11 +281,16 @@ const UserTasksModal = ({
     }
 
     const campaignSlug = getCampaignSlug(currentAd.campaignId, currentAd.campaignName) || 'no-campaign';
-    let tabSegment = 'preview';
+    let tabSegment = requestedTab || 'preview';
 
+    // Override tab segment based on modal state
     if (isFeedbackModalOpen) {
       tabSegment = 'feedback';
-    } else if (adDetailsOpen) {
+    } else if (requestedTab === 'feedback' && !isFeedbackModalOpen) {
+      // If we were on feedback but modal closed, fall back
+      tabSegment = adDetailsOpen ? (activeTab === 'versions' ? 'versions' : 'comments') : 'preview';
+    } else if (adDetailsOpen && !requestedTab) {
+      // If details panel is open but no explicit tab in URL
       tabSegment = activeTab === 'versions' ? 'versions' : 'comments';
     }
 
@@ -246,7 +299,37 @@ const UserTasksModal = ({
     if (location.pathname !== path) {
       navigate(path, { replace: true });
     }
-  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen]);
+  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen, getRequestedTabFromPath]);
+
+  // Initialize first campaign as expanded when modal opens or user changes
+  useEffect(() => {
+    if (userTasksModal) {
+      const currentUserId = userTasksModal.user?.id;
+      
+      // Only initialize if this is a new modal instance (different user)
+      if (lastModalUserRef.current !== currentUserId) {
+        lastModalUserRef.current = currentUserId;
+        
+        const campaignGroups = userTasksModal.tasks.reduce((groups, task) => {
+          const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+          const campaignName = campaign?.name || 'No Campaign';
+          if (!groups[campaignName]) {
+            groups[campaignName] = [];
+          }
+          groups[campaignName].push(task);
+          return groups;
+        }, {});
+        
+        const firstCampaignName = Object.keys(campaignGroups)[0];
+        if (firstCampaignName) {
+          setExpandedCampaign(firstCampaignName);
+        }
+      }
+    } else {
+      // Reset when modal closes
+      lastModalUserRef.current = null;
+    }
+  }, [userTasksModal, campaigns]);
 
   const getPreviewUrl = (url) => {
     if (!url) return url;
@@ -363,17 +446,17 @@ const UserTasksModal = ({
                     <>
                       <span 
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          currentAd?.approval === 'Approved'
+                          currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded'
                             ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                            : currentAd?.approval === 'Uploaded' 
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
                             : currentAd?.approval === 'Needs Review'
                             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
                             : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                         }`}
-                        title={currentAd?.approval === 'Approved' ? 'The creative will be uploaded to Facebook within 30min' : ''}
+                        title=""
                       >
-                        {currentAd?.approval || 'Not Done'}
+                        {(currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded')
+                          ? 'Uploaded to Facebook'
+                          : (currentAd?.approval || 'Not Done')}
                       </span>
                       <span className="text-gray-400">
                         {currentPreviewIndex + 1} / {allLinks.length}
@@ -382,7 +465,7 @@ const UserTasksModal = ({
                   )}
                 </div>
               </div>
-              {!selectedVersionPreview && currentAd?.feedback && (
+              {!selectedVersionPreview && currentAd?.feedback && currentAd?.approval !== 'Approved' && currentAd?.approval !== 'Uploaded' && (
                 <div className="mt-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                   <p className="text-xs font-semibold text-yellow-400 mb-1">Manager Feedback:</p>
                   <p className="text-sm text-yellow-200 whitespace-pre-wrap">{currentAd.feedback}</p>
@@ -391,20 +474,18 @@ const UserTasksModal = ({
             </div>
 
             {/* Preview Area */}
-            <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
+            <div className="flex-1 bg-black rounded-lg overflow-hidden flex items-center justify-center">
               {(() => {
                 const sourceUrl = selectedVersionPreview?.url || currentAd?.url;
                 const previewUrl = getPreviewUrl(sourceUrl);
 
                 if (isImageUrl(previewUrl)) {
                   return (
-                    <div className="w-full h-full flex items-center justify-center bg-black">
-                      <img
-                        src={previewUrl}
-                        alt={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    </div>
+                    <img
+                      src={previewUrl}
+                      alt={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
+                      className="w-full h-full object-cover"
+                    />
                   );
                 }
 
@@ -412,7 +493,7 @@ const UserTasksModal = ({
                   return (
                     <video
                       src={previewUrl}
-                      className="w-full h-full"
+                      className="w-full h-full object-cover"
                       controls
                       playsInline
                     />
@@ -466,13 +547,21 @@ const UserTasksModal = ({
               <h1 className="text-2xl font-bold text-gray-900 mb-1">{userTasksModal.user.name}</h1>
               <p className="text-sm text-gray-500">{userTasksModal.user.department}</p>
             </div>
-            <button onClick={() => (onClose ? onClose() : setUserTasksModal(null))} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={(e) => {
+              e.stopPropagation();
+              setFeedbackModal(null);
+              if (onClose) {
+                onClose();
+              } else {
+                setUserTasksModal(null);
+              }
+            }} className="text-gray-400 hover:text-gray-600 transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
 
           {/* Tasks List */}
-          <div className="space-y-8">
+          <div className="space-y-3">
             {Object.entries(
               userTasksModal.tasks.reduce((groups, task) => {
                 const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
@@ -483,14 +572,40 @@ const UserTasksModal = ({
                 groups[campaignName].push(task);
                 return groups;
               }, {})
-            ).map(([campaignName, campaignTasks]) => (
-              <div key={campaignName}>
-                <h2 className="text-lg font-bold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
-                  {campaignName}
-                </h2>
-                
-                {campaignTasks.map((task, taskIndex) => {
+            ).map(([campaignName, campaignTasks]) => {
+              const isExpanded = expandedCampaign === campaignName;
+              
+              return (
+                <div key={campaignName} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                  {/* Collapsible Campaign Header */}
+                  <div 
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 ${
+                      isExpanded 
+                        ? 'bg-green-50 hover:bg-green-100' 
+                        : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setExpandedCampaign(isExpanded ? null : campaignName)}
+                  >
+                    <h2 className="text-lg font-bold text-gray-800">
+                      {campaignName}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">
+                        {campaignTasks.reduce((sum, t) => sum + parseInt(t.quantity?.replace('x', '') || '1'), 0)} {campaignTasks.reduce((sum, t) => sum + parseInt(t.quantity?.replace('x', '') || '1'), 0) === 1 ? 'ad' : 'ads'}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-gray-600" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Collapsible Campaign Content */}
+                  {isExpanded && (
+                    <div className="p-4 space-y-4">{campaignTasks.map((task, taskIndex) => {
                   const actualTaskIndex = userTasksModal.tasks.findIndex(t => t.id === task.id);
+                  const campaignForTask = campaigns.find(c => c.id === parseInt(task.campaignId));
                   const adOffset = campaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
                     const qty = parseInt(prevTask.quantity?.replace('x', '') || '1');
                     return sum + qty;
@@ -498,34 +613,39 @@ const UserTasksModal = ({
 
                   const quantity = parseInt(task.quantity?.replace('x', '') || '1');
                   const totalSlots = isVideoEditor ? quantity * 2 : quantity;
+                  
+                  // Calculate actual slots to render (including additional creatives beyond original quantity)
+                  const viewerLinkCount = task.viewerLink ? task.viewerLink.length : 0;
+                  const actualSlotsCount = Math.max(totalSlots, viewerLinkCount);
 
                   return (
                     <div key={task.id} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <h3 className="font-semibold text-gray-900 mb-3">{task.title}</h3>
                       
                       <div className="space-y-3">
-                        {Array.from({ length: totalSlots }).map((_, i) => {
+                        {Array.from({ length: actualSlotsCount }).map((_, i) => {
                           const slotIndex = i;
                           const adNumber = adOffset + Math.floor(i / (isVideoEditor ? 2 : 1)) + 1;
                           const formatIndex = isVideoEditor ? i % 2 : 0;
                           const formatLabel = isVideoEditor ? (formatIndex === 0 ? 'Facebook Format' : 'Reel') : null;
                           
                           const hasUpload = task.viewerLink && task.viewerLink[slotIndex];
+                          const isUploadedToFacebook = task.viewerLinkApproval?.[slotIndex] === 'Approved' || task.viewerLinkApproval?.[slotIndex] === 'Uploaded';
 
                           return (
                             <div 
                               key={i} 
                               className={`rounded-xl p-6 bg-white transition-all shadow-sm hover:shadow-md border border-gray-100 ${
-                                task.viewerLinkApproval?.[slotIndex] === 'Approved' || task.viewerLinkApproval?.[slotIndex] === 'Uploaded'
+                                isUploadedToFacebook
                                   ? 'bg-green-50/20'
                                   : task.viewerLinkApproval?.[slotIndex] === 'Needs Review'
                                   ? 'bg-orange-50/20'
                                   : ''
                               } ${
-                                hasUpload ? 'cursor-pointer' : ''
+                                hasUpload && !isUploadedToFacebook ? 'cursor-pointer' : ''
                               }`}
                               onClick={() => {
-                                if (hasUpload) {
+                                if (hasUpload && !isUploadedToFacebook) {
                                   const previewIndex = allLinks.findIndex(
                                     item => item.taskId === task.id && item.linkIndex === slotIndex
                                   );
@@ -561,6 +681,10 @@ const UserTasksModal = ({
                                     <XCircle className="w-3 h-3" />
                                     Cancel Upload
                                   </button>
+                                </div>
+                              ) : isUploadedToFacebook ? (
+                                <div className="flex items-center justify-center py-8 border border-green-200 rounded-lg bg-green-50">
+                                  <p className="text-base font-semibold text-green-700">Uploaded to Facebook</p>
                                 </div>
                               ) : hasUpload ? (
                                 <div className="space-y-5">
@@ -610,7 +734,6 @@ const UserTasksModal = ({
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                          const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
                                           const assignedUser = { 
                                             id: userTasksModal.user.id, 
                                             name: userTasksModal.user.name, 
@@ -623,7 +746,7 @@ const UserTasksModal = ({
                                             file, 
                                             task, 
                                             assignedUser, 
-                                            campaign,
+                                            campaignForTask,
                                             previousUrl
                                           );
                                         }
@@ -659,7 +782,7 @@ const UserTasksModal = ({
                                             readOnly: false,
                                             adNumber: adNumber,
                                             campaignId: task.campaignId,
-                                            campaignName: campaign?.name || 'No Campaign',
+                                            campaignName: campaignForTask?.name || 'No Campaign',
                                             userId: userTasksModal.user.id
                                           });
                                         }}
@@ -713,12 +836,12 @@ const UserTasksModal = ({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setAdDetailsOpen({ 
-                                          taskId: task.id, 
-                                          adIndex: slotIndex, 
-                                          taskData: task,
-                                          adNumber: adNumber
-                                        });
+                                        
+                                        // Navigate to versions URL, let effect handle opening sidebar
+                                        const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
+                                        const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
+                                        const campaignSlug = getCampaignSlug(task.campaignId, campaign?.name);
+                                        navigate(`/cards/${userSlug}/${campaignSlug}/ad_${adNumber}/versions`, { replace: true });
                                       }}
                                       className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
                                       title="View History"
@@ -771,14 +894,13 @@ const UserTasksModal = ({
                                         onChange={(e) => {
                                           const file = e.target.files[0];
                                           if (file) {
-                                            const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
                                             handleCreativeUpload(
                                               task.id, 
                                               slotIndex, 
                                               file, 
                                               task, 
                                               userTasksModal.user, 
-                                              campaign
+                                              campaignForTask
                                             );
                                           }
                                         }}
@@ -790,19 +912,88 @@ const UserTasksModal = ({
                             </div>
                           );
                         })}
+                        
+                        {/* Add New Creative Button */}
+                        <button
+                          onClick={() => {
+                            // Add empty slot(s) to the arrays immediately
+                            const currentLength = task.viewerLink ? task.viewerLink.length : 0;
+                            const nextSlotIndex = Math.max(currentLength, totalSlots);
+                            
+                            // For video editors, add 2 slots (Facebook Format and Reel)
+                            const slotsToAdd = isVideoEditor ? 2 : 1;
+                            
+                            const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
+                            const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
+                            const updatedSlackPermalinks = Array.isArray(task.slackPermalink) ? [...task.slackPermalink] : [];
+                            
+                            // Ensure arrays are long enough
+                            while (updatedViewerLinks.length < nextSlotIndex + slotsToAdd) {
+                              updatedViewerLinks.push('');
+                            }
+                            while (updatedApprovals.length < nextSlotIndex + slotsToAdd) {
+                              updatedApprovals.push('Not Done');
+                            }
+                            while (updatedSlackPermalinks.length < nextSlotIndex + slotsToAdd) {
+                              updatedSlackPermalinks.push('');
+                            }
+                            
+                            // Update task in both local state and backend
+                            updateTask(task.id, {
+                              viewerLink: updatedViewerLinks,
+                              viewerLinkApproval: updatedApprovals,
+                              slackPermalink: updatedSlackPermalinks
+                            });
+                            
+                            // Update modal state immediately
+                            const updatedTasks = userTasksModal.tasks.map(t => 
+                              t.id === task.id ? {
+                                ...t,
+                                viewerLink: updatedViewerLinks,
+                                viewerLinkApproval: updatedApprovals,
+                                slackPermalink: updatedSlackPermalinks
+                              } : t
+                            );
+                            setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                          }}
+                          className="w-full rounded-xl p-4 bg-white border-2 border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer"
+                        >
+                          <div className="flex flex-col items-center justify-center py-4">
+                            <Plus className="w-8 h-8 text-blue-500 mb-2" />
+                            <span className="text-sm font-medium text-blue-600">New Creative</span>
+                            <span className="text-xs text-gray-500 mt-1">
+                              {isVideoEditor ? 'Add new variation (2 slots: Facebook + Reel)' : 'Add new variation'}
+                            </span>
+                          </div>
+                        </button>
                       </div>
                     </div>
                   );
                 })}
-              </div>
-            ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
       
       {/* Ad Details Sidebar */}
       {adDetailsOpen && (
-        <div className="fixed inset-y-0 right-0 w-[35%] bg-white shadow-xl z-50 flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <>
+          {/* Backdrop overlay to indicate sub-view */}
+          <div 
+            className="fixed inset-0 bg-black/20 z-[55]" 
+            onClick={() => {
+              const segments = location.pathname.split('/').filter(Boolean);
+              if (segments.length > 0) {
+                const previewPath = `/${[...segments.slice(0, -1), 'preview'].join('/')}`;
+                navigate(previewPath, { replace: true });
+              }
+            }}
+          />
+          <div className="fixed inset-y-0 right-0 w-[35%] bg-white shadow-2xl z-[60] flex flex-col border-l-2 border-red-500" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="border-b border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between mb-4">
@@ -813,9 +1004,13 @@ const UserTasksModal = ({
                 </p>
               </div>
               <button
-                onClick={() => {
-                  setAdDetailsOpen(null);
-                  setSelectedVersionPreview(null);
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const segments = location.pathname.split('/').filter(Boolean);
+                  if (segments.length > 0) {
+                    const previewPath = `/${[...segments.slice(0, -1), 'preview'].join('/')}`;
+                    navigate(previewPath, { replace: true });
+                  }
                 }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
               >
@@ -826,7 +1021,14 @@ const UserTasksModal = ({
             {/* Tabs */}
             <div className="flex gap-2">
               <button
-                onClick={() => setActiveTab('feedback')}
+                onClick={() => {
+                  // Navigate directly to comments URL, let effect handle tab state
+                  const segments = location.pathname.split('/').filter(Boolean);
+                  if (segments.length > 0) {
+                    const commentsPath = `/${[...segments.slice(0, -1), 'comments'].join('/')}`;
+                    navigate(commentsPath, { replace: true });
+                  }
+                }}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   activeTab === 'feedback'
                     ? 'text-red-600 bg-red-50'
@@ -837,7 +1039,14 @@ const UserTasksModal = ({
                 Comments
               </button>
               <button
-                onClick={() => setActiveTab('versions')}
+                onClick={() => {
+                  // Navigate directly to versions URL, let effect handle tab state
+                  const segments = location.pathname.split('/').filter(Boolean);
+                  if (segments.length > 0) {
+                    const versionsPath = `/${[...segments.slice(0, -1), 'versions'].join('/')}`;
+                    navigate(versionsPath, { replace: true });
+                  }
+                }}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   activeTab === 'versions'
                     ? 'text-red-600 bg-red-50'
@@ -863,67 +1072,73 @@ const UserTasksModal = ({
               <>
                 {/* Versions Tab */}
                 {activeTab === 'versions' && (
-                  <div className="p-6">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Version history</h3>
+                  <div className="p-4">
                     {adVersions.filter(v => v.type === 'creative').length === 0 ? (
                       <div className="text-center py-16">
-                        <Eye className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-400 text-sm">No version history available</p>
+                        <History className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-gray-400 text-sm">No versions available</p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {adVersions
                           .filter(v => v.type === 'creative')
-                          .map((version, idx) => (
-                          <div
-                            key={idx}
-                            className={`relative rounded-lg border-2 p-4 cursor-pointer transition-all ${
-                              version.isCurrent
-                                ? 'border-red-200 bg-red-50'
-                                : selectedVersionPreview?.url === version.url
-                                ? 'border-blue-200 bg-blue-50'
-                                : 'border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50'
-                            }`}
-                            onClick={() => setSelectedVersionPreview(version)}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="text-sm font-medium text-gray-900">
-                                    ad-creative-v{adVersions.filter(v => v.type === 'creative').length - idx}
-                                  </p>
-                                  {version.isCurrent && (
-                                    <span className="px-2 py-0.5 text-xs font-semibold bg-red-500 text-white rounded">
-                                      Current
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-500">
-                                  Uploaded by {adDetailsOpen.taskData.assignedTo || 'Team Member'}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  {new Date(version.timestamp).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric'
-                                  })} at {new Date(version.timestamp).toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
-                                </p>
-                              </div>
-                              <a
-                                href={version.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                          .map((version, idx) => {
+                            const versionNumber = adVersions.filter(v => v.type === 'creative').length - idx;
+                            const isSelected = selectedVersionPreview?.url === version.url;
+                            const date = new Date(version.timestamp);
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className={`group relative rounded-lg border p-3 cursor-pointer transition-all ${
+                                  version.isCurrent
+                                    ? 'border-red-300 bg-red-50/50 hover:bg-red-50'
+                                    : isSelected
+                                    ? 'border-blue-400 bg-blue-50 shadow-sm'
+                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                }`}
+                                onClick={() => setSelectedVersionPreview(version)}
                               >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        ))}
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-semibold text-sm ${
+                                      version.isCurrent
+                                        ? 'bg-red-500 text-white'
+                                        : isSelected
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                                    }`}>
+                                      v{versionNumber}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className={`text-sm font-medium ${
+                                          version.isCurrent ? 'text-red-700' : isSelected ? 'text-blue-700' : 'text-gray-900'
+                                        }`}>
+                                          {version.isCurrent ? 'Current Version' : `Version ${versionNumber}`}
+                                        </p>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        {' • '}
+                                        {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={version.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                                    title="Open in new tab"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
                   </div>
@@ -931,48 +1146,51 @@ const UserTasksModal = ({
 
                 {/* Comments/Feedback Tab */}
                 {activeTab === 'feedback' && (
-                  <div className="p-6">
+                  <div className="p-4">
                     {adVersions.filter(v => v.type === 'feedback').length === 0 ? (
                       <div className="text-center py-16">
-                        <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-2" />
                         <p className="text-gray-400 text-sm">No comments yet</p>
                       </div>
                     ) : (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {adVersions
                           .filter(v => v.type === 'feedback')
-                          .map((item, idx) => (
-                          <div key={idx} className="flex gap-3">
-                            <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-semibold">
-                              {item.feedbackBy?.[0] || 'M'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-baseline gap-2 mb-1">
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {item.feedbackBy || 'Manager'}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {(() => {
-                                    const now = new Date();
-                                    const feedbackTime = new Date(item.timestamp);
-                                    const diffMs = now - feedbackTime;
-                                    const diffMins = Math.floor(diffMs / 60000);
-                                    const diffHours = Math.floor(diffMins / 60);
-                                    const diffDays = Math.floor(diffHours / 24);
-                                    
-                                    if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
-                                    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
-                                    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-                                    return feedbackTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                  })()}
-                                </p>
+                          .map((item, idx) => {
+                            const date = new Date(item.timestamp);
+                            const now = new Date();
+                            const diffMs = now - date;
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMins / 60);
+                            const diffDays = Math.floor(diffHours / 24);
+                            
+                            let timeAgo;
+                            if (diffMins < 1) timeAgo = 'Just now';
+                            else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
+                            else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
+                            else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
+                            else timeAgo = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            
+                            return (
+                              <div key={idx} className="flex gap-3 p-3 rounded-lg bg-orange-50/50 border border-orange-100">
+                                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
+                                  {item.feedbackBy?.[0]?.toUpperCase() || 'M'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {item.feedbackBy || 'Manager'}
+                                    </p>
+                                    <span className="text-xs text-gray-400">•</span>
+                                    <p className="text-xs text-gray-500">{timeAgo}</p>
+                                  </div>
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                    {item.feedback}
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-sm text-gray-700 leading-relaxed">
-                                {item.feedback}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                            );
+                          })}
                       </div>
                     )}
                   </div>
@@ -981,6 +1199,7 @@ const UserTasksModal = ({
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

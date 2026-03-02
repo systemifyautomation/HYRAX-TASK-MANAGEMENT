@@ -198,6 +198,8 @@ const Tasks = () => {
   }]);
   const [selectedQuickFilter, setSelectedQuickFilter] = useState('all');
   const syncingFromUrlRef = useRef(false);
+  const closingModalRef = useRef(false);
+  const restoredModalPathRef = useRef('');
   
   const [newColumn, setNewColumn] = useState({
     name: '',
@@ -237,6 +239,37 @@ const Tasks = () => {
     return match ? String(match.id) : '';
   };
 
+  const buildPreviewLinksForModal = useCallback((modalTasks, user) => {
+    if (!Array.isArray(modalTasks) || !modalTasks.length || !user) return [];
+
+    const isVideoEditor = user.department === 'VIDEO EDITING';
+    const links = [];
+
+    modalTasks.forEach((task, taskIndex) => {
+      const adOffset = modalTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
+        const quantity = parseInt(prevTask.quantity?.replace('x', '') || '1', 10);
+        return sum + quantity;
+      }, 0);
+
+      if (Array.isArray(task.viewerLink)) {
+        task.viewerLink.forEach((link, linkIndex) => {
+          if (link) {
+            const adNumber = adOffset + Math.floor(linkIndex / (isVideoEditor ? 2 : 1)) + 1;
+            links.push({
+              adNumber,
+              linkIndex,
+              taskId: task.id,
+              campaignId: task.campaignId,
+              campaignName: task.campaignName
+            });
+          }
+        });
+      }
+    });
+
+    return links;
+  }, []);
+
   const applyQuickFilterDates = (filter) => {
     const today = new Date();
     let startDate = null;
@@ -274,6 +307,15 @@ const Tasks = () => {
     }
   };
 
+  const isModalRoutePath = useCallback((pathname) => {
+    const segments = pathname.split('/').filter(Boolean);
+    return segments.some(segment => segment.startsWith('ad_')) ||
+      segments.includes('preview') ||
+      segments.includes('versions') ||
+      segments.includes('comments') ||
+      segments.includes('feedback');
+  }, []);
+
   const parseFiltersFromPath = useCallback(() => {
     const segments = location.pathname.split('/').filter(Boolean);
     if (!segments.length) return;
@@ -287,8 +329,12 @@ const Tasks = () => {
       return;
     }
 
-    const isModalPath = segments.some(segment => segment.startsWith('ad_')) || segments.includes('preview') || segments.includes('versions');
+    const isModalPath = isModalRoutePath(location.pathname);
     if (isModalPath) {
+      // On deep-link/modal paths, clear campaign and user filters so background shows all
+      syncingFromUrlRef.current = true;
+      setSelectedCampaign('');
+      setSelectedUser('');
       return;
     }
 
@@ -340,7 +386,7 @@ const Tasks = () => {
       setDateRangeStart(nextDateStart || '');
       setDateRangeEnd(nextDateEnd || '');
     }
-  }, [location.pathname, users, campaigns, selectedWeek]);
+  }, [location.pathname, users, campaigns, selectedWeek, isModalRoutePath]);
 
   useEffect(() => {
     parseFiltersFromPath();
@@ -376,16 +422,26 @@ const Tasks = () => {
   }, [displayType, selectedUser, selectedCampaign, selectedWeek, dateRangeStart, dateRangeEnd, selectedQuickFilter, users, campaigns]);
 
   const handleCloseUserTasksModal = useCallback(() => {
+    closingModalRef.current = true;
     setUserTasksModal(null);
     const nextPath = buildFilterPath();
     if (location.pathname !== nextPath) {
       navigate(nextPath, { replace: true });
     }
+    // Reset the flag after a brief delay to allow navigation to complete
+    setTimeout(() => {
+      closingModalRef.current = false;
+    }, 100);
   }, [buildFilterPath, location.pathname, navigate]);
 
   useEffect(() => {
     if (syncingFromUrlRef.current) {
       syncingFromUrlRef.current = false;
+      return;
+    }
+
+    // Keep ad/modal deep-link URLs stable on refresh.
+    if (isModalRoutePath(location.pathname)) {
       return;
     }
 
@@ -397,7 +453,122 @@ const Tasks = () => {
     if (location.pathname !== nextPath) {
       navigate(nextPath, { replace: true });
     }
-  }, [buildFilterPath, location.pathname, navigate, userTasksModal]);
+  }, [buildFilterPath, location.pathname, navigate, userTasksModal, isModalRoutePath]);
+
+  useEffect(() => {
+    if (closingModalRef.current) {
+      return;
+    }
+    
+    if (userTasksModal) {
+      return;
+    }
+
+    if (!isModalRoutePath(location.pathname)) {
+      restoredModalPathRef.current = '';
+      return;
+    }
+
+    if (restoredModalPathRef.current === location.pathname) {
+      return;
+    }
+
+    const segments = location.pathname.split('/').filter(Boolean);
+    if (segments.length < 5) {
+      return;
+    }
+
+    const baseView = segments[0];
+    if (baseView !== 'cards' && baseView !== 'lists') {
+      return;
+    }
+
+    const userSlug = decodeURIComponent(segments[1] || '');
+    const campaignSlug = decodeURIComponent(segments[2] || '');
+    const requestedTab = decodeURIComponent(segments[segments.length - 1] || 'preview').toLowerCase();
+    const adSegment = segments.find(segment => segment.startsWith('ad_'));
+
+    if (!userSlug || !campaignSlug || !adSegment) {
+      return;
+    }
+
+    const adNumber = parseInt(adSegment.replace('ad_', ''), 10);
+    if (Number.isNaN(adNumber)) {
+      return;
+    }
+
+    const userId = getUserIdFromSlug(userSlug);
+    const campaignId = getCampaignIdFromSlug(campaignSlug);
+    if (!userId || !campaignId) {
+      return;
+    }
+
+    const user = users.find(u => String(u.id) === String(userId));
+    if (!user) {
+      return;
+    }
+
+    const currentWeekRange = getWeekDateRange(0);
+    const normalizedDepartment = (user.department || '').trim().toUpperCase();
+
+    const modalTasks = tasks.filter(task => {
+      if (String(task.campaignId) !== String(campaignId)) return false;
+      if (String(task.assignedTo) !== String(user.id)) return false;
+      if (task.week !== currentWeekRange) return false;
+
+      const mediaType = (task.mediaType || task.type || '').toString().toUpperCase();
+      if (normalizedDepartment === 'VIDEO EDITING') {
+        return mediaType === 'VIDEO';
+      }
+      if (normalizedDepartment === 'GRAPHIC DESIGN') {
+        return mediaType === 'IMAGE';
+      }
+      return true;
+    });
+
+    if (!modalTasks.length) {
+      return;
+    }
+
+    const previewLinks = buildPreviewLinksForModal(modalTasks, user);
+    const previewIndex = Math.max(0, previewLinks.findIndex(link => link.adNumber === adNumber));
+    const selectedPreview = previewLinks[previewIndex];
+
+    if (requestedTab === 'feedback' && selectedPreview) {
+      const feedbackTask = modalTasks.find(task => String(task.id) === String(selectedPreview.taskId));
+      const campaignForFeedback = campaigns.find(c => String(c.id) === String(selectedPreview.campaignId));
+      if (feedbackTask) {
+        setFeedbackModal({
+          taskId: feedbackTask.id,
+          columnKey: 'viewerLink',
+          itemIndex: selectedPreview.linkIndex,
+          currentFeedback: feedbackTask?.viewerLinkFeedback?.[selectedPreview.linkIndex] || '',
+          readOnly: false,
+          adNumber,
+          campaignId: selectedPreview.campaignId,
+          campaignName: campaignForFeedback?.name || selectedPreview.campaignName || 'No Campaign',
+          userId: user.id
+        });
+      }
+    }
+
+    restoredModalPathRef.current = location.pathname;
+    setCurrentPreviewIndex(previewIndex);
+    setUserTasksModal({ user, tasks: modalTasks });
+  }, [
+    userTasksModal,
+    location.pathname,
+    isModalRoutePath,
+    users,
+    campaigns,
+    tasks,
+    getUserIdFromSlug,
+    getCampaignIdFromSlug,
+    buildPreviewLinksForModal,
+    setFeedbackModal,
+    setCurrentPreviewIndex,
+    setUserTasksModal
+  ]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -626,6 +797,59 @@ const Tasks = () => {
     }
   };
 
+  const getMediaDimensions = (file) => {
+    return new Promise((resolve) => {
+      if (!file || !file.type) {
+        resolve({ width: null, height: null });
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      let settled = false;
+
+      const finish = (width = null, height = null) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(objectUrl);
+        resolve({ width, height });
+      };
+
+      const timeout = setTimeout(() => finish(null, null), 10000);
+
+      if (file.type.startsWith('image/')) {
+        const image = new Image();
+        image.onload = () => {
+          clearTimeout(timeout);
+          finish(image.naturalWidth || null, image.naturalHeight || null);
+        };
+        image.onerror = () => {
+          clearTimeout(timeout);
+          finish(null, null);
+        };
+        image.src = objectUrl;
+        return;
+      }
+
+      if (file.type.startsWith('video/')) {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+          clearTimeout(timeout);
+          finish(video.videoWidth || null, video.videoHeight || null);
+        };
+        video.onerror = () => {
+          clearTimeout(timeout);
+          finish(null, null);
+        };
+        video.src = objectUrl;
+        return;
+      }
+
+      clearTimeout(timeout);
+      finish(null, null);
+    });
+  };
+
   const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign, previousUrl = null) => {
     // Check file size first - must be under 99MB
     const fileSizeMB = file.size / 1024 / 1024;
@@ -674,7 +898,7 @@ const Tasks = () => {
     }
 
     // All files upload directly to n8n webhook
-    const uploadUrl = 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+    const uploadUrl = import.meta.env.VITE_NEW_CREATIVE_FROM_TASKS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
     console.log(`📊 Uploading directly to n8n (file: ${fileSizeMB.toFixed(2)}MB)`);
 
     try {
@@ -686,11 +910,55 @@ const Tasks = () => {
       if (import.meta.env.DEV) {
         console.warn('⚠️ DEV MODE: DO NOT save/edit code files during upload!');
       }
+
+      const { width: creativeWidth, height: creativeHeight } = await getMediaDimensions(file);
+      console.log('Creative dimensions:', {
+        width: creativeWidth,
+        height: creativeHeight
+      });
+
+      const resolveUploaderUserId = () => {
+        const email = `${currentUser?.email || ''}`.toLowerCase();
+
+        try {
+          const cachedUsers = JSON.parse(localStorage.getItem('hyrax_users') || '[]');
+          if (Array.isArray(cachedUsers) && email) {
+            const matchedUser = cachedUsers.find(user =>
+              `${user?.email || ''}`.toLowerCase() === email
+            );
+            if (matchedUser?.id !== undefined && matchedUser?.id !== null && `${matchedUser.id}`.trim() !== '') {
+              return `${matchedUser.id}`;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to resolve uploader ID from cached users:', error);
+        }
+
+        if (currentUser?.id !== undefined && currentUser?.id !== null && `${currentUser.id}`.trim() !== '') {
+          return `${currentUser.id}`;
+        }
+
+        return '';
+      };
+
+      const uploaderUserId = resolveUploaderUserId();
+      
+      // Construct path for webhook
+      const userSlug = assignedUser ? slugify(assignedUser.name || assignedUser.id) : '';
+      const campaignSlug = campaign ? slugify(campaign.name || campaign.id) : '';
+      const isVideoEditor = assignedUser?.department === 'VIDEO EDITING';
+      const adNumber = Math.floor(adIndex / (isVideoEditor ? 2 : 1)) + 1;
+      const path = `/${userSlug}/${campaignSlug}/ad_${adNumber}/preview`;
       
       const formData = new FormData();
       formData.append('file', file);
       formData.append('taskId', taskId);
       formData.append('adIndex', adIndex);
+      formData.append('path', path);
+      if (creativeWidth && creativeHeight) {
+        formData.append('creative_width', String(creativeWidth));
+        formData.append('creative_height', String(creativeHeight));
+      }
       
       // Add assigned user details (person on the card)
       if (assignedUser) {
@@ -706,7 +974,7 @@ const Tasks = () => {
       }
       
       // Add current user details (person who uploaded)
-      formData.append('uploadedByUserId', currentUser.id);
+      formData.append('uploadedByUserId', uploaderUserId);
       formData.append('uploadedByUserName', currentUser.name);
       formData.append('uploadedByUserRole', currentUser.role || '');
       
@@ -991,16 +1259,22 @@ const Tasks = () => {
         }
       }, 2000);
       
-      // Extract URL from n8n response
+      // Extract URL and slack permalink from n8n response
       // n8n returns JSON body with "url" field containing the video/image URL
+      // and "slackPermalink" field containing the Slack message permalink
       const uploadedUrl = result.url || result.data?.url || result.viewerLink || result.data?.viewerLink;
+      const slackPermalink = result.slackPermalink || result.data?.slackPermalink || '';
       
       if (uploadedUrl) {
         console.log('✅ Received URL from n8n:', uploadedUrl);
+        if (slackPermalink) {
+          console.log('✅ Received Slack permalink:', slackPermalink);
+        }
         
         const task = tasks.find(t => t.id === taskId);
         const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
         const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
+        const updatedSlackPermalinks = Array.isArray(task.slackPermalink) ? [...task.slackPermalink] : [];
         
         while (updatedViewerLinks.length <= adIndex) {
           updatedViewerLinks.push('');
@@ -1010,8 +1284,13 @@ const Tasks = () => {
           updatedApprovals.push('Not Done');
         }
         
+        while (updatedSlackPermalinks.length <= adIndex) {
+          updatedSlackPermalinks.push('');
+        }
+        
         updatedViewerLinks[adIndex] = uploadedUrl;
         updatedApprovals[adIndex] = 'Needs Review'; // Auto-set to Needs Review after upload
+        updatedSlackPermalinks[adIndex] = slackPermalink; // Store Slack permalink
         
         // Prepare additional query parameters
         const queryParams = {
@@ -1023,7 +1302,8 @@ const Tasks = () => {
         
         updateTask(taskId, { 
           viewerLink: updatedViewerLinks,
-          viewerLinkApproval: updatedApprovals
+          viewerLinkApproval: updatedApprovals,
+          slackPermalink: updatedSlackPermalinks
         }, queryParams);
         
         // Update modal state if it's open
@@ -1032,7 +1312,8 @@ const Tasks = () => {
             t.id === taskId ? { 
               ...t, 
               viewerLink: updatedViewerLinks,
-              viewerLinkApproval: updatedApprovals
+              viewerLinkApproval: updatedApprovals,
+              slackPermalink: updatedSlackPermalinks
             } : t
           );
           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
@@ -1325,6 +1606,12 @@ This usually indicates a temporary workflow issue.`;
 
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
+    // When on a modal/deep-link path, show ALL tasks in background (no filtering)
+    const isDeepLink = isModalRoutePath(location.pathname);
+    if (isDeepLink) {
+      return tasks;
+    }
+
     let filtered = tasks;
 
     // Week filter is now handled by the backend via query parameter
@@ -1351,18 +1638,18 @@ This usually indicates a temporary workflow issue.`;
       });
     }
 
-    // Apply campaign filter (works across all views)
+    // Apply campaign filter
     if (selectedCampaign) {
       filtered = filtered.filter(task => task.campaignId === parseInt(selectedCampaign));
     }
 
-    // Apply user filter (works across all views)
+    // Apply user filter
     if (selectedUser) {
       filtered = filtered.filter(task => task.assignedTo === parseInt(selectedUser));
     }
 
     return filtered;
-  }, [tasks, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd]);
+  }, [tasks, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -2008,11 +2295,12 @@ This usually indicates a temporary workflow issue.`;
                     const currentWeekMonday = getMondayOfWeek(now);
                     const currentWeekSunday = getSundayOfWeek(now);
                     const currentWeekRange = getWeekDateRange(0);
+                    const isDeepLink = isModalRoutePath(location.pathname);
 
                     // Get all tasks for this user based on department
                     let userTasks = filteredTasks.filter(task => {
-                      // Filter by current week first
-                      if (task.week !== currentWeekRange) return false;
+                      // Skip week filter when on deep-link/modal paths
+                      if (!isDeepLink && task.week !== currentWeekRange) return false;
 
                       if (department === 'VIDEO EDITING') {
                         const mediaType = task.mediaType || task.type;
@@ -2075,7 +2363,7 @@ This usually indicates a temporary workflow issue.`;
                 <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
                   Index
                 </th>
-                {columns.filter(col => col.visible !== false).map((column) => (
+                {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
                   <th 
                     key={column.id} 
                     className={`px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
@@ -2100,7 +2388,7 @@ This usually indicates a temporary workflow issue.`;
                   <td className="px-4 py-4">
                     {/* Empty index cell for add row */}
                   </td>
-                  {columns.filter(col => col.visible !== false).map((column) => (
+                  {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
                     <td key={column.id} className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}>
                       {renderCell({ id: 'new', ...newTask }, column, true)}
                     </td>
@@ -2143,7 +2431,7 @@ This usually indicates a temporary workflow issue.`;
                   <td className="px-4 py-4 text-sm font-semibold text-gray-500">
                     {index + 1}
                   </td>
-                  {columns.filter(col => col.visible !== false).map((column) => (
+                  {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
                     <td 
                       key={column.id} 
                       className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}

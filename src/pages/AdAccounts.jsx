@@ -494,7 +494,7 @@ const AdAccounts = () => {
                   type="text"
                   value={addForm.Ad_Account_ID}
                   onChange={(e) => setAddForm({ ...addForm, Ad_Account_ID: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                   placeholder="Enter Ad Account ID"
                 />
               </div>
@@ -506,7 +506,7 @@ const AdAccounts = () => {
                 <select
                   value={addForm.Campaign}
                   onChange={(e) => setAddForm({ ...addForm, Campaign: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                 >
                   <option value="">Select Campaign</option>
                   {campaigns.map((campaign) => (
@@ -525,7 +525,7 @@ const AdAccounts = () => {
                   type="text"
                   value={addForm.V}
                   onChange={(e) => setAddForm({ ...addForm, V: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                   placeholder="Enter V"
                 />
               </div>
@@ -538,7 +538,7 @@ const AdAccounts = () => {
                   type="text"
                   value={addForm.BM_ID}
                   onChange={(e) => setAddForm({ ...addForm, BM_ID: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                   placeholder="Enter BM ID"
                 />
               </div>
@@ -551,7 +551,7 @@ const AdAccounts = () => {
                   type="text"
                   value={addForm.ADSPOWER}
                   onChange={(e) => setAddForm({ ...addForm, ADSPOWER: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                   placeholder="Enter ADSPOWER"
                 />
               </div>

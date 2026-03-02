@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 const UserTaskCard = ({ 
   user, 
@@ -9,6 +10,12 @@ const UserTaskCard = ({
   onCampaignFilterChange,
   onClick 
 }) => {
+  const [expandedCampaign, setExpandedCampaign] = useState(null);
+
+  const toggleCampaign = (e, campaignId) => {
+    e.stopPropagation(); // Prevent card click when toggling campaign
+    setExpandedCampaign(expandedCampaign === campaignId ? null : campaignId);
+  };
   // Helper functions for this user's card
   const getCopyStatuses = () => {
     return userTasks.map((task, idx) => {
@@ -243,7 +250,7 @@ const UserTaskCard = ({
       </div>
 
       {/* Campaign Dropdown */}
-      <div className="mb-4">
+      <div className="mb-4" onClick={(e) => e.stopPropagation()}>
         <label className="block text-sm font-medium text-gray-700 mb-2">Campaign</label>
         <select
           value={cardCampaignFilter}
@@ -319,11 +326,11 @@ const UserTaskCard = ({
             )}
           </div>
         ) : (
-          // For Video Editors and Graphic Designers: Group by campaign
+          // For Video Editors and Graphic Designers: Group by campaign with accordion
           <div className="space-y-2">
             {copyStatuses.length > 0 ? (
               (() => {
-                // Group copies by campaign to restart numbering
+                // Group copies by campaign
                 const copiesByCampaign = copyStatuses.reduce((acc, copy) => {
                   const task = userTasks.find(t => t.id === copy.id);
                   const campaignId = task?.campaignId || 'unknown';
@@ -334,27 +341,57 @@ const UserTaskCard = ({
                   return acc;
                 }, {});
 
-                // Flatten all copies with campaign names
-                return Object.entries(copiesByCampaign).flatMap(([campaignId, copies]) => {
+                // Display campaigns with accordion
+                return Object.entries(copiesByCampaign).map(([campaignId, copies]) => {
                   const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                   const campaignName = campaign?.name || 'Unknown Campaign';
+                  const isExpanded = expandedCampaign === campaignId;
                   
-                  return copies.map((copy, idx) => (
-                    <div key={copy.id} className="text-sm">
-                      <span className="font-bold text-gray-900">
-                        {copy.title || `Copy ${idx + 1}`} ({campaignName}):
-                      </span>{' '}
-                      <span className={
-                        copy.status === 'Approved' ? 'text-green-600' :
-                        copy.status === 'In Progress' ? 'text-blue-600' :
-                        copy.status === 'Needs Review' ? 'text-orange-600' :
-                        copy.status === 'Left feedback' ? 'text-blue-600' :
-                        'text-gray-600'
-                      }>
-                        {copy.status}
-                      </span>
+                  return (
+                    <div key={campaignId} className="border border-gray-200 rounded-md overflow-hidden">
+                      {/* Campaign Header - Clickable */}
+                      <div 
+                        className="flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                        onClick={(e) => toggleCampaign(e, campaignId)}
+                      >
+                        <span className="font-semibold text-gray-900 text-sm">
+                          {campaignName}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {copies.length} {copies.length === 1 ? 'copy' : 'copies'}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-gray-600" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-gray-600" />
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Campaign Content - Collapsible */}
+                      {isExpanded && (
+                        <div className="px-3 py-2 space-y-1 bg-white">
+                          {copies.map((copy, idx) => (
+                            <div key={copy.id} className="text-sm">
+                              <span className="font-bold text-gray-900">
+                                {copy.title || `Copy ${idx + 1}`}:
+                              </span>{' '}
+                              <span className={
+                                copy.status === 'Approved' ? 'text-green-600' :
+                                copy.status === 'In Progress' ? 'text-blue-600' :
+                                copy.status === 'Needs Review' ? 'text-orange-600' :
+                                copy.status === 'Left feedback' ? 'text-blue-600' :
+                                'text-gray-600'
+                              }>
+                                {copy.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ));
+                  );
                 });
               })()
             ) : (
@@ -383,45 +420,87 @@ const UserTaskCard = ({
           <h4 className="text-xs font-semibold text-gray-700 uppercase mb-3 tracking-wide">
             TODAY'S AD PROGRESS
           </h4>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {copyStatuses.length > 0 ? (
               (() => {
-                // Group ads by copy (task)
-                const adsByCopy = {};
-                adStatuses.forEach(ad => {
-                  if (!adsByCopy[ad.taskId]) {
-                    adsByCopy[ad.taskId] = [];
+                // Group ads by campaign first
+                const adsByCampaign = {};
+                
+                copyStatuses.forEach(copy => {
+                  const task = userTasks.find(t => t.id === copy.id);
+                  const campaignId = task?.campaignId || 'unknown';
+                  
+                  if (!adsByCampaign[campaignId]) {
+                    adsByCampaign[campaignId] = {};
                   }
-                  adsByCopy[ad.taskId].push(ad);
+                  
+                  // Get ads for this copy
+                  const copyAds = adStatuses.filter(ad => ad.taskId === copy.id);
+                  adsByCampaign[campaignId][copy.id] = {
+                    copy,
+                    ads: copyAds
+                  };
                 });
 
-                // Display ads grouped by copy
-                return copyStatuses.map((copy) => {
-                  const copyAds = adsByCopy[copy.id] || [];
-
+                // Display campaigns with accordion
+                return Object.entries(adsByCampaign).map(([campaignId, copiesData]) => {
+                  const campaign = campaigns.find(c => c.id === parseInt(campaignId));
+                  const campaignName = campaign?.name || 'Unknown Campaign';
+                  const isExpanded = expandedCampaign === campaignId;
+                  const copiesArray = Object.values(copiesData);
+                  
                   return (
-                    <div key={copy.id} className="border-l-2 border-gray-200 pl-3">
-                      <p className="text-xs font-semibold text-gray-600 mb-1">
-                        {copy.title || `Copy ${copy.number}`}
-                      </p>
-                      <div className="space-y-1">
-                        {copyAds.length > 0 ? (
-                          copyAds.map((ad) => (
-                            <div key={ad.id} className="text-sm">
-                              <span className="font-bold text-gray-900">Ad {ad.number}:</span>{' '}
-                              <span className={
-                                ad.status === 'Approved' ? 'text-green-600' :
-                                ad.status === 'In Progress' ? 'text-blue-600' :
-                                'text-gray-600'
-                              }>
-                                {ad.status}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-gray-400 italic">No ads</p>
-                        )}
+                    <div key={campaignId} className="border border-gray-200 rounded-md overflow-hidden">
+                      {/* Campaign Header - Clickable */}
+                      <div 
+                        className="flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                        onClick={(e) => toggleCampaign(e, campaignId)}
+                      >
+                        <span className="font-semibold text-gray-900 text-sm">
+                          {campaignName}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {copiesArray.length} {copiesArray.length === 1 ? 'copy' : 'copies'}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-gray-600" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-gray-600" />
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* Campaign Content - Collapsible */}
+                      {isExpanded && (
+                        <div className="px-3 py-2 space-y-3 bg-white">
+                          {copiesArray.map(({ copy, ads }) => (
+                            <div key={copy.id} className="border-l-2 border-gray-200 pl-3">
+                              <p className="text-xs font-semibold text-gray-600 mb-1">
+                                {copy.title || `Copy ${copy.number}`}
+                              </p>
+                              <div className="space-y-1">
+                                {ads.length > 0 ? (
+                                  ads.map((ad) => (
+                                    <div key={ad.id} className="text-sm">
+                                      <span className="font-bold text-gray-900">Ad {ad.number}:</span>{' '}
+                                      <span className={
+                                        ad.status === 'Approved' ? 'text-green-600' :
+                                        ad.status === 'In Progress' ? 'text-blue-600' :
+                                        'text-gray-600'
+                                      }>
+                                        {ad.status}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-xs text-gray-400 italic">No ads</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 });

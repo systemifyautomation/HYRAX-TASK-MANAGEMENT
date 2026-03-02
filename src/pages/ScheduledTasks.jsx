@@ -1063,7 +1063,7 @@ const ScheduledTasks = () => {
       <div className="mb-4 flex items-center justify-between">
         {/* Left side - View Toggles */}
         <div className="flex items-center space-x-3">
-          {/* Display Type Toggle - List / Cards */}
+          {/* Display Type Toggle - List only */}
           <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
             <button
               onClick={() => setDisplayType('list')}
@@ -1073,15 +1073,6 @@ const ScheduledTasks = () => {
             >
               <Grid3X3 className="w-4 h-4" />
               <span>List</span>
-            </button>
-            <button
-              onClick={() => setDisplayType('cards')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                displayType === 'cards' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span>Cards</span>
             </button>
           </div>
 
