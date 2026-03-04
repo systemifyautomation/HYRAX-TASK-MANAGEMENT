@@ -85,15 +85,25 @@ const UserTaskCard = ({
         }
       }
 
-      // Create individual ad entries for each required creative
-      for (let i = 0; i < requiredQuantity; i++) {
+      // Determine the maximum number of ads to show (either required quantity or actual uploads)
+      const maxAds = Math.max(
+        requiredQuantity,
+        Array.isArray(task.viewerLink) ? task.viewerLink.length : 0
+      );
+
+      // Create individual ad entries for each creative (required + extra)
+      for (let i = 0; i < maxAds; i++) {
         let status = 'Not Done';
         
-        // Check if this specific viewer link is approved
+        // Get status from viewerLinkApproval array
         if (Array.isArray(task.viewerLinkApproval) && task.viewerLinkApproval[i]) {
           const approval = task.viewerLinkApproval[i];
           if (approval === 'Approved' || approval === 'Uploaded' || approval === true) {
             status = 'Approved';
+          } else if (approval === 'Left Feedback') {
+            status = 'Left Feedback';
+          } else if (approval === 'Needs Review') {
+            status = 'Needs Review';
           } else if (task.viewerLink && task.viewerLink[i] && task.viewerLink[i].trim()) {
             status = 'In Progress';
           }
@@ -188,47 +198,49 @@ const UserTaskCard = ({
   const copyStatuses = getFilteredCopyStatuses();
   const progress = getWeeklyProgress();
   
-  // Filter ad statuses to only include tasks that are in copyStatuses and renumber them
-  const copyTaskIds = new Set(copyStatuses.map(copy => copy.id));
-  const filteredAdStatuses = getAdStatuses()
-    .filter(ad => copyTaskIds.has(ad.taskId))
-    .map((ad, idx) => ({ ...ad, number: idx + 1 })); // Renumber starting from 1
-  const adStatuses = filteredAdStatuses;
+  // Get all ad statuses from userTasks (already campaign-filtered by parent)
+  const adStatuses = getAdStatuses();
 
-  // Calculate "Done today" for media buyers
+  // Calculate "Done today" based on viewerLinkApprovalAt for all users
   const getDoneToday = () => {
     const today = new Date();
     const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     const tomorrowUTC = new Date(todayUTC);
     tomorrowUTC.setUTCDate(tomorrowUTC.getUTCDate() + 1);
 
-    if (user.department === 'MEDIA BUYING') {
-      return userTasks.filter(task => {
-        if (!task.CopyWrittenAt) return false;
-        const writtenDate = new Date(task.CopyWrittenAt);
-        return writtenDate >= todayUTC && writtenDate < tomorrowUTC;
-      }).length;
-    }
-
-    // For Video Editors and Graphic Designers: count ads worked on today (viewerLinkAt)
-    if (user.department === 'VIDEO EDITING' || user.department === 'GRAPHIC DESIGN') {
-      let count = 0;
-      userTasks.forEach(task => {
-        if (Array.isArray(task.viewerLinkAt) && task.viewerLinkAt.length > 0) {
-          task.viewerLinkAt.forEach(linkAt => {
-            if (linkAt) {
-              const linkDate = new Date(linkAt);
-              if (linkDate >= todayUTC && linkDate < tomorrowUTC) {
-                count++;
-              }
+    let count = 0;
+    userTasks.forEach(task => {
+      // Check both lowercase and capital case field names from webhook
+      const approvalTimestamps = task.viewerLinkApprovalAt || task.ViewerLinkApprovalAt;
+      
+      if (Array.isArray(approvalTimestamps) && approvalTimestamps.length > 0) {
+        approvalTimestamps.forEach(approvalAt => {
+          if (approvalAt) {
+            const approvalDate = new Date(approvalAt);
+            if (approvalDate >= todayUTC && approvalDate < tomorrowUTC) {
+              count++;
             }
-          });
+          }
+        });
+      }
+    });
+    
+    // Debug logging
+    if (userTasks.length > 0) {
+      console.log('Done Today Debug for', user.name, {
+        count,
+        todayUTC: todayUTC.toISOString(),
+        tomorrowUTC: tomorrowUTC.toISOString(),
+        sampleTask: {
+          id: userTasks[0].id,
+          title: userTasks[0].title,
+          viewerLinkApprovalAt: userTasks[0].viewerLinkApprovalAt,
+          ViewerLinkApprovalAt: userTasks[0].ViewerLinkApprovalAt
         }
       });
-      return count;
     }
-
-    return 0;
+    
+    return count;
   };
 
   const doneToday = getDoneToday();
@@ -421,33 +433,37 @@ const UserTaskCard = ({
             TODAY'S AD PROGRESS
           </h4>
           <div className="space-y-2">
-            {copyStatuses.length > 0 ? (
+            {userTasks.length > 0 ? (
               (() => {
                 // Group ads by campaign first
                 const adsByCampaign = {};
                 
-                copyStatuses.forEach(copy => {
-                  const task = userTasks.find(t => t.id === copy.id);
-                  const campaignId = task?.campaignId || 'unknown';
+                userTasks.forEach(task => {
+                  const campaignId = task.campaignId || 'unknown';
                   
                   if (!adsByCampaign[campaignId]) {
                     adsByCampaign[campaignId] = {};
                   }
                   
-                  // Get ads for this copy
-                  const copyAds = adStatuses.filter(ad => ad.taskId === copy.id);
-                  adsByCampaign[campaignId][copy.id] = {
-                    copy,
-                    ads: copyAds
-                  };
+                  // Get ads for this task
+                  const taskAds = adStatuses.filter(ad => ad.taskId === task.id);
+                  if (taskAds.length > 0) {
+                    adsByCampaign[campaignId][task.id] = {
+                      task,
+                      ads: taskAds
+                    };
+                  }
                 });
 
                 // Display campaigns with accordion
-                return Object.entries(adsByCampaign).map(([campaignId, copiesData]) => {
+                return Object.entries(adsByCampaign).map(([campaignId, tasksData]) => {
                   const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                   const campaignName = campaign?.name || 'Unknown Campaign';
                   const isExpanded = expandedCampaign === campaignId;
-                  const copiesArray = Object.values(copiesData);
+                  const tasksArray = Object.values(tasksData);
+                  
+                  // Skip campaigns with no ads
+                  if (tasksArray.length === 0) return null;
                   
                   return (
                     <div key={campaignId} className="border border-gray-200 rounded-md overflow-hidden">
@@ -461,7 +477,7 @@ const UserTaskCard = ({
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-500">
-                            {copiesArray.length} {copiesArray.length === 1 ? 'copy' : 'copies'}
+                            {tasksArray.length} {tasksArray.length === 1 ? 'task' : 'tasks'}
                           </span>
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4 text-gray-600" />
@@ -474,10 +490,10 @@ const UserTaskCard = ({
                       {/* Campaign Content - Collapsible */}
                       {isExpanded && (
                         <div className="px-3 py-2 space-y-3 bg-white">
-                          {copiesArray.map(({ copy, ads }) => (
-                            <div key={copy.id} className="border-l-2 border-gray-200 pl-3">
+                          {tasksArray.map(({ task, ads }) => (
+                            <div key={task.id} className="border-l-2 border-gray-200 pl-3">
                               <p className="text-xs font-semibold text-gray-600 mb-1">
-                                {copy.title || `Copy ${copy.number}`}
+                                {task.title || `Task ${task.id}`}
                               </p>
                               <div className="space-y-1">
                                 {ads.length > 0 ? (
@@ -485,7 +501,9 @@ const UserTaskCard = ({
                                     <div key={ad.id} className="text-sm">
                                       <span className="font-bold text-gray-900">Ad {ad.number}:</span>{' '}
                                       <span className={
-                                        ad.status === 'Approved' ? 'text-green-600' :
+                                        ad.status === 'Approved' ? 'text-green-600 font-semibold' :
+                                        ad.status === 'Left Feedback' ? 'text-orange-600 font-semibold' :
+                                        ad.status === 'Needs Review' ? 'text-yellow-600 font-semibold' :
                                         ad.status === 'In Progress' ? 'text-blue-600' :
                                         'text-gray-600'
                                       }>
@@ -503,10 +521,10 @@ const UserTaskCard = ({
                       )}
                     </div>
                   );
-                });
+                }).filter(Boolean); // Remove null entries
               })()
             ) : (
-              <p className="text-sm text-gray-400 italic">No ads for this campaign</p>
+              <p className="text-sm text-gray-400 italic">No tasks</p>
             )}
           </div>
         </div>

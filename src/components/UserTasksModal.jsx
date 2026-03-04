@@ -1,4 +1,4 @@
-import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { USER_ROLES } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -45,8 +45,9 @@ const UserTasksModal = ({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
   const [activeTab, setActiveTab] = useState('versions'); // 'versions' or 'feedback'
-  const [expandedCampaign, setExpandedCampaign] = useState(null); // Track which campaign is expanded
+  const [expandedCampaigns, setExpandedCampaigns] = useState(new Set()); // Track which campaigns are expanded
   const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
   
   const slugify = (value) => {
     if (!value) return '';
@@ -212,7 +213,8 @@ const UserTasksModal = ({
               formatLabel: formatLabel,
               linkIndex: linkIndex,
               approval: task.viewerLinkApproval?.[linkIndex] || 'Not Done',
-              feedback: task.viewerLinkFeedback?.[linkIndex] || ''
+              feedback: task.viewerLinkFeedback?.[linkIndex] || '',
+              status: task.status || 'not_started'
             });
           }
         });
@@ -322,7 +324,7 @@ const UserTasksModal = ({
         
         const firstCampaignName = Object.keys(campaignGroups)[0];
         if (firstCampaignName) {
-          setExpandedCampaign(firstCampaignName);
+          setExpandedCampaigns(new Set([firstCampaignName]));
         }
       }
     } else {
@@ -334,30 +336,9 @@ const UserTasksModal = ({
   const getPreviewUrl = (url) => {
     if (!url) return url;
 
-    // Google Drive: Convert to proper embed format
-    if (url.includes('drive.google.com')) {
-      // Extract file ID from various Google Drive URL formats
-      let fileId = null;
-      
-      // Format: https://drive.google.com/file/d/{id}/view
-      const fileMatch = url.match(/\/file\/d\/([^\/]+)/);
-      if (fileMatch) {
-        fileId = fileMatch[1];
-      }
-      
-      // Format: https://drive.google.com/open?id={id}
-      const openMatch = url.match(/[?&]id=([^&]+)/);
-      if (openMatch) {
-        fileId = openMatch[1];
-      }
-      
-      // If we found a file ID, return the proper embed URL
-      if (fileId) {
-        return `https://drive.google.com/file/d/${fileId}/preview`;
-      }
-      
-      // Fallback: just replace /view with /preview
-      return url.replace('/view', '/preview');
+    // Cloudflare R2 storage: Direct URLs work as-is
+    if (url.includes('storage.wearehyrax.com')) {
+      return url;
     }
 
     // YouTube: Convert watch?v={id} to /embed/{id}
@@ -377,6 +358,89 @@ const UserTasksModal = ({
     return url;
   };
 
+  const handleConfirmDeleteCreative = async () => {
+    if (!deleteConfirmModal) return;
+
+    const { taskId, slotIndex, adNumber, actualTaskIndex, task } = deleteConfirmModal;
+    
+    // Get the creative URL before deleting (for webhook notification)
+    const deletedCreativeUrl = task.viewerLink?.[slotIndex] || '';
+    const deletedSlackPermalink = task.slackPermalink?.[slotIndex] || '';
+    
+    // Remove the creative from all arrays at the specific index
+    const updatedViewerLink = [...task.viewerLink];
+    const updatedViewerLinkApproval = [...task.viewerLinkApproval];
+    const updatedViewerLinkFeedback = [...task.viewerLinkFeedback];
+    const updatedSlackPermalink = [...task.slackPermalink];
+    const updatedViewerLinkApprovalAt = Array.isArray(task.viewerLinkApprovalAt) ? [...task.viewerLinkApprovalAt] : [];
+    const updatedViewerLinkAt = Array.isArray(task.viewerLinkAt) ? [...task.viewerLinkAt] : [];
+
+    updatedViewerLink.splice(slotIndex, 1);
+    updatedViewerLinkApproval.splice(slotIndex, 1);
+    updatedViewerLinkFeedback.splice(slotIndex, 1);
+    updatedSlackPermalink.splice(slotIndex, 1);
+    updatedViewerLinkApprovalAt.splice(slotIndex, 1);
+    updatedViewerLinkAt.splice(slotIndex, 1);
+
+    // Update local modal state
+    const updatedTasks = [...userTasksModal.tasks];
+    updatedTasks[actualTaskIndex] = {
+      ...task,
+      viewerLink: updatedViewerLink,
+      viewerLinkApproval: updatedViewerLinkApproval,
+      viewerLinkFeedback: updatedViewerLinkFeedback,
+      slackPermalink: updatedSlackPermalink,
+      viewerLinkApprovalAt: updatedViewerLinkApprovalAt,
+      viewerLinkAt: updatedViewerLinkAt,
+    };
+    setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+
+    // Update the task in the database
+    updateTask(task.id, {
+      viewerLink: updatedViewerLink,
+      viewerLinkApproval: updatedViewerLinkApproval,
+      viewerLinkFeedback: updatedViewerLinkFeedback,
+      slackPermalink: updatedSlackPermalink,
+      viewerLinkApprovalAt: updatedViewerLinkApprovalAt,
+      viewerLinkAt: updatedViewerLinkAt,
+    });
+
+    // Send deletion notification to webhook
+    if (deletedCreativeUrl) {
+      try {
+        const todayUTC = getTodayUTC();
+        const adminEmail = currentUser.email;
+        const adminPassword = localStorage.getItem('admin_password') || '';
+        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+
+        const webhookUrl = import.meta.env.VITE_CREATIVE_DELETED_WEBHOOK_URL;
+        if (webhookUrl) {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              code: code,
+              deleted_by: adminEmail,
+              creative_url: deletedCreativeUrl,
+              slack_permalink: deletedSlackPermalink,
+              task_id: taskId,
+              ad_number: adNumber,
+              deleted_at: new Date().toISOString()
+            })
+          });
+        }
+      } catch (error) {
+        console.error('Failed to send creative deletion notification:', error);
+        // Don't block the deletion if webhook fails
+      }
+    }
+
+    // Close modal
+    setDeleteConfirmModal(null);
+  };
+
   const isVideoUrl = (url = '') => {
     const lower = url.toLowerCase();
     return lower.includes('youtube.com') ||
@@ -389,12 +453,22 @@ const UserTasksModal = ({
 
   const isImageUrl = (url = '') => {
     const lower = url.toLowerCase();
+    
+    // Cloudflare R2 storage images
+    if (lower.includes('storage.wearehyrax.com')) {
+      // If it's not a video, treat it as image
+      return !isVideoUrl(url);
+    }
+    
+    // Check for image file extensions
     return lower.endsWith('.jpg') ||
       lower.endsWith('.jpeg') ||
       lower.endsWith('.png') ||
       lower.endsWith('.gif') ||
       lower.endsWith('.webp') ||
-      lower.endsWith('.avif');
+      lower.endsWith('.avif') ||
+      lower.endsWith('.svg') ||
+      lower.endsWith('.bmp');
   };
 
   if (!userTasksModal) return null;
@@ -444,15 +518,17 @@ const UserTasksModal = ({
                   )}
                   {!selectedVersionPreview && (
                     <>
+                      {/* Creative Approval Status */}
                       <span 
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
                           currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                            ? 'bg-green-100 text-green-700'
+                            : currentAd?.approval === 'Left Feedback'
+                            ? 'bg-orange-100 text-orange-700'
                             : currentAd?.approval === 'Needs Review'
-                            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                            : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-100 text-gray-700'
                         }`}
-                        title=""
                       >
                         {(currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded')
                           ? 'Uploaded to Facebook'
@@ -484,7 +560,7 @@ const UserTasksModal = ({
                     <img
                       src={previewUrl}
                       alt={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   );
                 }
@@ -493,7 +569,7 @@ const UserTasksModal = ({
                   return (
                     <video
                       src={previewUrl}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       controls
                       playsInline
                     />
@@ -573,7 +649,7 @@ const UserTasksModal = ({
                 return groups;
               }, {})
             ).map(([campaignName, campaignTasks]) => {
-              const isExpanded = expandedCampaign === campaignName;
+              const isExpanded = expandedCampaigns.has(campaignName);
               
               return (
                 <div key={campaignName} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
@@ -584,7 +660,17 @@ const UserTasksModal = ({
                         ? 'bg-green-50 hover:bg-green-100' 
                         : 'bg-gray-50 hover:bg-gray-100'
                     }`}
-                    onClick={() => setExpandedCampaign(isExpanded ? null : campaignName)}
+                    onClick={() => {
+                      setExpandedCampaigns(prev => {
+                        const newSet = new Set(prev);
+                        if (isExpanded) {
+                          newSet.delete(campaignName);
+                        } else {
+                          newSet.add(campaignName);
+                        }
+                        return newSet;
+                      });
+                    }}
                   >
                     <h2 className="text-lg font-bold text-gray-800">
                       {campaignName}
@@ -638,8 +724,10 @@ const UserTasksModal = ({
                               className={`rounded-xl p-6 bg-white transition-all shadow-sm hover:shadow-md border border-gray-100 ${
                                 isUploadedToFacebook
                                   ? 'bg-green-50/20'
-                                  : task.viewerLinkApproval?.[slotIndex] === 'Needs Review'
+                                  : task.viewerLinkApproval?.[slotIndex] === 'Left Feedback'
                                   ? 'bg-orange-50/20'
+                                  : task.viewerLinkApproval?.[slotIndex] === 'Needs Review'
+                                  ? 'bg-yellow-50/20'
                                   : ''
                               } ${
                                 hasUpload && !isUploadedToFacebook ? 'cursor-pointer' : ''
@@ -655,15 +743,34 @@ const UserTasksModal = ({
                                 }
                               }}
                             >
-                              <div className="flex items-center gap-2.5 mb-5">
-                                <span className="text-lg font-semibold text-gray-900">
-                                  Ad {adNumber}
-                                </span>
-                                {formatLabel && (
-                                  <span className="text-xs px-2.5 py-1 bg-red-500 text-white rounded-full font-medium">
-                                    {formatLabel}
+                              <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-lg font-semibold text-gray-900">
+                                    Ad {adNumber}
                                   </span>
-                                )}
+                                  {formatLabel && (
+                                    <span className="text-xs px-2.5 py-1 bg-red-500 text-white rounded-full font-medium">
+                                      {formatLabel}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Delete Button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmModal({
+                                      taskId: task.id,
+                                      slotIndex: slotIndex,
+                                      adNumber: adNumber,
+                                      actualTaskIndex: actualTaskIndex,
+                                      task: task
+                                    });
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete Creative"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                               
                               {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
@@ -764,8 +871,8 @@ const UserTasksModal = ({
                                       <RefreshCw className="w-4 h-4" />
                                       Replace
                                     </button>
-                                    
-                                    {/* Feedback Button */}
+
+                                    {/* Feedback Button - Admins/Managers Only */}
                                     {(currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && (
                                       <button
                                         onClick={(e) => {
@@ -790,11 +897,10 @@ const UserTasksModal = ({
                                         title="Leave Feedback"
                                       >
                                         <MessageSquare className="w-4 h-4" />
-                                        Feedback
+                                        Leave Feedback
                                       </button>
                                     )}
-                                    
-                                    </div>
+                                  </div>
                                   
                                   {/* Approve Button - Separate Row */}
                                   {(currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && 
@@ -818,6 +924,8 @@ const UserTasksModal = ({
                                           viewerLinkApproval: updatedApprovals
                                         };
                                         setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+                                        
+                                        // Only send approval status - webhook will generate timestamp
                                         updateTask(task.id, { 
                                           viewerLinkApproval: updatedApprovals
                                         });
@@ -925,7 +1033,10 @@ const UserTasksModal = ({
                             
                             const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
                             const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
+                            const updatedFeedback = Array.isArray(task.viewerLinkFeedback) ? [...task.viewerLinkFeedback] : [];
                             const updatedSlackPermalinks = Array.isArray(task.slackPermalink) ? [...task.slackPermalink] : [];
+                            const updatedApprovalAt = Array.isArray(task.viewerLinkApprovalAt) ? [...task.viewerLinkApprovalAt] : [];
+                            const updatedLinkAt = Array.isArray(task.viewerLinkAt) ? [...task.viewerLinkAt] : [];
                             
                             // Ensure arrays are long enough
                             while (updatedViewerLinks.length < nextSlotIndex + slotsToAdd) {
@@ -934,15 +1045,27 @@ const UserTasksModal = ({
                             while (updatedApprovals.length < nextSlotIndex + slotsToAdd) {
                               updatedApprovals.push('Not Done');
                             }
+                            while (updatedFeedback.length < nextSlotIndex + slotsToAdd) {
+                              updatedFeedback.push('');
+                            }
                             while (updatedSlackPermalinks.length < nextSlotIndex + slotsToAdd) {
                               updatedSlackPermalinks.push('');
+                            }
+                            while (updatedApprovalAt.length < nextSlotIndex + slotsToAdd) {
+                              updatedApprovalAt.push(null);
+                            }
+                            while (updatedLinkAt.length < nextSlotIndex + slotsToAdd) {
+                              updatedLinkAt.push(null);
                             }
                             
                             // Update task in both local state and backend
                             updateTask(task.id, {
                               viewerLink: updatedViewerLinks,
                               viewerLinkApproval: updatedApprovals,
-                              slackPermalink: updatedSlackPermalinks
+                              viewerLinkFeedback: updatedFeedback,
+                              slackPermalink: updatedSlackPermalinks,
+                              viewerLinkApprovalAt: updatedApprovalAt,
+                              viewerLinkAt: updatedLinkAt
                             });
                             
                             // Update modal state immediately
@@ -951,7 +1074,10 @@ const UserTasksModal = ({
                                 ...t,
                                 viewerLink: updatedViewerLinks,
                                 viewerLinkApproval: updatedApprovals,
-                                slackPermalink: updatedSlackPermalinks
+                                viewerLinkFeedback: updatedFeedback,
+                                slackPermalink: updatedSlackPermalinks,
+                                viewerLinkApprovalAt: updatedApprovalAt,
+                                viewerLinkAt: updatedLinkAt
                               } : t
                             );
                             setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
@@ -1200,6 +1326,39 @@ const UserTasksModal = ({
           </div>
         </div>
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={() => setDeleteConfirmModal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Creative</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Are you sure you want to delete Ad {deleteConfirmModal.adNumber}? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setDeleteConfirmModal(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDeleteCreative}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

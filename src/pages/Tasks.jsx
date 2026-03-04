@@ -99,6 +99,54 @@ const generateWeekOptions = () => {
   return options.reverse(); // Most recent first
 };
 
+/**
+ * CRITICAL: Creative Array Synchronization
+ * ======================================
+ * The following arrays MUST always have the same length because they describe
+ * individual ad creatives at the same index:
+ * 
+ * - viewerLink: The URL to the creative
+ * - viewerLinkApproval: The approval status ('Not Done', 'Needs Review', 'Left Feedback', 'Approved', 'Uploaded')
+ * - viewerLinkFeedback: The feedback text for this creative
+ * - slackPermalink: The Slack permalink for this creative
+ * 
+ * When adding, removing, or modifying any of these arrays, ensure ALL arrays
+ * are updated to maintain the same length and indices.
+ * 
+ * Use this helper function to ensure synchronization:
+ */
+const synchronizeCreativeArrays = (task, targetIndex) => {
+  const arrays = {
+    viewerLink: Array.isArray(task.viewerLink) ? [...task.viewerLink] : [],
+    viewerLinkApproval: Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [],
+    viewerLinkFeedback: Array.isArray(task.viewerLinkFeedback) ? [...task.viewerLinkFeedback] : [],
+    slackPermalink: Array.isArray(task.slackPermalink) ? [...task.slackPermalink] : [],
+    viewerLinkApprovalAt: Array.isArray(task.viewerLinkApprovalAt) ? [...task.viewerLinkApprovalAt] : [],
+    viewerLinkAt: Array.isArray(task.viewerLinkAt) ? [...task.viewerLinkAt] : []
+  };
+  
+  // Find the maximum required length
+  const maxLength = Math.max(
+    targetIndex + 1,
+    arrays.viewerLink.length,
+    arrays.viewerLinkApproval.length,
+    arrays.viewerLinkFeedback.length,
+    arrays.slackPermalink.length,
+    arrays.viewerLinkApprovalAt.length,
+    arrays.viewerLinkAt.length
+  );
+  
+  // Pad all arrays to the same length with appropriate default values
+  while (arrays.viewerLink.length < maxLength) arrays.viewerLink.push('');
+  while (arrays.viewerLinkApproval.length < maxLength) arrays.viewerLinkApproval.push('Not Done');
+  while (arrays.viewerLinkFeedback.length < maxLength) arrays.viewerLinkFeedback.push('');
+  while (arrays.slackPermalink.length < maxLength) arrays.slackPermalink.push('');
+  while (arrays.viewerLinkApprovalAt.length < maxLength) arrays.viewerLinkApprovalAt.push(null);
+  while (arrays.viewerLinkAt.length < maxLength) arrays.viewerLinkAt.push(null);
+  
+  return arrays;
+};
+
 const Tasks = () => {
   const { currentUser, tasks, setTasks, users, campaigns, tasksLoading, campaignsLoading, loadTasksFromWebhook, loadCampaignsData, addTask, addTasks, updateTask, deleteTask, deleteTasks, addScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const location = useLocation();
@@ -133,7 +181,7 @@ const Tasks = () => {
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
-  const [displayType, setDisplayType] = useState('list'); // 'list', 'cards' - display mode
+  const [displayType, setDisplayType] = useState('cards'); // 'list', 'cards' - display mode
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekDateRange()); // Default to 'This week'
@@ -655,18 +703,24 @@ const Tasks = () => {
         const newFeedbackArray = [...feedbackArray];
         newFeedbackArray[feedbackModal.itemIndex] = feedback;
         
-        // If it's viewerLink feedback, also update the approval status to "Needs Review"
+        // If it's viewerLink feedback, also update the approval status
         if (feedbackModal.columnKey === 'viewerLink') {
-          const approvalArray = task?.viewerLinkApproval || [];
-          const newApprovalArray = [...approvalArray];
-          while (newApprovalArray.length <= feedbackModal.itemIndex) {
-            newApprovalArray.push('Not Done');
-          }
-          newApprovalArray[feedbackModal.itemIndex] = 'Needs Review';
+          // Use helper function to ensure all creative arrays are synchronized
+          const syncedArrays = synchronizeCreativeArrays(task, feedbackModal.itemIndex);
+          
+          // Update the feedback array (already modified above)
+          syncedArrays.viewerLinkFeedback = newFeedbackArray;
+          
+          // Set status based on whether feedback is empty or not
+          syncedArrays.viewerLinkApproval[feedbackModal.itemIndex] = feedback.trim() ? 'Left Feedback' : 'Needs Review';
           
           updateTask(feedbackModal.taskId, { 
-            [feedbackKey]: newFeedbackArray,
-            viewerLinkApproval: newApprovalArray
+            viewerLink: syncedArrays.viewerLink,
+            viewerLinkApproval: syncedArrays.viewerLinkApproval,
+            viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+            slackPermalink: syncedArrays.slackPermalink,
+            viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+            viewerLinkAt: syncedArrays.viewerLinkAt
           });
           
           // Update modal state if it's open
@@ -674,8 +728,12 @@ const Tasks = () => {
             const updatedTasks = userTasksModal.tasks.map(t => 
               t.id === feedbackModal.taskId ? { 
                 ...t, 
-                [feedbackKey]: newFeedbackArray,
-                viewerLinkApproval: newApprovalArray
+                viewerLink: syncedArrays.viewerLink,
+                viewerLinkApproval: syncedArrays.viewerLinkApproval,
+                viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+                slackPermalink: syncedArrays.slackPermalink,
+                viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+                viewerLinkAt: syncedArrays.viewerLinkAt
               } : t
             );
             setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
@@ -712,11 +770,33 @@ const Tasks = () => {
           }
         } else {
           updateTask(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
+          
+          // Update modal state if it's open
+          if (userTasksModal) {
+            const updatedTasks = userTasksModal.tasks.map(t => 
+              t.id === feedbackModal.taskId ? { 
+                ...t, 
+                [feedbackKey]: newFeedbackArray
+              } : t
+            );
+            setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+          }
         }
       } else {
         // Handle approval column feedback
         feedbackKey = feedbackModal.type === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
         updateTask(feedbackModal.taskId, { [feedbackKey]: feedback });
+        
+        // Update modal state if it's open
+        if (userTasksModal) {
+          const updatedTasks = userTasksModal.tasks.map(t => 
+            t.id === feedbackModal.taskId ? { 
+              ...t, 
+              [feedbackKey]: feedback
+            } : t
+          );
+          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+        }
       }
       
       setFeedbackModal(null);
@@ -1272,25 +1352,17 @@ const Tasks = () => {
         }
         
         const task = tasks.find(t => t.id === taskId);
-        const updatedViewerLinks = Array.isArray(task.viewerLink) ? [...task.viewerLink] : [];
-        const updatedApprovals = Array.isArray(task.viewerLinkApproval) ? [...task.viewerLinkApproval] : [];
-        const updatedSlackPermalinks = Array.isArray(task.slackPermalink) ? [...task.slackPermalink] : [];
         
-        while (updatedViewerLinks.length <= adIndex) {
-          updatedViewerLinks.push('');
-        }
+        // Use helper function to ensure all creative arrays are synchronized
+        const syncedArrays = synchronizeCreativeArrays(task, adIndex);
         
-        while (updatedApprovals.length <= adIndex) {
-          updatedApprovals.push('Not Done');
-        }
-        
-        while (updatedSlackPermalinks.length <= adIndex) {
-          updatedSlackPermalinks.push('');
-        }
-        
-        updatedViewerLinks[adIndex] = uploadedUrl;
-        updatedApprovals[adIndex] = 'Needs Review'; // Auto-set to Needs Review after upload
-        updatedSlackPermalinks[adIndex] = slackPermalink; // Store Slack permalink
+        // Update the specific index with new values
+        syncedArrays.viewerLink[adIndex] = uploadedUrl;
+        syncedArrays.viewerLinkApproval[adIndex] = 'Needs Review'; // Auto-set to Needs Review after upload
+        syncedArrays.viewerLinkFeedback[adIndex] = ''; // Clear feedback on new/replacement upload
+        syncedArrays.slackPermalink[adIndex] = slackPermalink; // Store Slack permalink
+        syncedArrays.viewerLinkApprovalAt[adIndex] = null; // Clear approval timestamp on new upload
+        // Note: viewerLinkAt is set by the webhook, so we don't modify it here
         
         // Prepare additional query parameters
         const queryParams = {
@@ -1300,10 +1372,14 @@ const Tasks = () => {
           queryParams.previous_url = previousUrl;
         }
         
+        // Update task with all synchronized arrays
         updateTask(taskId, { 
-          viewerLink: updatedViewerLinks,
-          viewerLinkApproval: updatedApprovals,
-          slackPermalink: updatedSlackPermalinks
+          viewerLink: syncedArrays.viewerLink,
+          viewerLinkApproval: syncedArrays.viewerLinkApproval,
+          viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+          slackPermalink: syncedArrays.slackPermalink,
+          viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+          viewerLinkAt: syncedArrays.viewerLinkAt
         }, queryParams);
         
         // Update modal state if it's open
@@ -1311,9 +1387,12 @@ const Tasks = () => {
           const updatedTasks = userTasksModal.tasks.map(t => 
             t.id === taskId ? { 
               ...t, 
-              viewerLink: updatedViewerLinks,
-              viewerLinkApproval: updatedApprovals,
-              slackPermalink: updatedSlackPermalinks
+              viewerLink: syncedArrays.viewerLink,
+              viewerLinkApproval: syncedArrays.viewerLinkApproval,
+              viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+              slackPermalink: syncedArrays.slackPermalink,
+              viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+              viewerLinkAt: syncedArrays.viewerLinkAt
             } : t
           );
           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
@@ -1561,6 +1640,7 @@ This usually indicates a temporary workflow issue.`;
         submitted: 'bg-purple-100 text-purple-700 border-purple-200',
         needs_revision: 'bg-amber-100 text-amber-700 border-amber-200',
         approved: 'bg-green-100 text-green-700 border-green-200',
+        left_feedback: 'bg-orange-100 text-orange-700 border-orange-200',
       };
       return statusColors[optionValue] || 'bg-gray-100 text-gray-700 border-gray-200';
     }
@@ -2025,6 +2105,7 @@ This usually indicates a temporary workflow issue.`;
             submitted: 'bg-purple-100 text-purple-700',
             needs_revision: 'bg-amber-100 text-amber-700',
             approved: 'bg-green-100 text-green-700',
+            left_feedback: 'bg-orange-100 text-orange-700',
           };
           return (
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 text-gray-700'}`}>

@@ -65,6 +65,7 @@ export const taskStatus = {
   SUBMITTED: 'submitted',
   NEEDS_REVISION: 'needs_revision',
   APPROVED: 'approved',
+  LEFT_FEEDBACK: 'left_feedback',
 };
 
 export const taskPriority = {
@@ -88,7 +89,7 @@ export const taskTags = [
 // Spreadsheet columns configuration
 export const columns = [
   { id: 'title', key: 'title', name: 'Title', type: 'text', canDelete: false, visible: true },
-  { id: 'status', key: 'status', name: 'Status', type: 'dropdown', options: ['not_started', 'in_progress', 'submitted', 'needs_revision', 'approved'], canDelete: false, visible: true },
+  { id: 'status', key: 'status', name: 'Status', type: 'dropdown', options: ['not_started', 'in_progress', 'submitted', 'needs_revision', 'approved', 'left_feedback'], canDelete: false, visible: true },
   { id: 'assignedTo', key: 'assignedTo', name: 'Assigned To', type: 'user', canDelete: false, visible: true },
   { id: 'campaignId', key: 'campaignId', name: 'Campaign', type: 'campaign', canDelete: false, visible: true },
   { id: 'week', key: 'week', name: 'Week', type: 'weekdropdown', canDelete: false, visible: true },

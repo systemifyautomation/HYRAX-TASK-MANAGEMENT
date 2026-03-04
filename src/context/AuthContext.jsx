@@ -1093,8 +1093,14 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateTask = async (taskId, updates, additionalQueryParams = {}) => {
+    console.log('🔵 updateTask called - taskId:', taskId);
+    console.log('🔵 updateTask - updates:', updates);
+    console.log('🔵 updateTask - additionalQueryParams:', additionalQueryParams);
+    
     // Find the existing task and enforce immutable approved/uploaded creatives
     const existingTask = tasks.find(t => t.id === taskId);
+    console.log('🔵 updateTask - existingTask found:', existingTask ? 'YES' : 'NO');
+    
     const { sanitizedUpdates, newlyApprovedCreativeUrls, newlyApprovedCreativeData } = applyCreativeApprovalGuardsAndCleanup(existingTask, updates);
 
     // Track timestamps for specific field changes
@@ -1140,21 +1146,26 @@ export const AppProvider = ({ children }) => {
       }
       
       // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
+      // Only auto-generate timestamps if not explicitly provided in updates
       if ('viewerLinkApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLinkApproval)) {
-        const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
-        const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
-        
-        // Create new timestamps array matching the updated viewerLinkApproval array
-        const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
-          // If approval changed or is new, use current timestamp
-          if (approval !== existingApproval[index]) {
-            return currentTimestamp;
-          }
-          // Otherwise keep existing timestamp or use current if not available
-          return existingTimestamps[index] || currentTimestamp;
-        });
-        
-        taskUpdates.viewerLinkApprovalAt = newTimestamps;
+        // Check if timestamps were explicitly provided in updates
+        if (!('viewerLinkApprovalAt' in sanitizedUpdates)) {
+          const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+          const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
+          
+          // Create new timestamps array matching the updated viewerLinkApproval array
+          const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
+            // If approval changed or is new, use current timestamp
+            if (approval !== existingApproval[index]) {
+              return currentTimestamp;
+            }
+            // Otherwise keep existing timestamp or use current if not available
+            return existingTimestamps[index] || currentTimestamp;
+          });
+          
+          taskUpdates.viewerLinkApprovalAt = newTimestamps;
+        }
+        // If timestamps were explicitly provided, they'll be included via sanitizedUpdates
       }
     }
     
@@ -1162,16 +1173,9 @@ export const AppProvider = ({ children }) => {
     const updatedTask = tasks.find(t => t.id === taskId);
     const completeUpdatedTask = { ...updatedTask, ...taskUpdates };
     
-    // Update local state and localStorage immediately
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId 
-        ? completeUpdatedTask
-        : task
-    );
-    setTasks(updatedTasks);
-    localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    console.log('🔵 updateTask - sending PATCH request to webhook (NOT updating local state)');
     
-    // Send to webhook
+    // Send to webhook - database is source of truth
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
@@ -1179,15 +1183,21 @@ export const AppProvider = ({ children }) => {
       const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
 
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+      console.log('🔵 updateTask - webhookUrl:', webhookUrl);
+      
       if (!webhookUrl) {
         console.error('VITE_TASKS_WEBHOOK_URL not configured');
       } else {
-        // Prepare URL with updated_tasks in query parameters
+        // Prepare query parameters with updated_tasks and any additional params
         const params = new URLSearchParams({
           updated_tasks: JSON.stringify([completeUpdatedTask]),
-          ...additionalQueryParams // Add any additional query parameters (e.g., previous_url, new_url)
+          ...additionalQueryParams // Add any additional parameters (e.g., previous_url, new_url)
         });
 
+        console.log('🔵 updateTask - sending PATCH request to webhook');
+        console.log('🔵 updateTask - URL:', webhookUrl);
+        console.log('🔵 updateTask - query params:', Array.from(params.keys()));
+        
         const response = await fetch(`${webhookUrl}?${params}`, {
           method: 'PATCH',
           headers: {
@@ -1199,12 +1209,19 @@ export const AppProvider = ({ children }) => {
           })
         });
 
+        console.log('🔵 updateTask - webhook response status:', response.status);
         if (!response.ok) {
+          const responseText = await response.text();
           console.error('Failed to send task update to webhook:', response.status);
+          console.error('Response body:', responseText);
+        } else {
+          console.log('✅ updateTask - webhook PATCH request successful - background refresh will update UI');
         }
       }
     } catch (error) {
-      console.error('Failed to send task update to webhook:', error);
+      console.error('❌ updateTask - Failed to send task update to webhook:', error);
+      console.error('❌ updateTask - Error message:', error.message);
+      console.error('❌ updateTask - Error stack:', error.stack);
     }
 
     await sendCreativeApprovedWebhook(newlyApprovedCreativeData, completeUpdatedTask);
@@ -1574,21 +1591,26 @@ export const AppProvider = ({ children }) => {
       }
       
       // viewerLinkApprovalAt - array of timestamps matching viewerLinkApproval array
+      // Only auto-generate timestamps if not explicitly provided in updates
       if ('viewerLinkApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.viewerLinkApproval)) {
-        const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
-        const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
-        
-        // Create new timestamps array matching the updated viewerLinkApproval array
-        const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
-          // If approval changed or is new, use current timestamp
-          if (approval !== existingApproval[index]) {
-            return currentTimestamp;
-          }
-          // Otherwise keep existing timestamp or use current if not available
-          return existingTimestamps[index] || currentTimestamp;
-        });
-        
-        taskUpdates.viewerLinkApprovalAt = newTimestamps;
+        // Check if timestamps were explicitly provided in updates
+        if (!('viewerLinkApprovalAt' in sanitizedUpdates)) {
+          const existingApproval = Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+          const existingTimestamps = Array.isArray(existingTask.viewerLinkApprovalAt) ? existingTask.viewerLinkApprovalAt : [];
+          
+          // Create new timestamps array matching the updated viewerLinkApproval array
+          const newTimestamps = sanitizedUpdates.viewerLinkApproval.map((approval, index) => {
+            // If approval changed or is new, use current timestamp
+            if (approval !== existingApproval[index]) {
+              return currentTimestamp;
+            }
+            // Otherwise keep existing timestamp or use current if not available
+            return existingTimestamps[index] || currentTimestamp;
+          });
+          
+          taskUpdates.viewerLinkApprovalAt = newTimestamps;
+        }
+        // If timestamps were explicitly provided, they'll be included via sanitizedUpdates
       }
     }
     
