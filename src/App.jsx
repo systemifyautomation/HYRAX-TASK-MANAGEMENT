@@ -4,7 +4,6 @@ import { AppProvider, useApp } from './context/AuthContext';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Tasks from './pages/Tasks';
-import ScheduledTasks from './pages/ScheduledTasks';
 import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
 import AdAccounts from './pages/AdAccounts';
@@ -69,9 +68,9 @@ const AppRouter = () => {
             <AppLayout>
               <Routes>
                 <Route path="/" element={<Tasks />} />
+                <Route path="/this-week/*" element={<Tasks />} />
+                <Route path="/next-week/*" element={<Tasks />} />
                 <Route path="/cards/*" element={<Tasks />} />
-                <Route path="/lists/*" element={<Tasks />} />
-                <Route path="/scheduled-tasks" element={<ScheduledTasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
                 <Route path="/users" element={<UserManagement />} />
                 <Route path="/ad-accounts" element={<AdAccounts />} />

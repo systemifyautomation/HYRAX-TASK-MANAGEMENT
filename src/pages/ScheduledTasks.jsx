@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
 import { isAdmin } from '../constants/roles';
@@ -125,7 +125,6 @@ const ScheduledTasks = () => {
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
-  const [displayType, setDisplayType] = useState('list'); // 'list', 'cards' - display mode
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
   const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
@@ -1063,19 +1062,6 @@ const ScheduledTasks = () => {
       <div className="mb-4 flex items-center justify-between">
         {/* Left side - View Toggles */}
         <div className="flex items-center space-x-3">
-          {/* Display Type Toggle - List only */}
-          <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-            <button
-              onClick={() => setDisplayType('list')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                displayType === 'list' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Grid3X3 className="w-4 h-4" />
-              <span>List</span>
-            </button>
-          </div>
-
           {/* Filter Button with Dropdown */}
           <div className="relative">
             <button
@@ -1190,8 +1176,7 @@ const ScheduledTasks = () => {
       </div>
 
       {/* Cards View */}
-      {displayType === 'cards' ? (
-        <div className="space-y-8">
+      <div className="space-y-8">
           {/* MEDIA BUYING - Grouped by Users, then Campaigns */}
           {users.filter(u => u.department === 'MEDIA BUYING').length > 0 && (
             <div>
@@ -1942,146 +1927,7 @@ const ScheduledTasks = () => {
             );
           })}
         </div>
-      ) : (
-        /* Spreadsheet Table */
-        <div className="flex-1 overflow-hidden pb-8">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full flex flex-col">
-            <div className="flex-1 overflow-auto">
-              <table className="w-full min-w-max">
-            <thead className="sticky top-0 z-20">
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-30">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.size === filteredTasks.length && filteredTasks.length > 0}
-                    onChange={handleSelectAllTasks}
-                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                  />
-                </th>
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
-                  Index
-                </th>
-                {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
-                  <th 
-                    key={column.id} 
-                    className={`px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <span>{column.name}</span>
-                    </div>
-                  </th>
-                ))}
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {/* Add New Task Row */}
-              {showAddRow && (
-                <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 animate-in fade-in duration-200">
-                  <td className="px-6 py-4 sticky left-0 bg-gradient-to-r from-blue-50 to-indigo-50 z-10">
-                    {/* Empty checkbox cell for add row */}
-                  </td>
-                  <td className="px-4 py-4">
-                    {/* Empty index cell for add row */}
-                  </td>
-                  {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
-                    <td key={column.id} className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}>
-                      {renderCell({ id: 'new', ...newTask }, column, true)}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={handleAddTask} 
-                        className="p-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors shadow-sm cursor-pointer"
-                        title="Save Task"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => { setShowAddRow(false); setNewTask({}); }} 
-                        className="p-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors shadow-sm"
-                        title="Cancel"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              
-              {/* Task Rows */}
-              {filteredTasks.map((task, index) => (
-                <tr 
-                  key={task.id} 
-                  className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150"
-                >
-                  <td className="px-6 py-4 sticky left-0 bg-white group-hover:bg-gradient-to-r group-hover:from-gray-50 group-hover:to-blue-50/30 z-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.has(task.id)}
-                      onChange={() => handleSelectTask(task.id)}
-                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-4 py-4 text-sm font-semibold text-gray-500">
-                    {index + 1}
-                  </td>
-                  {columns.filter(col => col.visible !== false && col.key !== 'week').map((column) => (
-                    <td 
-                      key={column.id} 
-                      className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
-                    >
-                      {renderCell(task, column, false)}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => handleDuplicateTask(task)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                        title="Duplicate task"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteScheduledTask(task.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                        title="Delete task"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Table Footer */}
-        <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <div className="flex items-center space-x-4">
-              <span className="font-medium">Total: {filteredTasks.length} tasks</span>
-              {(selectedCampaign || selectedUser) && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-xs">
-                    {selectedCampaign && `Campaign: ${campaigns.find(c => c.id === parseInt(selectedCampaign))?.name}`}
-                    {selectedCampaign && selectedUser && ' | '}
-                    {selectedUser && `User: ${users.find(u => u.id === parseInt(selectedUser))?.name}`}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-          </div>
-        </div>
-      )}
+      )
 
       {/* Feedback Modal */}
       {feedbackModal && (

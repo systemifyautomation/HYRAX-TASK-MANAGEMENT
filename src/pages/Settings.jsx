@@ -1,7 +1,27 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AuthContext';
-import { Save, User, Bell, Lock, Globe, Palette, Database, Shield } from 'lucide-react';
+import { Save, User, Bell, Lock, Globe, Palette, Database, Shield, Key } from 'lucide-react';
 import { isAdmin } from '../constants/roles';
+
+// Hash function to generate code
+const hashThreeInputs = async (input1, input2, input3) => {
+  const combined = input1.toString() + input2.toString() + input3.toString();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(combined);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+};
+
+// Helper function to get today's date in UTC format dd/MM/yyyy
+const getTodayUTC = () => {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 const Settings = () => {
   const { currentUser } = useApp();
@@ -30,8 +50,109 @@ const Settings = () => {
     },
   });
 
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
   const handleSave = () => {
     alert('Settings saved successfully!');
+  };
+
+  const handlePasswordReset = async () => {
+    // Clear previous messages
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    // Validation
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      setPasswordError('Please fill in all password fields');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long');
+      return;
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      setPasswordError('New password must be different from current password');
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      // Generate hash code using current credentials
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const userEmail = currentUser.email;
+      const currentPasswordHash = await hashThreeInputs(userEmail, passwordData.currentPassword, loginDate);
+
+      // Build query parameters for PATCH request
+      const queryParams = new URLSearchParams({
+        id: currentUser.id.toString(),
+        email: userEmail,
+        name: currentUser.name,
+        role: currentUser.role,
+        department: currentUser.department || '',
+        password: passwordData.newPassword // Send new password
+      });
+
+      // Send PATCH request to webhook
+      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+      const response = await fetch(`${webhookUrl}?${queryParams}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          code: currentPasswordHash,
+          modified_by: userEmail
+        })
+      });
+
+      if (response.ok) {
+        console.log('Password updated successfully via webhook');
+        setPasswordSuccess('Password updated successfully! You will be logged out in 3 seconds...');
+        
+        // Update localStorage with new password
+        localStorage.setItem('admin_password', passwordData.newPassword);
+        
+        // Clear form
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        });
+
+        // Log out user after 3 seconds to re-authenticate
+        setTimeout(() => {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('current_user');
+          localStorage.removeItem('login_date');
+          window.location.reload();
+        }, 3000);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || 'Failed to update password. Please check your current password and try again.';
+        console.error('Failed to update password via webhook, status:', response.status);
+        setPasswordError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error updating password:', error);
+      setPasswordError('Error updating password. Please check your connection and try again.');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const tabs = [
@@ -134,6 +255,87 @@ const Settings = () => {
                       disabled
                       className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-400"
                     />
+                  </div>
+
+                  {/* Password Reset Section */}
+                  <div className="pt-6 mt-6 border-t border-red-600/30">
+                    <div className="mb-4">
+                      <h3 className="text-xl font-bold text-red-600 mb-2 flex items-center">
+                        <Key className="w-5 h-5 mr-2" />
+                        Change Password
+                      </h3>
+                      <p className="text-white text-sm">Update your password to keep your account secure</p>
+                    </div>
+
+                    {passwordError && (
+                      <div className="mb-4 p-4 bg-red-900/50 border border-red-600 rounded-lg">
+                        <p className="text-red-200 text-sm">{passwordError}</p>
+                      </div>
+                    )}
+
+                    {passwordSuccess && (
+                      <div className="mb-4 p-4 bg-green-900/50 border border-green-600 rounded-lg">
+                        <p className="text-green-200 text-sm">{passwordSuccess}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">Current Password</label>
+                        <input
+                          type="password"
+                          value={passwordData.currentPassword}
+                          onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                          className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                          placeholder="Enter current password"
+                          disabled={passwordLoading}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-white mb-2">New Password</label>
+                          <input
+                            type="password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                            className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                            placeholder="Enter new password"
+                            disabled={passwordLoading}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-white mb-2">Confirm New Password</label>
+                          <input
+                            type="password"
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                            className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                            placeholder="Confirm new password"
+                            disabled={passwordLoading}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handlePasswordReset}
+                        disabled={passwordLoading}
+                        className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg shadow-lg shadow-red-600/50 transition-all duration-200 flex items-center space-x-2"
+                      >
+                        {passwordLoading ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <span>Updating Password...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-5 h-5" />
+                            <span>Update Password</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

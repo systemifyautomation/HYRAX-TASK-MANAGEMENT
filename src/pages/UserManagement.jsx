@@ -38,6 +38,7 @@ const UserManagement = () => {
     email: '',
     role: 'team_member',
     department: 'MEDIA BUYING',
+    password: '', // Optional password reset
   });
 
   // Load users from webhook when component mounts
@@ -145,10 +146,10 @@ const UserManagement = () => {
       setSubmitting(true);
       try {
         // Generate hash code using admin's credentials
-        const todayUTC = getTodayUTC();
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
         const adminEmail = currentUser.email;
         const adminPassword = localStorage.getItem('admin_password') || ''; // You'll need to store this during login
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         // Get current website URL
         const websiteUrl = window.location.origin;
@@ -213,6 +214,7 @@ const UserManagement = () => {
       email: '',
       role: 'team_member',
       department: 'MEDIA BUYING',
+      password: '',
     });
     setShowAddModal(false);
     setEditingUser(null);
@@ -260,13 +262,21 @@ const UserManagement = () => {
     if (!editingUser) return;
     
     if (formData.name && formData.email && formData.role && formData.department) {
+      // Validate password if provided
+      if (formData.password && formData.password.trim() !== '') {
+        if (formData.password.length < 6) {
+          alert('Password must be at least 6 characters long');
+          return;
+        }
+      }
+
       setSubmitting(true);
       try {
         // Generate hash code using admin's credentials (same as add user)
-        const todayUTC = getTodayUTC();
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
         const adminEmail = currentUser.email;
         const adminPassword = localStorage.getItem('admin_password') || '';
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         // Build query parameters with all user info
         const queryParams = new URLSearchParams({
@@ -276,6 +286,12 @@ const UserManagement = () => {
           role: formData.role,
           department: formData.department
         });
+        
+        // Add password to query params if provided
+        const isResettingPassword = formData.password && formData.password.trim() !== '';
+        if (isResettingPassword) {
+          queryParams.set('password', formData.password);
+        }
 
         // Send PATCH request to webhook
         const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
@@ -292,15 +308,41 @@ const UserManagement = () => {
 
         if (response.ok) {
           console.log('User updated successfully via webhook');
-          alert('User updated successfully!');
+          
+          // If admin is changing their own password, update localStorage
+          const isChangingOwnPassword = isResettingPassword && editingUser.email === currentUser.email;
+          if (isChangingOwnPassword) {
+            localStorage.setItem('admin_password', formData.password);
+            console.log('Updated stored password for current user');
+          }
+          
+          const successMessage = isResettingPassword 
+            ? (isChangingOwnPassword 
+                ? 'Your password has been updated successfully! You will be logged out in 3 seconds to re-authenticate.' 
+                : 'User updated successfully! New password has been sent to the user via Slack.')
+            : 'User updated successfully!';
+          alert(successMessage);
+          
           // Also update via API
           await updateUser(editingUser.id, formData);
           // Refresh the user list
           await handleRefresh();
           resetForm();
+          
+          // If admin changed their own password, log them out after 3 seconds
+          if (isChangingOwnPassword) {
+            setTimeout(() => {
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('current_user');
+              localStorage.removeItem('login_date');
+              window.location.reload();
+            }, 3000);
+          }
         } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.error || 'Failed to update user. Please try again.';
           console.error('Failed to update user via webhook, status:', response.status);
-          alert('Failed to update user. Please try again.');
+          alert(errorMessage);
         }
       } catch (error) {
         console.error('Error updating user:', error);
@@ -505,6 +547,22 @@ const UserManagement = () => {
                   <option value="GRAPHIC DESIGN">GRAPHIC DESIGN</option>
                 </select>
               </div>
+
+              {editingUser && (
+                <div className="pt-4 border-t border-red-600/30">
+                  <label className="block text-sm font-medium text-white mb-1">Reset Password (Optional)</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                    placeholder="Leave blank to keep current password"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Only fill this in if you want to reset the user's password. New password will be sent to user via Slack.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex space-x-3 mt-6">

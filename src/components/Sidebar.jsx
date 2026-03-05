@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Calendar, Facebook } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isAdmin, getRoleLabel } from '../constants/roles';
 
@@ -20,7 +20,6 @@ const Sidebar = ({ onCollapsedChange }) => {
 
   const navItems = [
     { to: '/', icon: CheckSquare, label: 'Tasks', end: true },
-    { to: '/scheduled-tasks', icon: Calendar, label: 'Scheduled Tasks', adminOnly: true },
     { to: '/campaigns', icon: FolderOpen, label: 'Campaigns' },
     { to: '/users', icon: Users, label: 'User Management', adminOnly: true },
     { to: '/ad-accounts', icon: Facebook, label: 'Ad Accounts', adminOnly: true },

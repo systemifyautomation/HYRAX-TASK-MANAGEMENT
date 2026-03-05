@@ -144,6 +144,7 @@ const Login = () => {
       localStorage.setItem('auth_token', token);
       localStorage.setItem('current_user', JSON.stringify(authenticatedUser));
       localStorage.setItem('admin_password', password); // Store password for creating users
+      localStorage.setItem('login_date', todayUTC); // Store login date for session validation
       
       // Force page reload to trigger authentication
       window.location.reload();

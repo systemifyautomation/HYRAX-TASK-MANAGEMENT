@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Grid3X3, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink, MessageSquare } from 'lucide-react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, ExternalLink, MessageSquare } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
 import { isAdmin, isSuperAdmin, USER_ROLES } from '../constants/roles';
@@ -12,6 +12,7 @@ import FeedbackModal from '../components/FeedbackModal';
 import CopyLinkPreviewModal from '../components/CopyLinkPreviewModal';
 import UserTasksModal from '../components/UserTasksModal';
 import ColumnManagerModal from '../components/ColumnManagerModal';
+import AddTaskModal from '../components/AddTaskModal';
 
 // Global storage for active uploads - survives component re-renders
 if (!window.HYRAX_ACTIVE_UPLOADS) {
@@ -148,7 +149,7 @@ const synchronizeCreativeArrays = (task, targetIndex) => {
 };
 
 const Tasks = () => {
-  const { currentUser, tasks, setTasks, users, campaigns, tasksLoading, campaignsLoading, loadTasksFromWebhook, loadCampaignsData, addTask, addTasks, updateTask, deleteTask, deleteTasks, addScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
+  const { currentUser, tasks, setTasks, users, campaigns, tasksLoading, campaignsLoading, loadTasksFromWebhook, loadCampaignsData, addTask, addTasks, updateTask, deleteTask, deleteTasks, addScheduledTask, scheduledTasks, setScheduledTasks, loadScheduledTasksFromWebhook, updateScheduledTask, deleteScheduledTask, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const isAdminUser = isAdmin(currentUser.role);
@@ -181,12 +182,17 @@ const Tasks = () => {
   const [showAddRow, setShowAddRow] = useState(false);
   const [editingColumn, setEditingColumn] = useState(null);
   const [selectedTasks, setSelectedTasks] = useState(new Set());
-  const [displayType, setDisplayType] = useState('cards'); // 'list', 'cards' - display mode
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
+  const [weekView, setWeekView] = useState('this-week'); // 'this-week' or 'next-week'
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekDateRange()); // Default to 'This week'
   
-  // Load tasks and campaigns data when component mounts
+  // Load campaigns data once on mount (campaigns don't change between weeks)
+  useEffect(() => {
+    loadCampaignsData();
+  }, []);
+
+  // Load tasks data when week view or selected week changes
   useEffect(() => {
     let mounted = true;
     
@@ -198,12 +204,39 @@ const Tasks = () => {
       }
       
       if (mounted) {
+        // Show cached data immediately for instant UI
+        if (weekView === 'this-week') {
+          const cachedTasks = localStorage.getItem('hyrax_tasks');
+          if (cachedTasks) {
+            try {
+              const parsed = JSON.parse(cachedTasks);
+              setTasks(parsed);
+            } catch (e) {
+              console.error('Failed to parse cached tasks:', e);
+            }
+          }
+        } else {
+          const cachedScheduled = localStorage.getItem('hyrax_scheduled_tasks');
+          if (cachedScheduled) {
+            try {
+              const parsed = JSON.parse(cachedScheduled);
+              setScheduledTasks(parsed);
+            } catch (e) {
+              console.error('Failed to parse cached scheduled tasks:', e);
+            }
+          }
+        }
+        
         // Store current page and week for background refresh
         localStorage.setItem('hyrax_current_page', 'tasks');
         localStorage.setItem('hyrax_current_week', selectedWeek);
         
-        await loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
-        await loadCampaignsData();
+        // Load fresh data in background
+        if (weekView === 'this-week') {
+          await loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
+        } else {
+          await loadScheduledTasksFromWebhook();
+        }
       }
     };
     
@@ -217,7 +250,7 @@ const Tasks = () => {
         localStorage.removeItem('hyrax_current_week');
       }
     };
-  }, [selectedWeek]);
+  }, [selectedWeek, weekView]);
   
   // Debug: Log users and columns on component mount
   useEffect(() => {
@@ -230,9 +263,9 @@ const Tasks = () => {
   const [showFilters, setShowFilters] = useState(false); // Show filter dropdown
   const [feedbackModal, setFeedbackModal] = useState(null); // { taskId, type: 'copyApproval' | 'adApproval', currentFeedback }
   const [copyLinkModal, setCopyLinkModal] = useState(null); // { taskId, url, currentFeedback, currentApproval }
-  const [cardCampaignFilters, setCardCampaignFilters] = useState({}); // Campaign filters for each card
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
   const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks } for managing user's tasks
+  const [addTaskModal, setAddTaskModal] = useState(null); // { user } for adding new task
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0); // Current ad preview index
   const [uploadingCreatives, setUploadingCreatives] = useState({}); // Track upload progress {taskId-adIndex: progress}
   const [hasActiveUpload, setHasActiveUpload] = useState(false); // Prevent re-renders during upload
@@ -357,6 +390,12 @@ const Tasks = () => {
 
   const isModalRoutePath = useCallback((pathname) => {
     const segments = pathname.split('/').filter(Boolean);
+    
+    // Check for simple /cards/{user_slug} format
+    if (segments.length === 2 && segments[0] === 'cards') {
+      return true;
+    }
+    
     return segments.some(segment => segment.startsWith('ad_')) ||
       segments.includes('preview') ||
       segments.includes('versions') ||
@@ -369,10 +408,13 @@ const Tasks = () => {
     if (!segments.length) return;
 
     const baseView = segments[0];
-    if (baseView === 'cards') {
-      setDisplayType('cards');
-    } else if (baseView === 'lists') {
-      setDisplayType('list');
+    if (baseView === 'this-week') {
+      setWeekView('this-week');
+    } else if (baseView === 'next-week') {
+      setWeekView('next-week');
+    } else if (baseView === 'cards') {
+      // Legacy support for old URLs
+      setWeekView('this-week');
     } else {
       return;
     }
@@ -388,7 +430,6 @@ const Tasks = () => {
 
     let nextSelectedUser = '';
     let nextSelectedCampaign = '';
-    let nextSelectedWeek = selectedWeek;
     let nextDateStart = '';
     let nextDateEnd = '';
     let nextQuickFilter = 'all';
@@ -402,12 +443,6 @@ const Tasks = () => {
       }
       if (key === 'campaign' && segments[i + 1]) {
         nextSelectedCampaign = getCampaignIdFromSlug(decodeURIComponent(segments[i + 1]));
-        i++;
-        continue;
-      }
-      if (key === 'week' && segments[i + 1]) {
-        const decodedWeek = decodeURIComponent(segments[i + 1]);
-        nextSelectedWeek = decodedWeek || 'all';
         i++;
         continue;
       }
@@ -426,7 +461,6 @@ const Tasks = () => {
     syncingFromUrlRef.current = true;
     setSelectedUser(nextSelectedUser || '');
     setSelectedCampaign(nextSelectedCampaign || '');
-    setSelectedWeek(nextSelectedWeek || 'all');
     setSelectedQuickFilter(nextQuickFilter || 'all');
     if (nextQuickFilter && nextQuickFilter !== 'all') {
       applyQuickFilterDates(nextQuickFilter);
@@ -434,14 +468,21 @@ const Tasks = () => {
       setDateRangeStart(nextDateStart || '');
       setDateRangeEnd(nextDateEnd || '');
     }
-  }, [location.pathname, users, campaigns, selectedWeek, isModalRoutePath]);
+  }, [location.pathname, users, campaigns, isModalRoutePath]);
 
   useEffect(() => {
     parseFiltersFromPath();
-  }, [parseFiltersFromPath]);
+  }, [parseFiltersFromPath, location.pathname]);
+
+  // Redirect from root to /this-week
+  useEffect(() => {
+    if (location.pathname === '/') {
+      navigate('/this-week', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   const buildFilterPath = useCallback(() => {
-    const basePath = displayType === 'cards' ? '/cards' : '/lists';
+    const basePath = weekView === 'this-week' ? '/this-week' : '/next-week';
     const segments = [];
 
     if (selectedUser) {
@@ -454,10 +495,6 @@ const Tasks = () => {
       if (slug) segments.push('campaign', encodeURIComponent(slug));
     }
 
-    if (selectedWeek && selectedWeek !== 'all') {
-      segments.push('week', encodeURIComponent(selectedWeek));
-    }
-
     if (dateRangeStart && dateRangeEnd) {
       segments.push('date', encodeURIComponent(dateRangeStart), encodeURIComponent(dateRangeEnd));
     }
@@ -467,7 +504,7 @@ const Tasks = () => {
     }
 
     return segments.length ? `${basePath}/${segments.join('/')}` : basePath;
-  }, [displayType, selectedUser, selectedCampaign, selectedWeek, dateRangeStart, dateRangeEnd, selectedQuickFilter, users, campaigns]);
+  }, [weekView, selectedUser, selectedCampaign, dateRangeStart, dateRangeEnd, selectedQuickFilter, users, campaigns]);
 
   const handleCloseUserTasksModal = useCallback(() => {
     closingModalRef.current = true;
@@ -527,7 +564,7 @@ const Tasks = () => {
     }
 
     const baseView = segments[0];
-    if (baseView !== 'cards' && baseView !== 'lists') {
+    if (baseView !== 'this-week' && baseView !== 'next-week' && baseView !== 'cards') {
       return;
     }
 
@@ -617,6 +654,64 @@ const Tasks = () => {
     setCurrentPreviewIndex,
     setUserTasksModal
   ]);
+
+  // Handle simple /cards/{user_slug} path format
+  useEffect(() => {
+    if (closingModalRef.current) {
+      return;
+    }
+    
+    if (userTasksModal) {
+      return;
+    }
+
+    const segments = location.pathname.split('/').filter(Boolean);
+    
+    // Check if path is /cards/{user_slug} (exactly 2 segments)
+    if (segments.length !== 2 || segments[0] !== 'cards') {
+      return;
+    }
+
+    const userSlug = decodeURIComponent(segments[1]);
+    const userId = getUserIdFromSlug(userSlug);
+    
+    if (!userId) {
+      return;
+    }
+
+    const user = users.find(u => String(u.id) === String(userId));
+    if (!user) {
+      return;
+    }
+
+    // Get current week range based on weekView
+    const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
+    const targetWeekRange = getWeekDateRange(targetWeekOffset);
+    const normalizedDepartment = (user.department || '').trim().toUpperCase();
+
+    // Get all tasks for this user
+    const sourceData = weekView === 'this-week' ? tasks : scheduledTasks;
+    const modalTasks = sourceData.filter(task => {
+      if (String(task.assignedTo) !== String(user.id)) return false;
+      if (task.week !== targetWeekRange) return false;
+
+      const mediaType = (task.mediaType || task.type || '').toString().toUpperCase();
+      if (normalizedDepartment === 'VIDEO EDITING') {
+        return mediaType === 'VIDEO';
+      }
+      if (normalizedDepartment === 'GRAPHIC DESIGN') {
+        return mediaType === 'IMAGE';
+      }
+      return true;
+    });
+
+    if (!modalTasks.length) {
+      return;
+    }
+
+    setCurrentPreviewIndex(0);
+    setUserTasksModal({ user, tasks: modalTasks });
+  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, weekView, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -698,7 +793,8 @@ const Tasks = () => {
       // Handle array item feedback
       if (feedbackModal.columnKey && feedbackModal.itemIndex !== undefined) {
         feedbackKey = `${feedbackModal.columnKey}Feedback`;
-        const task = tasks.find(t => t.id === feedbackModal.taskId);
+        const taskSource = weekView === 'this-week' ? tasks : scheduledTasks;
+        const task = taskSource.find(t => t.id === feedbackModal.taskId);
         const feedbackArray = task?.[feedbackKey] || [];
         const newFeedbackArray = [...feedbackArray];
         newFeedbackArray[feedbackModal.itemIndex] = feedback;
@@ -714,7 +810,8 @@ const Tasks = () => {
           // Set status based on whether feedback is empty or not
           syncedArrays.viewerLinkApproval[feedbackModal.itemIndex] = feedback.trim() ? 'Left Feedback' : 'Needs Review';
           
-          updateTask(feedbackModal.taskId, { 
+          const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+          updateFn(feedbackModal.taskId, { 
             viewerLink: syncedArrays.viewerLink,
             viewerLinkApproval: syncedArrays.viewerLinkApproval,
             viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
@@ -769,7 +866,8 @@ const Tasks = () => {
             console.error('Error sending feedback to webhook:', error);
           }
         } else {
-          updateTask(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
+          const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+          updateFn(feedbackModal.taskId, { [feedbackKey]: newFeedbackArray });
           
           // Update modal state if it's open
           if (userTasksModal) {
@@ -785,7 +883,8 @@ const Tasks = () => {
       } else {
         // Handle approval column feedback
         feedbackKey = feedbackModal.type === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
-        updateTask(feedbackModal.taskId, { [feedbackKey]: feedback });
+        const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+        updateFn(feedbackModal.taskId, { [feedbackKey]: feedback });
         
         // Update modal state if it's open
         if (userTasksModal) {
@@ -829,7 +928,8 @@ const Tasks = () => {
     if (copyLinkModal) {
       const taskId = copyLinkModal.taskId;
       setCopyLinkModal(null);
-      updateTask(taskId, { copyApproval: 'Approved' });
+      const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+      updateFn(taskId, { copyApproval: 'Approved' });
     }
   };
 
@@ -838,7 +938,8 @@ const Tasks = () => {
       const taskId = copyLinkModal.taskId;
       const feedback = copyLinkModal.currentFeedback;
       setCopyLinkModal(null);
-      updateTask(taskId, {
+      const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+      updateFn(taskId, {
         copyApproval: 'Left feedback',
         copyApprovalFeedback: feedback
       });
@@ -996,6 +1097,59 @@ const Tasks = () => {
         width: creativeWidth,
         height: creativeHeight
       });
+
+      // Validate dimensions for video editors
+      const uploaderIsVideoEditor = assignedUser?.department === 'VIDEO EDITING';
+      if (uploaderIsVideoEditor && creativeWidth && creativeHeight) {
+        const aspectRatio = creativeWidth / creativeHeight;
+        const formatType = adIndex % 2 === 0 ? 'Facebook' : 'Reel';
+        
+        // Define acceptable aspect ratios with tolerance
+        const tolerance = 0.02; // 2% tolerance for rounding
+        const isSquare = Math.abs(aspectRatio - 1.0) < tolerance; // 1:1
+        const is4by5 = Math.abs(aspectRatio - 0.8) < tolerance; // 4:5
+        const is9by16 = Math.abs(aspectRatio - 0.5625) < tolerance; // 9:16
+        
+        if (formatType === 'Facebook') {
+          // Facebook format: only 1:1 or 4:5
+          if (!isSquare && !is4by5) {
+            // Clean up upload state
+            setUploadingCreatives(prev => {
+              const newState = { ...prev };
+              delete newState[uploadKey];
+              return newState;
+            });
+            delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+            // Clear active upload flag if no more uploads
+            if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+              setHasActiveUpload(false);
+            }
+            
+            alert(`❌ Invalid Aspect Ratio for Facebook Format\n\nFile: ${file.name}\nDimensions: ${creativeWidth}x${creativeHeight}\nAspect Ratio: ${aspectRatio.toFixed(3)}\n\nFacebook format requires:\n• 1:1 (Square)\n• 4:5\n\nPlease re-export your video in the correct aspect ratio.`);
+            return;
+          }
+        } else {
+          // Reel format: only 9:16
+          if (!is9by16) {
+            // Clean up upload state
+            setUploadingCreatives(prev => {
+              const newState = { ...prev };
+              delete newState[uploadKey];
+              return newState;
+            });
+            delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+            // Clear active upload flag if no more uploads
+            if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+              setHasActiveUpload(false);
+            }
+            
+            alert(`❌ Invalid Aspect Ratio for Reel Format\n\nFile: ${file.name}\nDimensions: ${creativeWidth}x${creativeHeight}\nAspect Ratio: ${aspectRatio.toFixed(3)}\n\nReel format requires:\n• 9:16 (Vertical)\n\nPlease re-export your video in the correct aspect ratio.`);
+            return;
+          }
+        }
+        
+        console.log(`✅ Aspect ratio validation passed for ${formatType} format`);
+      }
 
       const resolveUploaderUserId = () => {
         const email = `${currentUser?.email || ''}`.toLowerCase();
@@ -1373,13 +1527,15 @@ const Tasks = () => {
         }
         
         // Update task with all synchronized arrays
-        updateTask(taskId, { 
+        const updateFn = weekView === 'this-week' ? updateTask : updateScheduledTask;
+        updateFn(taskId, { 
           viewerLink: syncedArrays.viewerLink,
           viewerLinkApproval: syncedArrays.viewerLinkApproval,
           viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
           slackPermalink: syncedArrays.slackPermalink,
           viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
-          viewerLinkAt: syncedArrays.viewerLinkAt
+          viewerLinkAt: syncedArrays.viewerLinkAt,
+          status: 'Needs Review' // Auto-update task status when creative is uploaded
         }, queryParams);
         
         // Update modal state if it's open
@@ -1392,13 +1548,14 @@ const Tasks = () => {
               viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
               slackPermalink: syncedArrays.slackPermalink,
               viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
-              viewerLinkAt: syncedArrays.viewerLinkAt
+              viewerLinkAt: syncedArrays.viewerLinkAt,
+              status: 'Needs Review' // Auto-update task status when creative is uploaded
             } : t
           );
           setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
         }
         
-        console.log('✅ Task updated with viewer link at index', adIndex, 'and status set to Needs Review');
+        console.log('✅ Task updated with viewer link at index', adIndex, 'creative status and task status set to Needs Review');
       } else {
         // Empty response from n8n - workflow issue
         console.error('❌ Empty response from n8n workflow');
@@ -1484,7 +1641,7 @@ This usually indicates a temporary workflow issue.`;
       // Only abort if the component is truly unmounting, not just re-rendering
       setTimeout(() => {
         const path = window.location.pathname;
-        const isTasksRoute = path === '/' || path.startsWith('/cards') || path.startsWith('/lists');
+        const isTasksRoute = path === '/' || path.startsWith('/this-week') || path.startsWith('/next-week') || path.startsWith('/cards');
         if (!isTasksRoute) {
           console.log('User navigated away - aborting uploads');
           Object.entries(window.HYRAX_ACTIVE_UPLOADS).forEach(([key, xhr]) => {
@@ -1686,13 +1843,16 @@ This usually indicates a temporary workflow issue.`;
 
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
+    // Select data source based on week view
+    const sourceData = weekView === 'this-week' ? tasks : scheduledTasks;
+    
     // When on a modal/deep-link path, show ALL tasks in background (no filtering)
     const isDeepLink = isModalRoutePath(location.pathname);
     if (isDeepLink) {
-      return tasks;
+      return sourceData;
     }
 
-    let filtered = tasks;
+    let filtered = sourceData;
 
     // Week filter is now handled by the backend via query parameter
     // No need to filter by week on the frontend
@@ -1729,7 +1889,7 @@ This usually indicates a temporary workflow issue.`;
     }
 
     return filtered;
-  }, [tasks, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath]);
+  }, [tasks, scheduledTasks, weekView, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -2160,7 +2320,7 @@ This usually indicates a temporary workflow issue.`;
           </div>
           
           {/* Stats Bar */}
-          <div className="grid grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">Total Tasks</div>
               <div className="text-2xl font-bold text-gray-900">{filteredTasks.length}</div>
@@ -2201,25 +2361,25 @@ This usually indicates a temporary workflow issue.`;
       <div className="mb-4 px-8 flex items-center justify-between">
         {/* Left side - View Toggles */}
         <div className="flex items-center space-x-3">
-          {/* Display Type Toggle - List / Cards */}
+          {/* Week View Toggle - This Week / Next Week */}
           <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
             <button
-              onClick={() => setDisplayType('list')}
+              onClick={() => navigate('/this-week')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                displayType === 'list' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                weekView === 'this-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Grid3X3 className="w-4 h-4" />
-              <span>List</span>
+              <Calendar className="w-4 h-4" />
+              <span>This Week</span>
             </button>
             <button
-              onClick={() => setDisplayType('cards')}
+              onClick={() => navigate('/next-week')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                displayType === 'cards' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                weekView === 'next-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
-              <span>Cards</span>
+              <Calendar className="w-4 h-4" />
+              <span>Next Week</span>
             </button>
           </div>
 
@@ -2357,8 +2517,7 @@ This usually indicates a temporary workflow issue.`;
       </div>
 
       {/* Cards View */}
-      {displayType === 'cards' ? (
-        <div className="space-y-8 p-6">
+      <div className="space-y-8 p-6">
           {/* VIDEO EDITING AND GRAPHIC DESIGN */}
           {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
             const departmentUsers = users.filter(u => u.department === department);
@@ -2369,19 +2528,18 @@ This usually indicates a temporary workflow issue.`;
               <div key={department} className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                   {departmentUsers.map(user => {
-                    // Get current week range
+                    // Get appropriate week range based on view
                     const now = new Date();
-                    const currentWeekMonday = getMondayOfWeek(now);
-                    const currentWeekSunday = getSundayOfWeek(now);
-                    const currentWeekRange = getWeekDateRange(0);
+                    const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
+                    const targetWeekRange = getWeekDateRange(targetWeekOffset);
                     const isDeepLink = isModalRoutePath(location.pathname);
 
                     // Get all tasks for this user based on department
                     let userTasks = filteredTasks.filter(task => {
                       // Skip week filter when on deep-link/modal paths
-                      if (!isDeepLink && task.week !== currentWeekRange) return false;
+                      if (!isDeepLink && task.week !== targetWeekRange) return false;
 
                       if (department === 'VIDEO EDITING') {
                         const mediaType = task.mediaType || task.type;
@@ -2393,12 +2551,6 @@ This usually indicates a temporary workflow issue.`;
                       return false;
                     });
 
-                    // Apply card-level campaign filter
-                    const cardCampaignFilter = cardCampaignFilters[user.id] || '';
-                    if (cardCampaignFilter) {
-                      userTasks = userTasks.filter(task => String(task.campaignId) === String(cardCampaignFilter));
-                    }
-
                     // Don't render card if user has no tasks
                     if (userTasks.length === 0) return null;
 
@@ -2409,13 +2561,17 @@ This usually indicates a temporary workflow issue.`;
                         userTasks={userTasks}
                         campaigns={campaigns}
                         users={users}
-                        cardCampaignFilter={cardCampaignFilter}
-                        onCampaignFilterChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
+                        currentUser={currentUser}
+                        updateTask={weekView === 'this-week' ? updateTask : updateScheduledTask}
+                        deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
+                        weekView={weekView}
+                        onAddTaskClick={() => setAddTaskModal({ user })}
                         onClick={(user, tasks) => {
                           setCurrentPreviewIndex(0);
                           setUserTasksModal({ user, tasks });
                           const userSlug = getUserSlug(user.id) || 'user';
-                          navigate(`/cards/${userSlug}`, { replace: true });
+                          const basePath = weekView === 'this-week' ? '/this-week' : '/next-week';
+                          navigate(`${basePath}/${userSlug}`, { replace: true });
                         }}
                       />
                     );
@@ -2425,146 +2581,6 @@ This usually indicates a temporary workflow issue.`;
             );
           })}
         </div>
-      ) : (
-        /* Spreadsheet Table */
-        <div className="flex-1 overflow-hidden pb-8">
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 h-full flex flex-col">
-            <div className="flex-1 overflow-auto">
-              <table className="w-full min-w-max">
-            <thead className="sticky top-0 z-20">
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-16 sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-30">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.size === filteredTasks.length && filteredTasks.length > 0}
-                    onChange={handleSelectAllTasks}
-                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                  />
-                </th>
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
-                  Index
-                </th>
-                {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
-                  <th 
-                    key={column.id} 
-                    className={`px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <span>{column.name}</span>
-                    </div>
-                  </th>
-                ))}
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-20">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {/* Add New Task Row */}
-              {showAddRow && (
-                <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 animate-in fade-in duration-200">
-                  <td className="px-6 py-4 sticky left-0 bg-gradient-to-r from-blue-50 to-indigo-50 z-10">
-                    {/* Empty checkbox cell for add row */}
-                  </td>
-                  <td className="px-4 py-4">
-                    {/* Empty index cell for add row */}
-                  </td>
-                  {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
-                    <td key={column.id} className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}>
-                      {renderCell({ id: 'new', ...newTask }, column, true)}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={handleAddTask} 
-                        className="p-1.5 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors shadow-sm cursor-pointer"
-                        title="Save Task"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => { setShowAddRow(false); setNewTask({}); }} 
-                        className="p-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors shadow-sm"
-                        title="Cancel"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              
-              {/* Task Rows */}
-              {filteredTasks.map((task, index) => (
-                <tr 
-                  key={task.id} 
-                  className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150"
-                >
-                  <td className="px-6 py-4 sticky left-0 bg-white group-hover:bg-gradient-to-r group-hover:from-gray-50 group-hover:to-blue-50/30 z-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.has(task.id)}
-                      onChange={() => handleSelectTask(task.id)}
-                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-4 py-4 text-sm font-semibold text-gray-500">
-                    {index + 1}
-                  </td>
-                  {columns.filter(col => col.visible !== false && !['slackPermalink', 'caliVariation'].includes(col.key)).map((column) => (
-                    <td 
-                      key={column.id} 
-                      className={`px-6 py-4 ${column.key === 'quantity' ? 'min-w-[90px]' : 'min-w-[180px]'}`}
-                    >
-                      {renderCell(task, column, false)}
-                    </td>
-                  ))}
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-1">
-                      <button
-                        onClick={() => handleDuplicateTask(task)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                        title="Duplicate task"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteTask(task.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all duration-150 opacity-0 group-hover:opacity-100"
-                        title="Delete task"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Table Footer */}
-        <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <div className="flex items-center space-x-4">
-              <span className="font-medium">Total: {filteredTasks.length} tasks</span>
-              {(selectedCampaign || selectedUser) && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-xs">
-                    {selectedCampaign && `Campaign: ${campaigns.find(c => c.id === parseInt(selectedCampaign))?.name}`}
-                    {selectedCampaign && selectedUser && ' | '}
-                    {selectedUser && `User: ${users.find(u => u.id === parseInt(selectedUser))?.name}`}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-      )}
 
       {/* Copy Link Preview Modal */}
       <CopyLinkPreviewModal
@@ -2588,15 +2604,41 @@ This usually indicates a temporary workflow issue.`;
         setUserTasksModal={setUserTasksModal}
         currentUser={currentUser}
         campaigns={campaigns}
+        users={users}
         currentPreviewIndex={currentPreviewIndex}
         setCurrentPreviewIndex={setCurrentPreviewIndex}
         uploadingCreatives={uploadingCreatives}
         setFeedbackModal={setFeedbackModal}
-        updateTask={updateTask}
+        updateTask={weekView === 'this-week' ? updateTask : updateScheduledTask}
+        deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
         handleCreativeUpload={handleCreativeUpload}
         handleCancelUpload={handleCancelUpload}
         onClose={handleCloseUserTasksModal}
         isFeedbackModalOpen={Boolean(feedbackModal && feedbackModal.columnKey === 'viewerLink')}
+        onAddTaskClick={() => {
+          if (userTasksModal) {
+            setAddTaskModal({ user: userTasksModal.user });
+          }
+        }}
+      />
+
+      {/* Add Task Modal */}
+      <AddTaskModal
+        isOpen={Boolean(addTaskModal)}
+        onClose={() => setAddTaskModal(null)}
+        user={addTaskModal?.user}
+        campaigns={campaigns}
+        users={users}
+        weekView={weekView}
+        onAddTask={async (taskData) => {
+          // Call appropriate function based on current view
+          if (weekView === 'this-week') {
+            await addTask(taskData);
+          } else {
+            await addScheduledTask(taskData);
+          }
+          // No reload needed - add functions already update local state
+        }}
       />
     </div>
   );

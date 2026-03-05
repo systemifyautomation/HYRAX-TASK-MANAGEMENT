@@ -1,6 +1,6 @@
-import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Edit2, Save, Download } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { USER_ROLES } from '../constants/roles';
+import { USER_ROLES, isManager } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 // Hash function to generate code
@@ -28,15 +28,18 @@ const UserTasksModal = ({
   setUserTasksModal, 
   currentUser,
   campaigns,
+  users,
   currentPreviewIndex,
   setCurrentPreviewIndex,
   uploadingCreatives,
   setFeedbackModal,
   updateTask,
+  deleteTask,
   handleCreativeUpload,
   handleCancelUpload,
   onClose,
-  isFeedbackModalOpen
+  isFeedbackModalOpen,
+  onAddTaskClick
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +51,7 @@ const UserTasksModal = ({
   const [expandedCampaigns, setExpandedCampaigns] = useState(new Set()); // Track which campaigns are expanded
   const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
+  const [editingCampaign, setEditingCampaign] = useState(null); // { campaignName, copyLink, scriptAssigned }
   
   const slugify = (value) => {
     if (!value) return '';
@@ -75,10 +79,10 @@ const UserTasksModal = ({
 
       setLoadingVersions(true);
       try {
-        const todayUTC = getTodayUTC();
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
         const adminEmail = currentUser.email;
         const adminPassword = localStorage.getItem('admin_password') || '';
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         // Get the current creative URL
         const currentUrl = adDetailsOpen.taskData.viewerLink?.[adDetailsOpen.adIndex];
@@ -206,7 +210,6 @@ const UserTasksModal = ({
             allLinks.push({
               url: link,
               taskId: task.id,
-              taskTitle: task.title,
               campaignName: campaign?.name || 'No Campaign',
               campaignId: task.campaignId,
               adNumber: adNumber,
@@ -361,11 +364,15 @@ const UserTasksModal = ({
   const handleConfirmDeleteCreative = async () => {
     if (!deleteConfirmModal) return;
 
-    const { taskId, slotIndex, adNumber, actualTaskIndex, task } = deleteConfirmModal;
+    const { taskId, slotIndex, adNumber, actualTaskIndex, task, isVideoEditor } = deleteConfirmModal;
     
-    // Get the creative URL before deleting (for webhook notification)
+    // Get the creative URLs before deleting (for webhook notification)
     const deletedCreativeUrl = task.viewerLink?.[slotIndex] || '';
     const deletedSlackPermalink = task.slackPermalink?.[slotIndex] || '';
+    
+    // For video editors, also get the paired format (Reel)
+    const deletedCreativeUrl2 = isVideoEditor ? (task.viewerLink?.[slotIndex + 1] || '') : '';
+    const deletedSlackPermalink2 = isVideoEditor ? (task.slackPermalink?.[slotIndex + 1] || '') : '';
     
     // Remove the creative from all arrays at the specific index
     const updatedViewerLink = [...task.viewerLink];
@@ -375,12 +382,24 @@ const UserTasksModal = ({
     const updatedViewerLinkApprovalAt = Array.isArray(task.viewerLinkApprovalAt) ? [...task.viewerLinkApprovalAt] : [];
     const updatedViewerLinkAt = Array.isArray(task.viewerLinkAt) ? [...task.viewerLinkAt] : [];
 
-    updatedViewerLink.splice(slotIndex, 1);
-    updatedViewerLinkApproval.splice(slotIndex, 1);
-    updatedViewerLinkFeedback.splice(slotIndex, 1);
-    updatedSlackPermalink.splice(slotIndex, 1);
-    updatedViewerLinkApprovalAt.splice(slotIndex, 1);
-    updatedViewerLinkAt.splice(slotIndex, 1);
+    // For video editors, delete both slots (Facebook format + Reel)
+    if (isVideoEditor) {
+      // Delete both slots starting from slotIndex (Facebook format and Reel)
+      updatedViewerLink.splice(slotIndex, 2);
+      updatedViewerLinkApproval.splice(slotIndex, 2);
+      updatedViewerLinkFeedback.splice(slotIndex, 2);
+      updatedSlackPermalink.splice(slotIndex, 2);
+      updatedViewerLinkApprovalAt.splice(slotIndex, 2);
+      updatedViewerLinkAt.splice(slotIndex, 2);
+    } else {
+      // For non-video editors, delete single slot
+      updatedViewerLink.splice(slotIndex, 1);
+      updatedViewerLinkApproval.splice(slotIndex, 1);
+      updatedViewerLinkFeedback.splice(slotIndex, 1);
+      updatedSlackPermalink.splice(slotIndex, 1);
+      updatedViewerLinkApprovalAt.splice(slotIndex, 1);
+      updatedViewerLinkAt.splice(slotIndex, 1);
+    }
 
     // Update local modal state
     const updatedTasks = [...userTasksModal.tasks];
@@ -408,13 +427,14 @@ const UserTasksModal = ({
     // Send deletion notification to webhook
     if (deletedCreativeUrl) {
       try {
-        const todayUTC = getTodayUTC();
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
         const adminEmail = currentUser.email;
         const adminPassword = localStorage.getItem('admin_password') || '';
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         const webhookUrl = import.meta.env.VITE_CREATIVE_DELETED_WEBHOOK_URL;
         if (webhookUrl) {
+          // Send notification for first creative (Facebook format)
           await fetch(webhookUrl, {
             method: 'POST',
             headers: {
@@ -427,9 +447,30 @@ const UserTasksModal = ({
               slack_permalink: deletedSlackPermalink,
               task_id: taskId,
               ad_number: adNumber,
+              format: isVideoEditor ? 'Facebook Format' : null,
               deleted_at: new Date().toISOString()
             })
           });
+          
+          // For video editors, also send notification for second creative (Reel)
+          if (isVideoEditor && deletedCreativeUrl2) {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                code: code,
+                deleted_by: adminEmail,
+                creative_url: deletedCreativeUrl2,
+                slack_permalink: deletedSlackPermalink2,
+                task_id: taskId,
+                ad_number: adNumber,
+                format: 'Reel',
+                deleted_at: new Date().toISOString()
+              })
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to send creative deletion notification:', error);
@@ -506,7 +547,6 @@ const UserTasksModal = ({
                         {currentAd?.campaignName} - Ad {currentAd?.adNumber}
                         {currentAd?.formatLabel && <span className="text-blue-400 ml-2">({currentAd.formatLabel})</span>}
                       </h2>
-                      <p className="text-gray-400 text-sm mt-1">{currentAd?.taskTitle}</p>
                     </>
                   )}
                 </div>
@@ -676,9 +716,19 @@ const UserTasksModal = ({
                       {campaignName}
                     </h2>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">
-                        {campaignTasks.reduce((sum, t) => sum + parseInt(t.quantity?.replace('x', '') || '1'), 0)} {campaignTasks.reduce((sum, t) => sum + parseInt(t.quantity?.replace('x', '') || '1'), 0) === 1 ? 'ad' : 'ads'}
-                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const taskIds = campaignTasks.map(t => t.id);
+                          if (window.confirm(`Are you sure you want to delete all ${campaignTasks.length} task(s) for ${campaignName}?`)) {
+                            taskIds.forEach(id => deleteTask(id));
+                          }
+                        }}
+                        className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg transition-all hover:scale-110"
+                        title="Delete all tasks for this campaign"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       {isExpanded ? (
                         <ChevronDown className="w-5 h-5 text-green-600" />
                       ) : (
@@ -689,7 +739,172 @@ const UserTasksModal = ({
                   
                   {/* Collapsible Campaign Content */}
                   {isExpanded && (
-                    <div className="p-4 space-y-4">{campaignTasks.map((task, taskIndex) => {
+                    <div className="p-4 space-y-4">
+                      {/* Campaign Info Section */}
+                      {(() => {
+                        const firstTask = campaignTasks[0];
+                        const scriptUser = users?.find(u => u.id === parseInt(firstTask.scriptAssigned));
+                        const isEditing = editingCampaign?.campaignName === campaignName;
+                        const canEdit = isManager(currentUser?.role);
+                        
+                        const handleStartEdit = () => {
+                          setEditingCampaign({
+                            campaignName: campaignName,
+                            copyLink: firstTask.copyLink || '',
+                            scriptAssigned: firstTask.scriptAssigned || ''
+                          });
+                        };
+                        
+                        const handleCancelEdit = () => {
+                          setEditingCampaign(null);
+                        };
+                        
+                        const handleSaveEdit = async () => {
+                          if (!editingCampaign) return;
+                          
+                          // Update all tasks in this campaign
+                          const updates = {
+                            copyLink: editingCampaign.copyLink,
+                            scriptAssigned: editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null
+                          };
+                          
+                          // If copyLink is provided, set copyWritten to true
+                          if (editingCampaign.copyLink && editingCampaign.copyLink.trim()) {
+                            updates.copyWritten = true;
+                          }
+                          
+                          // Save all tasks in the campaign
+                          for (const task of campaignTasks) {
+                            await updateTask(task.id, updates);
+                          }
+                          
+                          setEditingCampaign(null);
+                        };
+                        
+                        return (
+                          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Copy Details
+                              </h3>
+                              
+                              {canEdit && !isEditing && (
+                                <button
+                                  onClick={handleStartEdit}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  Edit
+                                </button>
+                              )}
+                              
+                              {isEditing && (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={handleSaveEdit}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                  >
+                                    <Save className="w-3.5 h-3.5" />
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 shadow-sm"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    Cancel
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Single Row with both fields */}
+                            <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                              <div className="grid grid-cols-2 gap-4">
+                                {/* Copy Link */}
+                                <div>
+                                  <label className="text-xs font-semibold text-blue-800 mb-1.5 block flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                    </svg>
+                                    Copy Link
+                                  </label>
+                                  {isEditing ? (
+                                    <input
+                                      type="url"
+                                      value={editingCampaign.copyLink}
+                                      onChange={(e) => setEditingCampaign({ ...editingCampaign, copyLink: e.target.value })}
+                                      placeholder="Enter copy link..."
+                                      className="w-full px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                  ) : (
+                                    <div className="min-h-[28px] flex items-center">
+                                      {firstTask.copyLink ? (
+                                        <a 
+                                          href={firstTask.copyLink} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-600 hover:text-blue-800 underline truncate"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {firstTask.copyLink}
+                                        </a>
+                                      ) : (
+                                        <span className="text-xs text-gray-400 italic">Not provided</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Script Assigned */}
+                                <div>
+                                  <label className="text-xs font-semibold text-blue-800 mb-1.5 block flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    Script Assigned
+                                  </label>
+                                  {isEditing ? (
+                                    <select
+                                      value={editingCampaign.scriptAssigned}
+                                      onChange={(e) => setEditingCampaign({ ...editingCampaign, scriptAssigned: e.target.value })}
+                                      className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                                    >
+                                      <option value="">-- Select User --</option>
+                                      {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
+                                        <option key={user.id} value={user.id}>
+                                          {user.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <div className="min-h-[28px] flex items-center">
+                                      {scriptUser ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                            {scriptUser.name.charAt(0).toUpperCase()}
+                                          </div>
+                                          <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
+                                        </div>
+                                      ) : firstTask.scriptAssigned ? (
+                                        <span className="text-xs text-gray-500">User ID: {firstTask.scriptAssigned}</span>
+                                      ) : (
+                                        <span className="text-xs text-gray-400 italic">Not assigned</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* Tasks and Ad Creatives */}
+                      {campaignTasks.map((task, taskIndex) => {
                   const actualTaskIndex = userTasksModal.tasks.findIndex(t => t.id === task.id);
                   const campaignForTask = campaigns.find(c => c.id === parseInt(task.campaignId));
                   const adOffset = campaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
@@ -706,8 +921,6 @@ const UserTasksModal = ({
 
                   return (
                     <div key={task.id} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <h3 className="font-semibold text-gray-900 mb-3">{task.title}</h3>
-                      
                       <div className="space-y-3">
                         {Array.from({ length: actualSlotsCount }).map((_, i) => {
                           const slotIndex = i;
@@ -719,8 +932,8 @@ const UserTasksModal = ({
                           const isUploadedToFacebook = task.viewerLinkApproval?.[slotIndex] === 'Approved' || task.viewerLinkApproval?.[slotIndex] === 'Uploaded';
 
                           return (
+                            <div key={i}>
                             <div 
-                              key={i} 
                               className={`rounded-xl p-6 bg-white transition-all shadow-sm hover:shadow-md border border-gray-100 ${
                                 isUploadedToFacebook
                                   ? 'bg-green-50/20'
@@ -754,23 +967,26 @@ const UserTasksModal = ({
                                     </span>
                                   )}
                                 </div>
-                                {/* Delete Button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteConfirmModal({
-                                      taskId: task.id,
-                                      slotIndex: slotIndex,
-                                      adNumber: adNumber,
-                                      actualTaskIndex: actualTaskIndex,
-                                      task: task
-                                    });
-                                  }}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Delete Creative"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {/* Delete Button - Only show for non-Reel slots (for video editors, only show on Facebook format) */}
+                                {(!isVideoEditor || formatIndex === 0) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmModal({
+                                        taskId: task.id,
+                                        slotIndex: slotIndex,
+                                        adNumber: adNumber,
+                                        actualTaskIndex: actualTaskIndex,
+                                        task: task,
+                                        isVideoEditor: isVideoEditor
+                                      });
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title={isVideoEditor ? "Delete Both Formats" : "Delete Creative"}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                               
                               {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
@@ -795,11 +1011,8 @@ const UserTasksModal = ({
                                 </div>
                               ) : hasUpload ? (
                                 <div className="space-y-5">
-                                  {/* Link Display */}
+                                  {/* Link Display with Download Button */}
                                   <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 rounded-lg border border-gray-100">  
-                                    <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                    </svg>
                                     <a 
                                       href={task.viewerLink[slotIndex]} 
                                       target="_blank" 
@@ -810,10 +1023,67 @@ const UserTasksModal = ({
                                     >
                                       {task.viewerLink[slotIndex]}
                                     </a>
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          const webhookUrl = import.meta.env.VITE_DOWNLOAD_CREATIVE_WEBHOOK_URL;
+                                          if (!webhookUrl) {
+                                            alert('Download webhook URL not configured');
+                                            return;
+                                          }
+                                          
+                                          // Trigger download via webhook
+                                          const response = await fetch(webhookUrl, {
+                                            method: 'POST',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                            },
+                                            body: JSON.stringify({
+                                              creative_url: task.viewerLink[slotIndex],
+                                              task_id: task.id,
+                                              ad_number: adNumber,
+                                              format: formatLabel
+                                            })
+                                          });
+                                          
+                                          if (response.ok) {
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            
+                                            // Determine file extension
+                                            let extension = '.mp4';
+                                            const contentType = response.headers.get('content-type');
+                                            if (contentType) {
+                                              if (contentType.includes('video/mp4')) extension = '.mp4';
+                                              else if (contentType.includes('image/jpeg')) extension = '.jpg';
+                                              else if (contentType.includes('image/png')) extension = '.png';
+                                            }
+                                            
+                                            a.download = `ad_${adNumber}${formatLabel ? '_' + formatLabel.replace(' ', '_') : ''}${extension}`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+                                            document.body.removeChild(a);
+                                          } else {
+                                            alert('Failed to download creative');
+                                          }
+                                        } catch (error) {
+                                          console.error('Download error:', error);
+                                          alert('Error downloading creative');
+                                        }
+                                      }}
+                                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                                      title="Download Creative"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
                                   </div>
                                   
                                   {/* Action Buttons Row */}
-                                  <div className="grid grid-cols-3 gap-2.5">
+                                  <div className="grid grid-cols-4 gap-2.5">
                                     {/* Preview Button */}
                                     <button
                                       onClick={(e) => {
@@ -870,6 +1140,39 @@ const UserTasksModal = ({
                                     >
                                       <RefreshCw className="w-4 h-4" />
                                       Replace
+                                    </button>
+
+                                    {/* Download Button */}
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        try {
+                                          const creativeUrl = task.viewerLink[slotIndex];
+                                          const webhookUrl = `${import.meta.env.VITE_DOWNLOAD_CREATIVE_WEBHOOK_URL}?url=${encodeURIComponent(creativeUrl)}`;
+                                          const response = await fetch(webhookUrl, {
+                                            method: 'GET'
+                                          });
+                                          
+                                          if (response.ok) {
+                                            const blob = await response.blob();
+                                            const downloadUrl = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = downloadUrl;
+                                            a.download = `creative_${task.id}_${slotIndex}_${Date.now()}`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            window.URL.revokeObjectURL(downloadUrl);
+                                            document.body.removeChild(a);
+                                          }
+                                        } catch (error) {
+                                          console.error('Error downloading creative:', error);
+                                        }
+                                      }}
+                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"
+                                      title="Download"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Download
                                     </button>
 
                                     {/* Feedback Button - Admins/Managers Only */}
@@ -1018,6 +1321,11 @@ const UserTasksModal = ({
                                 </div>
                               )}
                             </div>
+                            {/* Separator for video editors: show after every 2 slots (after each ad pair) */}
+                            {isVideoEditor && formatIndex === 1 && i < actualSlotsCount - 1 && (
+                              <div className="my-4 border-t-2 border-gray-200"></div>
+                            )}
+                          </div>
                           );
                         })}
                         
@@ -1101,6 +1409,20 @@ const UserTasksModal = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Add Task Button */}
+          <div className="mt-4 px-4">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddTaskClick && onAddTaskClick();
+              }}
+              className="flex items-center gap-2 text-red-600 hover:text-red-700 transition-colors font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Task
+            </button>
           </div>
         </div>
       </div>
@@ -1339,7 +1661,7 @@ const UserTasksModal = ({
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Creative</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Are you sure you want to delete Ad {deleteConfirmModal.adNumber}? This action cannot be undone.
+                  Are you sure you want to delete Ad {deleteConfirmModal.adNumber}{deleteConfirmModal.isVideoEditor ? ' (both Facebook Format and Reel)' : ''}? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button

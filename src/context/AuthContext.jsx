@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const AppContext = createContext();
+const AppContext = createContext(null);
 
 export const useApp = () => {
   const context = useContext(AppContext);
@@ -28,6 +28,11 @@ export const AppProvider = ({ children }) => {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [scheduledTasksLoading, setScheduledTasksLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+  
+  // Data caching to prevent unnecessary reloads
+  const [tasksCache, setTasksCache] = useState({ data: null, timestamp: 0, week: null });
+  const [scheduledTasksCache, setScheduledTasksCache] = useState({ data: null, timestamp: 0 });
+  const CACHE_DURATION = 2000; // 2 seconds cache
   const [columns, setColumns] = useState([
     {
       id: 'priority',
@@ -315,8 +320,8 @@ export const AppProvider = ({ children }) => {
             if (webhookUrl) {
               const userEmail = currentUser?.email || '';
               const adminPassword = localStorage.getItem('admin_password') || '';
-              const todayUTC = getTodayUTC();
-              const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+              const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+              const code = await hashThreeInputs(userEmail, adminPassword, loginDate);
               const params = new URLSearchParams({
                 requested_by: userEmail,
                 code: code
@@ -354,8 +359,8 @@ export const AppProvider = ({ children }) => {
             if (webhookUrl) {
               const userEmail = currentUser?.email || '';
               const adminPassword = localStorage.getItem('admin_password') || '';
-              const todayUTC = getTodayUTC();
-              const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+              const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+              const code = await hashThreeInputs(userEmail, adminPassword, loginDate);
               const params = new URLSearchParams({
                 requested_by: userEmail,
                 code: code
@@ -583,12 +588,29 @@ export const AppProvider = ({ children }) => {
     setUsers([]);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_user');
+    localStorage.removeItem('login_date');
+    localStorage.removeItem('admin_password');
   };
 
   const verifyToken = async (token) => {
     try {
       // Check if we have a stored user
       const storedUser = localStorage.getItem('current_user');
+      const loginDate = localStorage.getItem('login_date');
+      const todayUTC = getTodayUTC();
+      
+      // Check if the date has changed since login
+      if (loginDate && loginDate !== todayUTC) {
+        console.log('⚠️ Date has changed since login. Clearing authentication.');
+        console.log(`Login date: ${loginDate}, Current date: ${todayUTC}`);
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('login_date');
+        // Don't remove admin_password so user can log back in
+        alert('Your session has expired due to date change. Please log in again.');
+        setLoading(false);
+        return;
+      }
       
       if (token && storedUser) {
         const authenticatedUser = JSON.parse(storedUser);
@@ -600,11 +622,13 @@ export const AppProvider = ({ children }) => {
       } else {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('current_user');
+        localStorage.removeItem('login_date');
       }
     } catch (error) {
       console.error('Token verification error:', error);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('current_user');
+      localStorage.removeItem('login_date');
     } finally {
       setLoading(false);
     }
@@ -614,6 +638,17 @@ export const AppProvider = ({ children }) => {
 
   // Load tasks from n8n webhook
   const loadTasksFromWebhook = async (user = null, week = null) => {
+    // Check cache first
+    const now = Date.now();
+    const cacheKey = week || 'default';
+    if (tasksCache.data && 
+        tasksCache.week === cacheKey && 
+        (now - tasksCache.timestamp) < CACHE_DURATION) {
+      console.log('Using cached tasks data');
+      setTasks(tasksCache.data);
+      return;
+    }
+    
     setTasksLoading(true);
     try {
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
@@ -625,8 +660,8 @@ export const AppProvider = ({ children }) => {
 
       const userEmail = user?.email || currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(userEmail, adminPassword, loginDate);
 
       // Use query parameters for GET request
       const params = new URLSearchParams({
@@ -653,6 +688,9 @@ export const AppProvider = ({ children }) => {
         console.log('Tasks loaded from webhook:', validTasks.length || 0);
         setTasks(validTasks);
         localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
+        
+        // Update cache
+        setTasksCache({ data: validTasks, timestamp: Date.now(), week: cacheKey });
       } else {
         console.error('Failed to fetch tasks from webhook:', response.status);
         setTasks([]);
@@ -958,8 +996,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -1047,8 +1085,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -1179,8 +1217,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
       console.log('🔵 updateTask - webhookUrl:', webhookUrl);
@@ -1251,8 +1289,8 @@ export const AppProvider = ({ children }) => {
       try {
         const adminEmail = currentUser?.email || '';
         const adminPassword = localStorage.getItem('admin_password') || '';
-        const todayUTC = getTodayUTC();
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
         if (!webhookUrl) {
@@ -1308,8 +1346,8 @@ export const AppProvider = ({ children }) => {
       try {
         const adminEmail = currentUser?.email || '';
         const adminPassword = localStorage.getItem('admin_password') || '';
-        const todayUTC = getTodayUTC();
-        const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+        const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
         const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
         if (!webhookUrl) {
@@ -1364,6 +1402,15 @@ export const AppProvider = ({ children }) => {
 
   // Scheduled Tasks operations (same logic as tasks but different webhook)
   const loadScheduledTasksFromWebhook = async (user = null) => {
+    // Check cache first
+    const now = Date.now();
+    if (scheduledTasksCache.data && 
+        (now - scheduledTasksCache.timestamp) < CACHE_DURATION) {
+      console.log('Using cached scheduled tasks data');
+      setScheduledTasks(scheduledTasksCache.data);
+      return;
+    }
+    
     setScheduledTasksLoading(true);
     try {
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
@@ -1375,8 +1422,8 @@ export const AppProvider = ({ children }) => {
 
       const userEmail = user?.email || currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(userEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(userEmail, adminPassword, loginDate);
 
       const params = new URLSearchParams({
         requested_by: userEmail,
@@ -1395,6 +1442,9 @@ export const AppProvider = ({ children }) => {
         console.log('Scheduled tasks loaded from webhook:', data.length || 0);
         setScheduledTasks(data);
         localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(data));
+        
+        // Update cache
+        setScheduledTasksCache({ data: data, timestamp: Date.now() });
       } else {
         console.error('Failed to fetch scheduled tasks from webhook:', response.status);
         setScheduledTasks([]);
@@ -1439,8 +1489,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -1511,8 +1561,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -1629,8 +1679,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (!webhookUrl) {
@@ -1671,8 +1721,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (webhookUrl) {
@@ -1709,8 +1759,8 @@ export const AppProvider = ({ children }) => {
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const todayUTC = getTodayUTC();
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = import.meta.env.VITE_SCHEDULED_TASKS_WEBHOOK_URL;
       if (webhookUrl) {

@@ -53,10 +53,10 @@ const AdAccounts = () => {
     setError(null);
     try {
       // Generate hash code using admin's credentials
-      const todayUTC = getTodayUTC();
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
       const adminEmail = currentUser.email;
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = 'https://workflows.wearehyrax.com/webhook/ad-accounts';
       
@@ -106,10 +106,10 @@ const AdAccounts = () => {
 
   const handleSaveEdit = async (accountId) => {
     try {
-      const todayUTC = getTodayUTC();
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
       const adminEmail = currentUser.email;
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = 'https://workflows.wearehyrax.com/webhook/ad-accounts';
       
@@ -144,10 +144,10 @@ const AdAccounts = () => {
 
   const handleDelete = async (accountId) => {
     try {
-      const todayUTC = getTodayUTC();
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
       const adminEmail = currentUser.email;
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = 'https://workflows.wearehyrax.com/webhook/ad-accounts';
       
@@ -180,10 +180,10 @@ const AdAccounts = () => {
 
   const handleAdd = async () => {
     try {
-      const todayUTC = getTodayUTC();
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
       const adminEmail = currentUser.email;
       const adminPassword = localStorage.getItem('admin_password') || '';
-      const code = await hashThreeInputs(adminEmail, adminPassword, todayUTC);
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
 
       const webhookUrl = 'https://workflows.wearehyrax.com/webhook/ad-accounts';
       
