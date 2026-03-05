@@ -16,7 +16,9 @@ const UserTaskCard = ({
 }) => {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [optimisticStatuses, setOptimisticStatuses] = useState({});
+  const [optimisticBuyers, setOptimisticBuyers] = useState({});
   const canEditStatus = currentUser && isManager(currentUser.role);
+  const canEditBuyer = currentUser && isManager(currentUser.role);
 
   const handleStatusChange = async (taskId, newStatus) => {
     // Update UI immediately (optimistic update)
@@ -35,6 +37,23 @@ const UserTaskCard = ({
       });
     }
   };
+
+  const handleBuyerChange = async (taskId, newBuyerId) => {
+    // Update UI immediately (optimistic update)
+    setOptimisticBuyers(prev => ({ ...prev, [taskId]: newBuyerId }));
+    
+    try {
+      await updateTask(taskId, { scriptAssigned: newBuyerId });
+    } catch (error) {
+      console.error('Error updating buyer:', error);
+      // Revert on error
+      setOptimisticBuyers(prev => {
+        const newBuyers = { ...prev };
+        delete newBuyers[taskId];
+        return newBuyers;
+      });
+    }
+  };
   // Group tasks by campaign
   const tasksByCampaign = userTasks.reduce((acc, task) => {
     const campaignId = task.campaignId || 'unknown';
@@ -44,6 +63,9 @@ const UserTaskCard = ({
     acc[campaignId].push(task);
     return acc;
   }, {});
+
+  // Filter media buyers for the dropdown
+  const mediaBuyers = users.filter(u => u.department === 'MEDIA BUYING');
 
   return (
     <div 
@@ -96,7 +118,7 @@ const UserTaskCard = ({
                   <div className="bg-white">
                     {tasks.map((task, idx) => {
                       const assignedBuyer = task.scriptAssigned 
-                        ? users.find(u => u.id === parseInt(task.scriptAssigned))
+                        ? users.find(u => u.id === (optimisticBuyers[task.id] || parseInt(task.scriptAssigned)))
                         : null;
                       // Check for copyWritten field (handle both casing variations)
                       const copyComplete = task.copyWritten === true || task.CopyWritten === true;
@@ -118,11 +140,37 @@ const UserTaskCard = ({
                                 Copy Assigned To
                               </p>
                               <div className="flex items-center justify-center h-[32px] lg:h-[36px]">
-                                <p className="text-xs lg:text-sm font-medium text-gray-900 text-center">
-                                  {assignedBuyer ? assignedBuyer.name : (
-                                    <span className="text-gray-400 italic">Not assigned</span>
-                                  )}
-                                </p>
+                                {canEditBuyer ? (
+                                  <div className="relative">
+                                    <select
+                                      value={optimisticBuyers[task.id] || task.scriptAssigned || ''}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleBuyerChange(task.id, e.target.value ? parseInt(e.target.value) : null);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="appearance-none text-[10px] lg:text-xs font-medium px-2 lg:px-3 py-1 lg:py-1.5 pr-6 lg:pr-7 rounded-md cursor-pointer transition-all duration-200 border-2 border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm hover:shadow text-center min-w-[100px] lg:min-w-[120px]"
+                                    >
+                                      <option value="" className="bg-white text-gray-900">Not assigned</option>
+                                      {mediaBuyers.map(buyer => (
+                                        <option key={buyer.id} value={buyer.id} className="bg-white text-gray-900">
+                                          {buyer.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none text-blue-700">
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs lg:text-sm font-medium text-gray-900 text-center">
+                                    {assignedBuyer ? assignedBuyer.name : (
+                                      <span className="text-gray-400 italic">Not assigned</span>
+                                    )}
+                                  </p>
+                                )}
                               </div>
                             </div>
                             
