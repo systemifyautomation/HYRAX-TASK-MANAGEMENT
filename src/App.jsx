@@ -9,6 +9,7 @@ import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
 import AdAccounts from './pages/AdAccounts';
 import Performance from './pages/Performance';
+import About from './pages/About';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +69,10 @@ const AppRouter = () => {
       <Route 
         path="/login" 
         element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} 
+      />
+      <Route 
+        path="/about" 
+        element={<About />} 
       />
       <Route
         path="/*"
