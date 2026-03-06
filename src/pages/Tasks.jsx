@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, ExternalLink, MessageSquare } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
-import { isAdmin, isSuperAdmin, USER_ROLES } from '../constants/roles';
+import { isAdmin, isSuperAdmin, isManager, USER_ROLES } from '../constants/roles';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
@@ -184,7 +184,12 @@ const Tasks = () => {
   const [selectedTasks, setSelectedTasks] = useState(new Set());
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
-  const [weekView, setWeekView] = useState('this-week'); // 'this-week' or 'next-week'
+  
+  // Initialize weekView based on current URL path
+  const [weekView, setWeekView] = useState(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    return segments[0] === 'next-week' ? 'next-week' : 'this-week';
+  });
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekDateRange()); // Default to 'This week'
   
   // Load campaigns data once on mount (campaigns don't change between weeks)
@@ -391,8 +396,13 @@ const Tasks = () => {
   const isModalRoutePath = useCallback((pathname) => {
     const segments = pathname.split('/').filter(Boolean);
     
-    // Check for simple /cards/{user_slug} format
+    // Check for simple /cards/{user_slug} format (2 segments)
     if (segments.length === 2 && segments[0] === 'cards') {
+      return true;
+    }
+    
+    // Check for /next-week/cards/{user_slug} format (3 segments)
+    if (segments.length === 3 && segments[0] === 'next-week' && segments[1] === 'cards') {
       return true;
     }
     
@@ -655,7 +665,7 @@ const Tasks = () => {
     setUserTasksModal
   ]);
 
-  // Handle simple /cards/{user_slug} path format
+  // Handle simple /cards/{user_slug} and /next-week/cards/{user_slug} path formats
   useEffect(() => {
     if (closingModalRef.current) {
       return;
@@ -667,12 +677,22 @@ const Tasks = () => {
 
     const segments = location.pathname.split('/').filter(Boolean);
     
+    let userSlug = null;
+    let targetWeekView = 'this-week';
+    
     // Check if path is /cards/{user_slug} (exactly 2 segments)
-    if (segments.length !== 2 || segments[0] !== 'cards') {
+    if (segments.length === 2 && segments[0] === 'cards') {
+      userSlug = decodeURIComponent(segments[1]);
+      targetWeekView = 'this-week';
+    }
+    // Check if path is /next-week/cards/{user_slug} (exactly 3 segments)
+    else if (segments.length === 3 && segments[0] === 'next-week' && segments[1] === 'cards') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetWeekView = 'next-week';
+    } else {
       return;
     }
 
-    const userSlug = decodeURIComponent(segments[1]);
     const userId = getUserIdFromSlug(userSlug);
     
     if (!userId) {
@@ -684,13 +704,13 @@ const Tasks = () => {
       return;
     }
 
-    // Get current week range based on weekView
-    const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
+    // Get current week range based on detected weekView from path
+    const targetWeekOffset = targetWeekView === 'next-week' ? 1 : 0;
     const targetWeekRange = getWeekDateRange(targetWeekOffset);
     const normalizedDepartment = (user.department || '').trim().toUpperCase();
 
-    // Get all tasks for this user
-    const sourceData = weekView === 'this-week' ? tasks : scheduledTasks;
+    // Get all tasks for this user based on week view
+    const sourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
     const modalTasks = sourceData.filter(task => {
       if (String(task.assignedTo) !== String(user.id)) return false;
       if (task.week !== targetWeekRange) return false;
@@ -711,7 +731,7 @@ const Tasks = () => {
 
     setCurrentPreviewIndex(0);
     setUserTasksModal({ user, tasks: modalTasks });
-  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, weekView, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal]);
+  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -2497,13 +2517,6 @@ This usually indicates a temporary workflow issue.`;
               </button>
             </>
           )}
-          <button
-            onClick={() => setShowAddRow(!showAddRow)}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Task</span>
-          </button>
           {false && isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}
@@ -2520,7 +2533,13 @@ This usually indicates a temporary workflow issue.`;
       <div className="space-y-8 p-6">
           {/* VIDEO EDITING AND GRAPHIC DESIGN */}
           {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
-            const departmentUsers = users.filter(u => u.department === department);
+            // Filter users by department
+            let departmentUsers = users.filter(u => u.department === department);
+            
+            // If not manager/admin, only show current user's card
+            if (!isManager(currentUser?.role)) {
+              departmentUsers = departmentUsers.filter(u => u.id === currentUser?.id);
+            }
             
             if (departmentUsers.length === 0) return null;
 
@@ -2551,9 +2570,6 @@ This usually indicates a temporary workflow issue.`;
                       return false;
                     });
 
-                    // Don't render card if user has no tasks
-                    if (userTasks.length === 0) return null;
-
                     return (
                       <UserTaskCard
                         key={user.id}
@@ -2567,11 +2583,12 @@ This usually indicates a temporary workflow issue.`;
                         weekView={weekView}
                         onAddTaskClick={() => setAddTaskModal({ user })}
                         onClick={(user, tasks) => {
-                          setCurrentPreviewIndex(0);
-                          setUserTasksModal({ user, tasks });
+                          // Don't set modal here - let the useEffect handle it based on URL
+                          // This ensures the correct data source (tasks vs scheduledTasks) is used
                           const userSlug = getUserSlug(user.id) || 'user';
-                          const basePath = weekView === 'this-week' ? '/this-week' : '/next-week';
-                          navigate(`${basePath}/${userSlug}`, { replace: true });
+                          const isNextWeek = location.pathname.startsWith('/next-week');
+                          const cardsPath = isNextWeek ? `/next-week/cards/${userSlug}` : `/cards/${userSlug}`;
+                          navigate(cardsPath, { replace: true });
                         }}
                       />
                     );

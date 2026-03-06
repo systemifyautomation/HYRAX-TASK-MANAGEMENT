@@ -258,57 +258,6 @@ export const AppProvider = ({ children }) => {
       // Silently refresh all data without setting loading states
       const promises = [];
 
-      // Refresh users
-      promises.push((async () => {
-        try {
-          const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
-          const response = await fetch(webhookUrl, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data)) {
-              const normalizedUsers = data.map(user => ({
-                ...user,
-                role: normalizeRole(user.role)
-              }));
-              setUsers(normalizedUsers);
-              localStorage.setItem('hyrax_users', JSON.stringify(normalizedUsers));
-            }
-          }
-        } catch (error) {
-          console.error('Background users refresh failed:', error);
-        }
-      })());
-
-      // Refresh campaigns
-      promises.push((async () => {
-        try {
-          const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
-          if (webhookUrl) {
-            const response = await fetch(webhookUrl, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' }
-            });
-            if (response.ok) {
-              const data = await response.json();
-              if (Array.isArray(data)) {
-                const mappedCampaigns = data.map(campaign => ({
-                  id: campaign.id,
-                  name: campaign.campaign_name,
-                  slackId: campaign.slack_channel_ID
-                }));
-                setCampaigns(mappedCampaigns);
-                localStorage.setItem('hyrax_campaigns', JSON.stringify(mappedCampaigns));
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Background campaigns refresh failed:', error);
-        }
-      })());
-
       // Refresh tasks - get current page context from localStorage to know what to refresh
       const currentPage = localStorage.getItem('hyrax_current_page');
       const currentWeek = localStorage.getItem('hyrax_current_week');
@@ -406,15 +355,6 @@ export const AppProvider = ({ children }) => {
     };
     
     initAuth();
-
-    // Refresh users from webhook every 5 minutes to keep data in sync
-    const usersRefreshInterval = setInterval(() => {
-      loadUsers();
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => {
-      clearInterval(usersRefreshInterval);
-    };
   }, []);
 
   // Background data refresh every 5 seconds when authenticated

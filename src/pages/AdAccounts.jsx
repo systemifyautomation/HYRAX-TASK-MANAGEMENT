@@ -36,7 +36,9 @@ const AdAccounts = () => {
     Campaign: '',
     V: '',
     BM_ID: '',
-    ADSPOWER: ''
+    ADSPOWER: '',
+    Pixel_ID: '',
+    Status: 'Active'
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, accountId: null });
 
@@ -209,7 +211,9 @@ const AdAccounts = () => {
           Campaign: '',
           V: '',
           BM_ID: '',
-          ADSPOWER: ''
+          ADSPOWER: '',
+          Pixel_ID: '',
+          Status: 'Active'
         });
       } else {
         const errorText = await response.text();
@@ -299,6 +303,12 @@ const AdAccounts = () => {
                     ADSPOWER
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pixel ID
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -306,7 +316,7 @@ const AdAccounts = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {adAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                       No ad accounts found
                     </td>
                   </tr>
@@ -379,6 +389,38 @@ const AdAccounts = () => {
                             />
                           ) : (
                             account.ADSPOWER || '-'
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editForm.Pixel_ID || ''}
+                              onChange={(e) => setEditForm({ ...editForm, Pixel_ID: e.target.value })}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                          ) : (
+                            account.Pixel_ID || '-'
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {isEditing ? (
+                            <select
+                              value={editForm.Status || 'Active'}
+                              onChange={(e) => setEditForm({ ...editForm, Status: e.target.value })}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            >
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                            </select>
+                          ) : (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              account.Status === 'Active' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {account.Status || 'Active'}
+                            </span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -554,6 +596,33 @@ const AdAccounts = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
                   placeholder="Enter ADSPOWER"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Pixel ID
+                </label>
+                <input
+                  type="text"
+                  value={addForm.Pixel_ID}
+                  onChange={(e) => setAddForm({ ...addForm, Pixel_ID: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  placeholder="Enter Pixel ID"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={addForm.Status}
+                  onChange={(e) => setAddForm({ ...addForm, Status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
             </div>
 

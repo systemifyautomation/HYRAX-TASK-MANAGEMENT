@@ -1,12 +1,14 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AuthContext';
+import { isManager } from './constants/roles';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Tasks from './pages/Tasks';
 import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
 import AdAccounts from './pages/AdAccounts';
+import Performance from './pages/Performance';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -24,6 +26,12 @@ const ProtectedRoute = ({ children }) => {
   }
   
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// Manager Route Component - Only managers and above can access
+const ManagerRoute = ({ children }) => {
+  const { currentUser } = useApp();
+  return isManager(currentUser?.role) ? children : <Navigate to="/" replace />;
 };
 
 // Main App Layout
@@ -72,8 +80,9 @@ const AppRouter = () => {
                 <Route path="/next-week/*" element={<Tasks />} />
                 <Route path="/cards/*" element={<Tasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
-                <Route path="/users" element={<UserManagement />} />
-                <Route path="/ad-accounts" element={<AdAccounts />} />
+                <Route path="/users" element={<ManagerRoute><UserManagement /></ManagerRoute>} />
+                <Route path="/ad-accounts" element={<ManagerRoute><AdAccounts /></ManagerRoute>} />
+                <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

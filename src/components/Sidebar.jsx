@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook, BarChart3 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { isAdmin, getRoleLabel } from '../constants/roles';
+import { isManager, getRoleLabel } from '../constants/roles';
 
 const Sidebar = ({ onCollapsedChange }) => {
   const { currentUser, logout } = useApp();
-  const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
+  const isManagerUser = currentUser ? isManager(currentUser.role) : false;
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -21,8 +21,9 @@ const Sidebar = ({ onCollapsedChange }) => {
   const navItems = [
     { to: '/', icon: CheckSquare, label: 'Tasks', end: true },
     { to: '/campaigns', icon: FolderOpen, label: 'Campaigns' },
-    { to: '/users', icon: Users, label: 'User Management', adminOnly: true },
-    { to: '/ad-accounts', icon: Facebook, label: 'Ad Accounts', adminOnly: true },
+    { to: '/performance', icon: BarChart3, label: 'Performance', managerOnly: true },
+    { to: '/users', icon: Users, label: 'User Management', managerOnly: true },
+    { to: '/ad-accounts', icon: Facebook, label: 'Ad Accounts', managerOnly: true },
   ];
 
   return (
@@ -53,7 +54,7 @@ const Sidebar = ({ onCollapsedChange }) => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.filter(item => !item.adminOnly || isAdminUser).map((item) => (
+        {navItems.filter(item => !item.managerOnly || isManagerUser).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

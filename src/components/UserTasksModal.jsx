@@ -63,6 +63,20 @@ const UserTasksModal = ({
       .replace(/(^-|-$)/g, '');
   };
 
+  // Helper function to determine base path from current location
+  const getBasePath = useCallback(() => {
+    const pathname = location.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    
+    // Check if we're in /next-week/cards/ context
+    if (segments.length >= 2 && segments[0] === 'next-week' && segments[1] === 'cards') {
+      return '/next-week/cards';
+    }
+    
+    // Default to /cards
+    return '/cards';
+  }, [location.pathname]);
+
   const getCampaignSlug = (campaignId, fallbackName) => {
     const campaign = campaigns?.find(c => parseInt(c.id) === parseInt(campaignId));
     const source = campaign?.slug || campaign?.name || fallbackName || campaign?.id;
@@ -274,7 +288,7 @@ const UserTasksModal = ({
   useEffect(() => {
     if (!userTasksModal) return;
     const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
-    const basePath = '/cards';
+    const basePath = getBasePath();
     const requestedTab = getRequestedTabFromPath(location.pathname);
 
     if (!currentAd) {
@@ -304,7 +318,7 @@ const UserTasksModal = ({
     if (location.pathname !== path) {
       navigate(path, { replace: true });
     }
-  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen, getRequestedTabFromPath]);
+  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen, getRequestedTabFromPath, getBasePath]);
 
   // Initialize first campaign as expanded when modal opens or user changes
   useEffect(() => {
@@ -1252,7 +1266,8 @@ const UserTasksModal = ({
                                         const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
                                         const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
                                         const campaignSlug = getCampaignSlug(task.campaignId, campaign?.name);
-                                        navigate(`/cards/${userSlug}/${campaignSlug}/ad_${adNumber}/versions`, { replace: true });
+                                        const basePath = getBasePath();
+                                        navigate(`${basePath}/${userSlug}/${campaignSlug}/ad_${adNumber}/versions`, { replace: true });
                                       }}
                                       className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
                                       title="View History"
