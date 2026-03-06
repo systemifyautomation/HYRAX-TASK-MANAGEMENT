@@ -185,6 +185,10 @@ const Tasks = () => {
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [selectedUser, setSelectedUser] = useState(''); // Filter by user
   
+  // Optimistic updates state - shared across cards and modals
+  const [optimisticBuyers, setOptimisticBuyers] = useState({});
+  const [optimisticStatuses, setOptimisticStatuses] = useState({});
+  
   // Initialize weekView based on current URL path
   const [weekView, setWeekView] = useState(() => {
     const segments = location.pathname.split('/').filter(Boolean);
@@ -197,58 +201,60 @@ const Tasks = () => {
     loadCampaignsData();
   }, []);
 
-  // Load tasks data when week view or selected week changes
+  // Pre-load both datasets on mount for instant switching
+  useEffect(() => {
+    // Load both tasks and scheduled tasks from cache immediately
+    const cachedTasks = localStorage.getItem('hyrax_tasks');
+    const cachedScheduled = localStorage.getItem('hyrax_scheduled_tasks');
+    
+    if (cachedTasks) {
+      try {
+        setTasks(JSON.parse(cachedTasks));
+      } catch (e) {
+        console.error('Failed to parse cached tasks:', e);
+      }
+    }
+    
+    if (cachedScheduled) {
+      try {
+        setScheduledTasks(JSON.parse(cachedScheduled));
+      } catch (e) {
+        console.error('Failed to parse cached scheduled tasks:', e);
+      }
+    }
+  }, []);
+
+  // Refresh data from webhook when week view changes
   useEffect(() => {
     let mounted = true;
     
-    const loadData = async () => {
+    const refreshData = async () => {
       // CRITICAL: Do not reload if uploads are in progress
       if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length > 0) {
         console.warn('⚠️ Skipping data reload - uploads in progress');
         return;
       }
       
-      if (mounted) {
-        // Show cached data immediately for instant UI
-        if (weekView === 'this-week') {
-          const cachedTasks = localStorage.getItem('hyrax_tasks');
-          if (cachedTasks) {
-            try {
-              const parsed = JSON.parse(cachedTasks);
-              setTasks(parsed);
-            } catch (e) {
-              console.error('Failed to parse cached tasks:', e);
-            }
-          }
-        } else {
-          const cachedScheduled = localStorage.getItem('hyrax_scheduled_tasks');
-          if (cachedScheduled) {
-            try {
-              const parsed = JSON.parse(cachedScheduled);
-              setScheduledTasks(parsed);
-            } catch (e) {
-              console.error('Failed to parse cached scheduled tasks:', e);
-            }
-          }
-        }
-        
-        // Store current page and week for background refresh
-        localStorage.setItem('hyrax_current_page', 'tasks');
-        localStorage.setItem('hyrax_current_week', selectedWeek);
-        
-        // Load fresh data in background
-        if (weekView === 'this-week') {
-          await loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
-        } else {
-          await loadScheduledTasksFromWebhook();
-        }
+      if (!mounted) return;
+      
+      // Store current page and week for background refresh
+      localStorage.setItem('hyrax_current_page', 'tasks');
+      localStorage.setItem('hyrax_current_week', selectedWeek);
+      
+      // Refresh from webhook in background (non-blocking)
+      if (weekView === 'this-week') {
+        loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
+      } else {
+        loadScheduledTasksFromWebhook();
       }
     };
     
-    loadData();
+    // Use setTimeout to defer webhook refresh, making switch instant
+    const timer = setTimeout(refreshData, 0);
     
     return () => {
       mounted = false;
+      clearTimeout(timer);
       // Clear page marker when leaving
       if (localStorage.getItem('hyrax_current_page') === 'tasks') {
         localStorage.removeItem('hyrax_current_page');
@@ -256,6 +262,99 @@ const Tasks = () => {
       }
     };
   }, [selectedWeek, weekView]);
+  
+  // Wrapper functions with optimistic updates
+  const updateTaskOptimistic = useCallback(async (taskId, updates) => {
+    // Apply optimistic updates immediately
+    if (updates.scriptAssigned !== undefined) {
+      setOptimisticBuyers(prev => ({
+        ...prev,
+        [taskId]: updates.scriptAssigned
+      }));
+    }
+    if (updates.status !== undefined) {
+      setOptimisticStatuses(prev => ({
+        ...prev,
+        [taskId]: updates.status
+      }));
+    }
+    
+    try {
+      // Call actual update
+      await updateTask(taskId, updates);
+    } catch (error) {
+      console.error('Error updating task:', error);
+      // Revert optimistic updates on error
+      if (updates.scriptAssigned !== undefined) {
+        setOptimisticBuyers(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      if (updates.status !== undefined) {
+        setOptimisticStatuses(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      throw error;
+    }
+  }, [updateTask]);
+
+  const updateScheduledTaskOptimistic = useCallback(async (taskId, updates) => {
+    // Apply optimistic updates immediately
+    if (updates.scriptAssigned !== undefined) {
+      setOptimisticBuyers(prev => ({
+        ...prev,
+        [taskId]: updates.scriptAssigned
+      }));
+    }
+    if (updates.status !== undefined) {
+      setOptimisticStatuses(prev => ({
+        ...prev,
+        [taskId]: updates.status
+      }));
+    }
+    
+    try {
+      // Call actual update
+      await updateScheduledTask(taskId, updates);
+    } catch (error) {
+      console.error('Error updating scheduled task:', error);
+      // Revert optimistic updates on error
+      if (updates.scriptAssigned !== undefined) {
+        setOptimisticBuyers(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      if (updates.status !== undefined) {
+        setOptimisticStatuses(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      throw error;
+    }
+  }, [updateScheduledTask]);
+  
+  // Apply optimistic updates to tasks
+  const applyOptimisticUpdates = useCallback((tasksList) => {
+    return tasksList.map(task => {
+      const updates = {};
+      if (optimisticStatuses[task.id] !== undefined) {
+        updates.status = optimisticStatuses[task.id];
+      }
+      if (optimisticBuyers[task.id] !== undefined) {
+        updates.scriptAssigned = optimisticBuyers[task.id];
+      }
+      return Object.keys(updates).length > 0 ? { ...task, ...updates } : task;
+    });
+  }, [optimisticBuyers, optimisticStatuses]);
   
   // Debug: Log users and columns on component mount
   useEffect(() => {
@@ -569,7 +668,24 @@ const Tasks = () => {
     }
 
     const segments = location.pathname.split('/').filter(Boolean);
-    if (segments.length < 5) {
+    
+    // Determine which data source to use based on URL structure
+    let targetWeekView = 'this-week';
+    let userSlug, campaignSlug;
+    
+    if (segments[0] === 'next-week' && segments[1] === 'cards') {
+      // Pattern: /next-week/cards/{user_slug}/{campaignSlug}/ad_X/tab (6 segments minimum)
+      if (segments.length < 6) return;
+      targetWeekView = 'next-week';
+      userSlug = decodeURIComponent(segments[2] || '');
+      campaignSlug = decodeURIComponent(segments[3] || '');
+    } else if (segments[0] === 'cards') {
+      // Pattern: /cards/{user_slug}/{campaignSlug}/ad_X/tab (5 segments minimum)
+      if (segments.length < 5) return;
+      targetWeekView = 'this-week';
+      userSlug = decodeURIComponent(segments[1] || '');
+      campaignSlug = decodeURIComponent(segments[2] || '');
+    } else {
       return;
     }
 
@@ -578,8 +694,6 @@ const Tasks = () => {
       return;
     }
 
-    const userSlug = decodeURIComponent(segments[1] || '');
-    const campaignSlug = decodeURIComponent(segments[2] || '');
     const requestedTab = decodeURIComponent(segments[segments.length - 1] || 'preview').toLowerCase();
     const adSegment = segments.find(segment => segment.startsWith('ad_'));
 
@@ -603,13 +717,18 @@ const Tasks = () => {
       return;
     }
 
-    const currentWeekRange = getWeekDateRange(0);
+    // Get appropriate week range based on detected view
+    const targetWeekOffset = targetWeekView === 'next-week' ? 1 : 0;
+    const targetWeekRange = getWeekDateRange(targetWeekOffset);
     const normalizedDepartment = (user.department || '').trim().toUpperCase();
 
-    const modalTasks = tasks.filter(task => {
+    // Use correct data source based on week view and apply optimistic updates
+    const rawSourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
+    const sourceData = applyOptimisticUpdates(rawSourceData);
+    const modalTasks = sourceData.filter(task => {
       if (String(task.campaignId) !== String(campaignId)) return false;
       if (String(task.assignedTo) !== String(user.id)) return false;
-      if (task.week !== currentWeekRange) return false;
+      if (task.week !== targetWeekRange) return false;
 
       const mediaType = (task.mediaType || task.type || '').toString().toUpperCase();
       if (normalizedDepartment === 'VIDEO EDITING') {
@@ -657,12 +776,14 @@ const Tasks = () => {
     users,
     campaigns,
     tasks,
+    scheduledTasks,
     getUserIdFromSlug,
     getCampaignIdFromSlug,
     buildPreviewLinksForModal,
     setFeedbackModal,
     setCurrentPreviewIndex,
-    setUserTasksModal
+    setUserTasksModal,
+    applyOptimisticUpdates
   ]);
 
   // Handle simple /cards/{user_slug} and /next-week/cards/{user_slug} path formats
@@ -709,8 +830,9 @@ const Tasks = () => {
     const targetWeekRange = getWeekDateRange(targetWeekOffset);
     const normalizedDepartment = (user.department || '').trim().toUpperCase();
 
-    // Get all tasks for this user based on week view
-    const sourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
+    // Get all tasks for this user based on week view and apply optimistic updates
+    const rawSourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
+    const sourceData = applyOptimisticUpdates(rawSourceData);
     const modalTasks = sourceData.filter(task => {
       if (String(task.assignedTo) !== String(user.id)) return false;
       if (task.week !== targetWeekRange) return false;
@@ -731,7 +853,7 @@ const Tasks = () => {
 
     setCurrentPreviewIndex(0);
     setUserTasksModal({ user, tasks: modalTasks });
-  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal]);
+  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal, applyOptimisticUpdates]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -1863,8 +1985,9 @@ This usually indicates a temporary workflow issue.`;
 
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
-    // Select data source based on week view
-    const sourceData = weekView === 'this-week' ? tasks : scheduledTasks;
+    // Select data source based on week view and apply optimistic updates
+    const rawSourceData = weekView === 'this-week' ? tasks : scheduledTasks;
+    const sourceData = applyOptimisticUpdates(rawSourceData);
     
     // When on a modal/deep-link path, show ALL tasks in background (no filtering)
     const isDeepLink = isModalRoutePath(location.pathname);
@@ -1909,7 +2032,7 @@ This usually indicates a temporary workflow issue.`;
     }
 
     return filtered;
-  }, [tasks, scheduledTasks, weekView, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath]);
+  }, [tasks, scheduledTasks, weekView, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath, applyOptimisticUpdates]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -2384,7 +2507,7 @@ This usually indicates a temporary workflow issue.`;
           {/* Week View Toggle - This Week / Next Week */}
           <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
             <button
-              onClick={() => navigate('/this-week')}
+              onClick={() => navigate('/this-week', { replace: true })}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
                 weekView === 'this-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
               }`}
@@ -2393,7 +2516,7 @@ This usually indicates a temporary workflow issue.`;
               <span>This Week</span>
             </button>
             <button
-              onClick={() => navigate('/next-week')}
+              onClick={() => navigate('/next-week', { replace: true })}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
                 weekView === 'next-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
               }`}
@@ -2401,99 +2524,6 @@ This usually indicates a temporary workflow issue.`;
               <Calendar className="w-4 h-4" />
               <span>Next Week</span>
             </button>
-          </div>
-
-          {/* Filter Button with Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm ${
-                (selectedCampaign || selectedUser || selectedWeek !== 'all' || dateRangeStart || dateRangeEnd) ? 'border-primary-500 bg-primary-50' : ''
-              }`}
-              title="Filters"
-            >
-              <Filter className="w-4 h-4 text-gray-700" />
-            </button>
-            
-            {/* Filter Dropdown */}
-            {showFilters && (
-              <div ref={filtersRef} className="absolute top-full left-0 mt-2 bg-gradient-to-br from-gray-900 via-black to-gray-900 rounded-xl shadow-2xl border-2 border-red-500/30 p-5 z-40 min-w-[320px] backdrop-blur-sm shadow-red-500/20">
-                <div className="space-y-4">
-                  {/* Week Filter */}
-                  <div>
-                    <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Week</label>
-                    <div className="relative">
-                      <select
-                        value={selectedWeek}
-                        onChange={(e) => setSelectedWeek(e.target.value)}
-                        className="w-full px-4 py-2.5 text-sm border-2 border-red-500/40 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black/50 text-white font-medium transition-all hover:border-red-500/60 appearance-none cursor-pointer shadow-inner backdrop-blur-sm"
-                      >
-                        <option value="all" className="bg-gray-900 text-gray-300">All Weeks</option>
-                        {weekOptions.map((option) => (
-                          <option key={option.value} value={option.value} className="bg-gray-900 text-white">{option.label}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ChevronRight className="w-4 h-4 text-red-400 rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Campaign Filter */}
-                  <div>
-                    <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">Campaign</label>
-                    <div className="relative">
-                      <select
-                        value={selectedCampaign}
-                        onChange={(e) => setSelectedCampaign(e.target.value)}
-                        className="w-full px-4 py-2.5 text-sm border-2 border-red-500/40 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black/50 text-white font-medium transition-all hover:border-red-500/60 appearance-none cursor-pointer shadow-inner backdrop-blur-sm"
-                      >
-                        <option value="" className="bg-gray-900 text-gray-300">All Campaigns</option>
-                        {campaigns.map((campaign) => (
-                          <option key={campaign.id} value={campaign.id} className="bg-gray-900 text-white">{campaign.name}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ChevronRight className="w-4 h-4 text-red-400 rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* User Filter */}
-                  <div>
-                    <label className="block text-xs font-bold text-red-400 mb-2 uppercase tracking-wider">User</label>
-                    <div className="relative">
-                      <select
-                        value={selectedUser}
-                        onChange={(e) => setSelectedUser(e.target.value)}
-                        className="w-full px-4 py-2.5 text-sm border-2 border-red-500/40 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-black/50 text-white font-medium transition-all hover:border-red-500/60 appearance-none cursor-pointer shadow-inner backdrop-blur-sm"
-                      >
-                        <option value="" className="bg-gray-900 text-gray-300">All Users</option>
-                        {users.map((user) => (
-                          <option key={user.id} value={user.id} className="bg-gray-900 text-white">{user.name}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ChevronRight className="w-4 h-4 text-red-400 rotate-90" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Clear Filters Button */}
-                  {(selectedCampaign || selectedUser) && (
-                    <button
-                      onClick={() => {
-                        setSelectedCampaign('');
-                        setSelectedUser('');
-                      }}
-                      className="w-full px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 border-2 border-red-500/50 rounded-lg transition-all duration-200 shadow-lg shadow-red-500/30 hover:shadow-red-500/50 uppercase tracking-wide"
-                    >
-                      Clear All Filters
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2532,43 +2562,43 @@ This usually indicates a temporary workflow issue.`;
       {/* Cards View */}
       <div className="space-y-8 p-6">
           {/* VIDEO EDITING AND GRAPHIC DESIGN */}
-          {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
-            // Filter users by department
-            let departmentUsers = users.filter(u => u.department === department);
+          {(() => {
+            // Calculate these once for all cards
+            const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
+            const targetWeekRange = getWeekDateRange(targetWeekOffset);
+            const isDeepLink = isModalRoutePath(location.pathname);
             
-            // If not manager/admin, only show current user's card
-            if (!isManager(currentUser?.role)) {
-              departmentUsers = departmentUsers.filter(u => u.id === currentUser?.id);
-            }
-            
-            if (departmentUsers.length === 0) return null;
+            return ['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
+              // Filter users by department
+              let departmentUsers = users.filter(u => u.department === department);
+              
+              // If not manager/admin, only show current user's card
+              if (!isManager(currentUser?.role)) {
+                departmentUsers = departmentUsers.filter(u => u.id === currentUser?.id);
+              }
+              
+              if (departmentUsers.length === 0) return null;
 
-            return (
-              <div key={department} className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-                  {departmentUsers.map(user => {
-                    // Get appropriate week range based on view
-                    const now = new Date();
-                    const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
-                    const targetWeekRange = getWeekDateRange(targetWeekOffset);
-                    const isDeepLink = isModalRoutePath(location.pathname);
+              return (
+                <div key={department} className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+                    {departmentUsers.map(user => {
+                      // Get all tasks for this user based on department
+                      let userTasks = filteredTasks.filter(task => {
+                        // Skip week filter when on deep-link/modal paths
+                        if (!isDeepLink && task.week !== targetWeekRange) return false;
 
-                    // Get all tasks for this user based on department
-                    let userTasks = filteredTasks.filter(task => {
-                      // Skip week filter when on deep-link/modal paths
-                      if (!isDeepLink && task.week !== targetWeekRange) return false;
-
-                      if (department === 'VIDEO EDITING') {
-                        const mediaType = task.mediaType || task.type;
-                        return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
-                      } else if (department === 'GRAPHIC DESIGN') {
-                        const mediaType = task.mediaType || task.type;
-                        return parseInt(task.assignedTo) === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
-                      }
-                      return false;
-                    });
+                        if (department === 'VIDEO EDITING') {
+                          const mediaType = task.mediaType || task.type;
+                          return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
+                        } else if (department === 'GRAPHIC DESIGN') {
+                          const mediaType = task.mediaType || task.type;
+                          return parseInt(task.assignedTo) === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
+                        }
+                        return false;
+                      });
 
                     return (
                       <UserTaskCard
@@ -2578,7 +2608,7 @@ This usually indicates a temporary workflow issue.`;
                         campaigns={campaigns}
                         users={users}
                         currentUser={currentUser}
-                        updateTask={weekView === 'this-week' ? updateTask : updateScheduledTask}
+                        updateTask={weekView === 'this-week' ? updateTaskOptimistic : updateScheduledTaskOptimistic}
                         deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
                         weekView={weekView}
                         onAddTaskClick={() => setAddTaskModal({ user })}
@@ -2596,8 +2626,9 @@ This usually indicates a temporary workflow issue.`;
                 </div>
               </div>
             );
-          })}
-        </div>
+          });
+        })()}
+      </div>
 
       {/* Copy Link Preview Modal */}
       <CopyLinkPreviewModal

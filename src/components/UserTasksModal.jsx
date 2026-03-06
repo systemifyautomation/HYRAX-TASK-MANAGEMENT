@@ -231,7 +231,8 @@ const UserTasksModal = ({
               linkIndex: linkIndex,
               approval: task.viewerLinkApproval?.[linkIndex] || 'Not Done',
               feedback: task.viewerLinkFeedback?.[linkIndex] || '',
-              status: task.status || 'not_started'
+              status: task.status || 'not_started',
+              mediaType: task.mediaType || task.type || (isVideoEditor ? 'VIDEO' : 'IMAGE')
             });
           }
         });
@@ -608,7 +609,48 @@ const UserTasksModal = ({
               {(() => {
                 const sourceUrl = selectedVersionPreview?.url || currentAd?.url;
                 const previewUrl = getPreviewUrl(sourceUrl);
+                const mediaType = (currentAd?.mediaType || '').toString().toUpperCase();
 
+                // For VIDEO media type or video editors' content, check if it's a direct video or YouTube
+                if (mediaType === 'VIDEO' || isVideoEditor) {
+                  // YouTube videos should be embedded in iframe
+                  if (previewUrl.includes('youtube.com/embed/')) {
+                    return (
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-full"
+                        title={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    );
+                  }
+                  
+                  // Direct video files (R2 storage, mp4, etc.)
+                  return (
+                    <video
+                      src={previewUrl}
+                      className="w-full h-full object-contain"
+                      controls
+                      playsInline
+                      key={previewUrl}
+                    />
+                  );
+                }
+
+                // For IMAGE media type or graphic designers' content
+                if (mediaType === 'IMAGE' || isGraphicDesigner) {
+                  return (
+                    <img
+                      src={previewUrl}
+                      alt={selectedVersionPreview ? 'Version Preview' : `Ad ${currentAd?.adNumber} Preview`}
+                      className="w-full h-full object-contain"
+                    />
+                  );
+                }
+
+                // Fallback: try to detect from URL patterns
                 if (isImageUrl(previewUrl)) {
                   return (
                     <img
@@ -626,6 +668,7 @@ const UserTasksModal = ({
                       className="w-full h-full object-contain"
                       controls
                       playsInline
+                      key={previewUrl}
                     />
                   );
                 }
@@ -1097,7 +1140,7 @@ const UserTasksModal = ({
                                   </div>
                                   
                                   {/* Action Buttons Row */}
-                                  <div className="grid grid-cols-4 gap-2.5">
+                                  <div className="grid grid-cols-3 gap-2.5">
                                     {/* Preview Button */}
                                     <button
                                       onClick={(e) => {
@@ -1154,39 +1197,6 @@ const UserTasksModal = ({
                                     >
                                       <RefreshCw className="w-4 h-4" />
                                       Replace
-                                    </button>
-
-                                    {/* Download Button */}
-                                    <button
-                                      onClick={async (e) => {
-                                        e.stopPropagation();
-                                        try {
-                                          const creativeUrl = task.viewerLink[slotIndex];
-                                          const webhookUrl = `${import.meta.env.VITE_DOWNLOAD_CREATIVE_WEBHOOK_URL}?url=${encodeURIComponent(creativeUrl)}`;
-                                          const response = await fetch(webhookUrl, {
-                                            method: 'GET'
-                                          });
-                                          
-                                          if (response.ok) {
-                                            const blob = await response.blob();
-                                            const downloadUrl = window.URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
-                                            a.href = downloadUrl;
-                                            a.download = `creative_${task.id}_${slotIndex}_${Date.now()}`;
-                                            document.body.appendChild(a);
-                                            a.click();
-                                            window.URL.revokeObjectURL(downloadUrl);
-                                            document.body.removeChild(a);
-                                          }
-                                        } catch (error) {
-                                          console.error('Error downloading creative:', error);
-                                        }
-                                      }}
-                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"
-                                      title="Download"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      Download
                                     </button>
 
                                     {/* Feedback Button - Admins/Managers Only */}

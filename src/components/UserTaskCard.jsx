@@ -15,45 +15,9 @@ const UserTaskCard = ({
   weekView
 }) => {
   const [editingTaskId, setEditingTaskId] = useState(null);
-  const [optimisticStatuses, setOptimisticStatuses] = useState({});
-  const [optimisticBuyers, setOptimisticBuyers] = useState({});
   const canEditStatus = currentUser && isManager(currentUser.role);
   const canEditBuyer = currentUser && isManager(currentUser.role);
 
-  const handleStatusChange = async (taskId, newStatus) => {
-    // Update UI immediately (optimistic update)
-    setOptimisticStatuses(prev => ({ ...prev, [taskId]: newStatus }));
-    
-    try {
-      await updateTask(taskId, { status: newStatus });
-      setEditingTaskId(null);
-    } catch (error) {
-      console.error('Error updating task status:', error);
-      // Revert on error
-      setOptimisticStatuses(prev => {
-        const newStatuses = { ...prev };
-        delete newStatuses[taskId];
-        return newStatuses;
-      });
-    }
-  };
-
-  const handleBuyerChange = async (taskId, newBuyerId) => {
-    // Update UI immediately (optimistic update)
-    setOptimisticBuyers(prev => ({ ...prev, [taskId]: newBuyerId }));
-    
-    try {
-      await updateTask(taskId, { scriptAssigned: newBuyerId });
-    } catch (error) {
-      console.error('Error updating buyer:', error);
-      // Revert on error
-      setOptimisticBuyers(prev => {
-        const newBuyers = { ...prev };
-        delete newBuyers[taskId];
-        return newBuyers;
-      });
-    }
-  };
   // Group tasks by campaign
   const tasksByCampaign = userTasks.reduce((acc, task) => {
     const campaignId = task.campaignId || 'unknown';
@@ -118,14 +82,13 @@ const UserTaskCard = ({
                   <div className="bg-white">
                     {tasks.map((task, idx) => {
                       const assignedBuyer = task.scriptAssigned 
-                        ? users.find(u => u.id === (optimisticBuyers[task.id] || parseInt(task.scriptAssigned)))
+                        ? users.find(u => u.id === parseInt(task.scriptAssigned))
                         : null;
                       // Check for copyWritten field (handle both casing variations)
                       const copyComplete = task.copyWritten === true || task.CopyWritten === true;
                       
                       // Use task.status for Task Status (not copyApproval)
-                      // Check for optimistic update first
-                      let taskStatus = optimisticStatuses[task.id] || task.status || 'Not done';
+                      let taskStatus = task.status || 'Not done';
                       if (taskStatus === 'Not Done') taskStatus = 'Not done';
                       if (taskStatus === 'In Progress') taskStatus = 'Not done';
                       if (taskStatus === 'Left feedback') taskStatus = 'Left Feedback';
@@ -143,10 +106,11 @@ const UserTaskCard = ({
                                 {canEditBuyer ? (
                                   <div className="relative">
                                     <select
-                                      value={optimisticBuyers[task.id] || task.scriptAssigned || ''}
+                                      value={task.scriptAssigned || ''}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        handleBuyerChange(task.id, e.target.value ? parseInt(e.target.value) : null);
+                                        const newBuyerId = e.target.value ? parseInt(e.target.value) : null;
+                                        updateTask(task.id, { scriptAssigned: newBuyerId });
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                       className="appearance-none text-[10px] lg:text-xs font-medium px-2 lg:px-3 py-1 lg:py-1.5 pr-6 lg:pr-7 rounded-md cursor-pointer transition-all duration-200 border-2 border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm hover:shadow text-center min-w-[100px] lg:min-w-[120px]"
@@ -206,7 +170,8 @@ const UserTaskCard = ({
                                       value={taskStatus}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        handleStatusChange(task.id, e.target.value);
+                                        updateTask(task.id, { status: e.target.value });
+                                        setEditingTaskId(null);
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                       className={`appearance-none text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 pr-4 lg:pr-5 rounded-full cursor-pointer transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm hover:shadow-md text-center ${
@@ -284,4 +249,4 @@ const UserTaskCard = ({
   );
 };
 
-export default UserTaskCard;
+export default React.memo(UserTaskCard);
