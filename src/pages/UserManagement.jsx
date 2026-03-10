@@ -33,6 +33,8 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [webhookUsers, setWebhookUsers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -249,6 +251,71 @@ const UserManagement = () => {
     return ROLE_LABELS[normalized] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  const handleDelete = (user) => {
+    setUserToDelete(user);
+    setDeleteConfirmModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
+
+    setSubmitting(true);
+    try {
+      // Generate hash code using admin's credentials
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const adminEmail = currentUser.email;
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
+
+      // Build query parameters with user ID
+      const queryParams = new URLSearchParams({
+        id: userToDelete.id.toString()
+      });
+
+      // Send DELETE request to webhook
+      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
+      const response = await fetch(`${webhookUrl}?${queryParams}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          code: code,
+          deleted_by: adminEmail
+        })
+      });
+
+      if (response.ok) {
+        console.log('User deleted successfully via webhook');
+        
+        // Also delete from local storage
+        await deleteUser(userToDelete.id);
+        
+        // Refresh the user list
+        await handleRefresh();
+        
+        // Close modal
+        setDeleteConfirmModal(false);
+        setUserToDelete(null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || 'Failed to delete user. Please try again.';
+        console.error('Failed to delete user via webhook, status:', response.status);
+        alert(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Error deleting user. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmModal(false);
+    setUserToDelete(null);
+  };
+
   const canEditUser = (user) => {
     // Super admin can edit anyone
     if (isSuperAdminUser) return true;
@@ -454,14 +521,17 @@ const UserManagement = () => {
                         <>
                           <button
                             onClick={() => handleEdit(user)}
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                            title="Edit user"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           {user.id !== currentUser.id && (
                             <button
-                              onClick={() => deleteUser(user.id)}
-                              className="text-red-600 hover:text-red-800"
+                              onClick={() => handleDelete(user)}
+                              className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+                              disabled={submitting}
+                              title="Delete user"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -587,6 +657,79 @@ const UserManagement = () => {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal && userToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-md w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-red-600/20 rounded-lg flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-red-600">Delete User</h3>
+              </div>
+              <button onClick={cancelDelete} className="text-gray-400 hover:text-white" disabled={submitting}>
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-white text-sm">
+                Are you sure you want to delete this user? This action cannot be undone.
+              </p>
+              
+              <div className="bg-gray-800/50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Name:</span>
+                  <span className="text-white font-medium text-sm">{userToDelete.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Email:</span>
+                  <span className="text-white font-medium text-sm">{userToDelete.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Role:</span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadge(userToDelete.role)}`}>
+                    {getRoleLabel(userToDelete.role)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Department:</span>
+                  <span className="text-white font-medium text-sm">{userToDelete.department || 'Not Assigned'}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={confirmDelete} 
+                  disabled={submitting}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete User
+                    </>
+                  )}
+                </button>
+                <button 
+                  onClick={cancelDelete} 
+                  disabled={submitting}
+                  className="flex-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

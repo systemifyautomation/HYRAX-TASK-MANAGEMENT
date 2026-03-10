@@ -825,9 +825,11 @@ const UserTasksModal = ({
                             scriptAssigned: editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null
                           };
                           
-                          // If copyLink is provided, set copyWritten to true
+                          // If copyLink is provided, set copyWritten to true, otherwise set to false
                           if (editingCampaign.copyLink && editingCampaign.copyLink.trim()) {
                             updates.copyWritten = true;
+                          } else {
+                            updates.copyWritten = false;
                           }
                           
                           // Save all tasks in the campaign

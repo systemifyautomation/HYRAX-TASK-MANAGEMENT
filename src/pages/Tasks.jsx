@@ -188,6 +188,8 @@ const Tasks = () => {
   // Optimistic updates state - shared across cards and modals
   const [optimisticBuyers, setOptimisticBuyers] = useState({});
   const [optimisticStatuses, setOptimisticStatuses] = useState({});
+  const [optimisticCopyLinks, setOptimisticCopyLinks] = useState({});
+  const [optimisticCopyWritten, setOptimisticCopyWritten] = useState({});
   
   // Initialize weekView based on current URL path
   const [weekView, setWeekView] = useState(() => {
@@ -278,6 +280,18 @@ const Tasks = () => {
         [taskId]: updates.status
       }));
     }
+    if (updates.copyLink !== undefined) {
+      setOptimisticCopyLinks(prev => ({
+        ...prev,
+        [taskId]: updates.copyLink
+      }));
+    }
+    if (updates.copyWritten !== undefined) {
+      setOptimisticCopyWritten(prev => ({
+        ...prev,
+        [taskId]: updates.copyWritten
+      }));
+    }
     
     try {
       // Call actual update
@@ -294,6 +308,20 @@ const Tasks = () => {
       }
       if (updates.status !== undefined) {
         setOptimisticStatuses(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      if (updates.copyLink !== undefined) {
+        setOptimisticCopyLinks(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      if (updates.copyWritten !== undefined) {
+        setOptimisticCopyWritten(prev => {
           const newState = { ...prev };
           delete newState[taskId];
           return newState;
@@ -317,6 +345,18 @@ const Tasks = () => {
         [taskId]: updates.status
       }));
     }
+    if (updates.copyLink !== undefined) {
+      setOptimisticCopyLinks(prev => ({
+        ...prev,
+        [taskId]: updates.copyLink
+      }));
+    }
+    if (updates.copyWritten !== undefined) {
+      setOptimisticCopyWritten(prev => ({
+        ...prev,
+        [taskId]: updates.copyWritten
+      }));
+    }
     
     try {
       // Call actual update
@@ -338,6 +378,20 @@ const Tasks = () => {
           return newState;
         });
       }
+      if (updates.copyLink !== undefined) {
+        setOptimisticCopyLinks(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
+      if (updates.copyWritten !== undefined) {
+        setOptimisticCopyWritten(prev => {
+          const newState = { ...prev };
+          delete newState[taskId];
+          return newState;
+        });
+      }
       throw error;
     }
   }, [updateScheduledTask]);
@@ -352,9 +406,50 @@ const Tasks = () => {
       if (optimisticBuyers[task.id] !== undefined) {
         updates.scriptAssigned = optimisticBuyers[task.id];
       }
+      if (optimisticCopyLinks[task.id] !== undefined) {
+        updates.copyLink = optimisticCopyLinks[task.id];
+      }
+      if (optimisticCopyWritten[task.id] !== undefined) {
+        updates.copyWritten = optimisticCopyWritten[task.id];
+      }
       return Object.keys(updates).length > 0 ? { ...task, ...updates } : task;
     });
-  }, [optimisticBuyers, optimisticStatuses]);
+  }, [optimisticBuyers, optimisticStatuses, optimisticCopyLinks, optimisticCopyWritten]);
+  
+  // Update userTasksModal when optimistic state changes
+  useEffect(() => {
+    setUserTasksModal(prevModal => {
+      if (!prevModal || !prevModal.tasks) return prevModal;
+      
+      const updatedTasks = prevModal.tasks.map(task => {
+        const updates = {};
+        if (optimisticStatuses[task.id] !== undefined) {
+          updates.status = optimisticStatuses[task.id];
+        }
+        if (optimisticBuyers[task.id] !== undefined) {
+          updates.scriptAssigned = optimisticBuyers[task.id];
+        }
+        if (optimisticCopyLinks[task.id] !== undefined) {
+          updates.copyLink = optimisticCopyLinks[task.id];
+        }
+        if (optimisticCopyWritten[task.id] !== undefined) {
+          updates.copyWritten = optimisticCopyWritten[task.id];
+        }
+        return Object.keys(updates).length > 0 ? { ...task, ...updates } : task;
+      });
+      
+      // Only update if there are actual changes
+      const hasChanges = updatedTasks.some((task, index) => {
+        const original = prevModal.tasks[index];
+        return task.status !== original.status || 
+               task.scriptAssigned !== original.scriptAssigned ||
+               task.copyLink !== original.copyLink ||
+               task.copyWritten !== original.copyWritten;
+      });
+      
+      return hasChanges ? { ...prevModal, tasks: updatedTasks } : prevModal;
+    });
+  }, [optimisticBuyers, optimisticStatuses, optimisticCopyLinks, optimisticCopyWritten]);
   
   // Debug: Log users and columns on component mount
   useEffect(() => {
@@ -2657,7 +2752,7 @@ This usually indicates a temporary workflow issue.`;
         setCurrentPreviewIndex={setCurrentPreviewIndex}
         uploadingCreatives={uploadingCreatives}
         setFeedbackModal={setFeedbackModal}
-        updateTask={weekView === 'this-week' ? updateTask : updateScheduledTask}
+        updateTask={weekView === 'this-week' ? updateTaskOptimistic : updateScheduledTaskOptimistic}
         deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
         handleCreativeUpload={handleCreativeUpload}
         handleCancelUpload={handleCancelUpload}
