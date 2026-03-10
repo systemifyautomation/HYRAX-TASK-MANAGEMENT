@@ -241,13 +241,16 @@ const Tasks = () => {
       
       // Store current page and week for background refresh
       localStorage.setItem('hyrax_current_page', 'tasks');
-      localStorage.setItem('hyrax_current_week', selectedWeek);
       
       // Refresh from webhook in background (non-blocking)
       if (weekView === 'this-week') {
+        localStorage.setItem('hyrax_current_week', selectedWeek);
         loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
       } else {
-        loadScheduledTasksFromWebhook();
+        // For next week, pass the next week's date range
+        const nextWeekRange = getWeekDateRange(1);
+        localStorage.setItem('hyrax_current_week', nextWeekRange);
+        loadScheduledTasksFromWebhook(null, nextWeekRange);
       }
     };
     
@@ -2656,23 +2659,46 @@ This usually indicates a temporary workflow issue.`;
 
       {/* Cards View */}
       <div className="space-y-8 p-6">
-          {/* VIDEO EDITING AND GRAPHIC DESIGN */}
+          {/* ALL DEPARTMENTS */}
           {(() => {
-            // Calculate these once for all cards
-            const targetWeekOffset = weekView === 'next-week' ? 1 : 0;
-            const targetWeekRange = getWeekDateRange(targetWeekOffset);
-            const isDeepLink = isModalRoutePath(location.pathname);
-            
-            return ['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
-              // Filter users by department
-              let departmentUsers = users.filter(u => u.department === department);
-              
-              // If not manager/admin, only show current user's card
-              if (!isManager(currentUser?.role)) {
-                departmentUsers = departmentUsers.filter(u => u.id === currentUser?.id);
+            const usersWithWebhookTasks = users.filter(user =>
+              filteredTasks.some(task => String(task.assignedTo) === String(user.id))
+            );
+
+            let visibleUsers;
+            if (isManager(currentUser?.role)) {
+              visibleUsers = usersWithWebhookTasks;
+            } else {
+              const currentUserFromWebhook = users.filter(
+                user => String(user.id) === String(currentUser?.id)
+              );
+
+              if (currentUserFromWebhook.length > 0) {
+                visibleUsers = currentUserFromWebhook;
+              } else if (currentUser?.id !== undefined && currentUser?.id !== null) {
+                visibleUsers = [
+                  {
+                    id: currentUser.id,
+                    name: currentUser.name || 'My Tasks',
+                    department: currentUser.department || 'UNASSIGNED'
+                  }
+                ];
+              } else {
+                visibleUsers = [];
               }
-              
-              if (departmentUsers.length === 0) return null;
+            }
+
+            const usersByDepartment = visibleUsers.reduce((acc, user) => {
+              const department = (user.department || 'UNASSIGNED').trim().toUpperCase() || 'UNASSIGNED';
+              if (!acc[department]) {
+                acc[department] = [];
+              }
+              acc[department].push(user);
+              return acc;
+            }, {});
+
+            return Object.entries(usersByDepartment).map(([department, departmentUsers]) => {
+              if (!departmentUsers.length) return null;
 
               return (
                 <div key={department} className="mb-8">
@@ -2680,20 +2706,9 @@ This usually indicates a temporary workflow issue.`;
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                     {departmentUsers.map(user => {
-                      // Get all tasks for this user based on department
-                      let userTasks = filteredTasks.filter(task => {
-                        // Skip week filter when on deep-link/modal paths
-                        if (!isDeepLink && task.week !== targetWeekRange) return false;
-
-                        if (department === 'VIDEO EDITING') {
-                          const mediaType = task.mediaType || task.type;
-                          return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
-                        } else if (department === 'GRAPHIC DESIGN') {
-                          const mediaType = task.mediaType || task.type;
-                          return parseInt(task.assignedTo) === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
-                        }
-                        return false;
-                      });
+                      const userTasks = filteredTasks.filter(
+                        task => String(task.assignedTo) === String(user.id)
+                      );
 
                     return (
                       <UserTaskCard

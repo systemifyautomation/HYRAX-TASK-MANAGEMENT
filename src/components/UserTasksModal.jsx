@@ -1459,14 +1459,7 @@ const UserTasksModal = ({
         <>
           {/* Backdrop overlay to indicate sub-view */}
           <div 
-            className="fixed inset-0 bg-black/20 z-[55]" 
-            onClick={() => {
-              const segments = location.pathname.split('/').filter(Boolean);
-              if (segments.length > 0) {
-                const previewPath = `/${[...segments.slice(0, -1), 'preview'].join('/')}`;
-                navigate(previewPath, { replace: true });
-              }
-            }}
+            className="fixed inset-0 bg-black/20 z-[55] pointer-events-none"
           />
           <div className="fixed inset-y-0 right-0 w-[35%] bg-white shadow-2xl z-[60] flex flex-col border-l-2 border-red-500" onClick={(e) => e.stopPropagation()}>
           {/* Header */}

@@ -1536,9 +1536,9 @@ const ScheduledTasks = () => {
             </div>
           )}
 
-          {/* VIDEO EDITING & GRAPHIC DESIGN - Grouped by Users with Campaigns */}
-          {['VIDEO EDITING', 'GRAPHIC DESIGN'].map(department => {
-            const departmentUsers = users.filter(u => u.department === department);
+          {/* ALL DEPARTMENTS - Grouped by Users with Campaigns */}
+          {['VIDEO EDITING', 'GRAPHIC DESIGN', 'DEV', 'MEDIA BUYING'].map(department => {
+            const departmentUsers = users.filter(u => u.department?.trim().toUpperCase() === department);
             
             if (departmentUsers.length === 0) return null;
 
@@ -1548,17 +1548,8 @@ const ScheduledTasks = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {departmentUsers.map(user => {
-                    // Get all tasks for this user based on department
-                    let userTasks = filteredTasks.filter(task => {
-                      if (department === 'VIDEO EDITING') {
-                        const mediaType = task.mediaType || task.type;
-                        return parseInt(task.assignedTo) === user.id && (mediaType === 'VIDEO' || mediaType === 'video');
-                      } else if (department === 'GRAPHIC DESIGN') {
-                        const mediaType = task.mediaType || task.type;
-                        return parseInt(task.assignedTo) === user.id && (mediaType === 'IMAGE' || mediaType === 'image');
-                      }
-                      return false;
-                    });
+                    // n8n handles all filtering, just use filteredTasks directly
+                    let userTasks = filteredTasks;
 
                     // Apply card-level campaign filter
                     const cardCampaignFilter = cardCampaignFilters[user.id] || '';

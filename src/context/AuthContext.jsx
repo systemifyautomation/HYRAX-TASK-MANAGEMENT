@@ -31,7 +31,7 @@ export const AppProvider = ({ children }) => {
   
   // Data caching to prevent unnecessary reloads
   const [tasksCache, setTasksCache] = useState({ data: null, timestamp: 0, week: null });
-  const [scheduledTasksCache, setScheduledTasksCache] = useState({ data: null, timestamp: 0 });
+  const [scheduledTasksCache, setScheduledTasksCache] = useState({ data: null, timestamp: 0, week: null });
   const CACHE_DURATION = 2000; // 2 seconds cache
   const [columns, setColumns] = useState([
     {
@@ -314,6 +314,12 @@ export const AppProvider = ({ children }) => {
                 requested_by: userEmail,
                 code: code
               });
+              
+              // Add week parameter if we have it stored
+              if (currentWeek && currentWeek !== 'all') {
+                params.append('week', currentWeek);
+              }
+              
               const response = await fetch(`${webhookUrl}?${params}`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
@@ -321,8 +327,9 @@ export const AppProvider = ({ children }) => {
               if (response.ok) {
                 const data = await response.json();
                 if (Array.isArray(data)) {
-                  setScheduledTasks(data);
-                  localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(data));
+                  const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
+                  setScheduledTasks(validTasks);
+                  localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(validTasks));
                 }
               }
             }
@@ -1341,10 +1348,12 @@ export const AppProvider = ({ children }) => {
   };
 
   // Scheduled Tasks operations (same logic as tasks but different webhook)
-  const loadScheduledTasksFromWebhook = async (user = null) => {
+  const loadScheduledTasksFromWebhook = async (user = null, week = null) => {
     // Check cache first
     const now = Date.now();
+    const cacheKey = week || 'default';
     if (scheduledTasksCache.data && 
+        scheduledTasksCache.week === cacheKey &&
         (now - scheduledTasksCache.timestamp) < CACHE_DURATION) {
       console.log('Using cached scheduled tasks data');
       setScheduledTasks(scheduledTasksCache.data);
@@ -1369,6 +1378,11 @@ export const AppProvider = ({ children }) => {
         requested_by: userEmail,
         code: code
       });
+      
+      // Add week parameter if provided
+      if (week) {
+        params.append('week', week);
+      }
 
       const response = await fetch(`${webhookUrl}?${params}`, {
         method: 'GET',
@@ -1379,12 +1393,14 @@ export const AppProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Scheduled tasks loaded from webhook:', data.length || 0);
-        setScheduledTasks(data);
-        localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(data));
+        // Filter out empty objects (happens when a week has no tasks)
+        const validTasks = Array.isArray(data) ? data.filter(task => task && Object.keys(task).length > 0 && task.id) : [];
+        console.log('Scheduled tasks loaded from webhook:', validTasks.length || 0);
+        setScheduledTasks(validTasks);
+        localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(validTasks));
         
         // Update cache
-        setScheduledTasksCache({ data: data, timestamp: Date.now() });
+        setScheduledTasksCache({ data: validTasks, timestamp: Date.now(), week: cacheKey });
       } else {
         console.error('Failed to fetch scheduled tasks from webhook:', response.status);
         setScheduledTasks([]);
