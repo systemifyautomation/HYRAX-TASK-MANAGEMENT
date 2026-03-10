@@ -455,6 +455,47 @@ const Tasks = () => {
     });
   }, [optimisticBuyers, optimisticStatuses, optimisticCopyLinks, optimisticCopyWritten]);
   
+  // Update userTasksModal when tasks/scheduledTasks arrays change (e.g., new task added)
+  useEffect(() => {
+    setUserTasksModal(prevModal => {
+      if (!prevModal || !prevModal.user) return prevModal;
+      
+      // Determine which data source to use based on current week view
+      const currentPath = location.pathname;
+      const targetWeekView = currentPath.includes('next-week') ? 'next-week' : 'this-week';
+      const targetWeekOffset = targetWeekView === 'next-week' ? 1 : 0;
+      const targetWeekRange = getWeekDateRange(targetWeekOffset);
+      const normalizedDepartment = (prevModal.user.department || '').trim().toUpperCase();
+      
+      // Get updated tasks for this user
+      const rawSourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
+      const sourceData = applyOptimisticUpdates(rawSourceData);
+      const updatedModalTasks = sourceData.filter(task => {
+        if (String(task.assignedTo) !== String(prevModal.user.id)) return false;
+        if (task.week !== targetWeekRange) return false;
+        
+        const mediaType = (task.mediaType || task.type || '').toString().toUpperCase();
+        if (normalizedDepartment === 'VIDEO EDITING') {
+          return mediaType === 'VIDEO';
+        }
+        if (normalizedDepartment === 'GRAPHIC DESIGN') {
+          return mediaType === 'IMAGE';
+        }
+        return true;
+      });
+      
+      // Only update if the task list has actually changed (different length or different IDs)
+      const currentTaskIds = prevModal.tasks.map(t => t.id).sort().join(',');
+      const updatedTaskIds = updatedModalTasks.map(t => t.id).sort().join(',');
+      
+      if (currentTaskIds !== updatedTaskIds) {
+        return { ...prevModal, tasks: updatedModalTasks };
+      }
+      
+      return prevModal;
+    });
+  }, [tasks, scheduledTasks, location.pathname, applyOptimisticUpdates]);
+  
   // Debug: Log users and columns on component mount
   useEffect(() => {
     console.log('Tasks Component - Users from context:', users);

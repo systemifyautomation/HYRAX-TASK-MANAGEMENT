@@ -22,7 +22,7 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
     !userCampaigns.includes(campaign.id)
   );
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -75,31 +75,31 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
     const taskData = {
       campaignId: parseInt(formData.campaignId),
       assignedTo: user.id,
-      scriptAssigned: formData.scriptAssigned ? [parseInt(formData.scriptAssigned)] : [],
+      scriptAssigned: formData.scriptAssigned ? [parseInt(formData.scriptAssigned)] : [""],
       quantity: formData.quantity,
       mediaType: taskType,
       status: 'Not done',
       week: weekRange,
       copyWritten: [false],
-      copyApproval: [],
-      copyApprovalFeedback: [],
-      copyLink: [],
-      copyLinkAt: [],
-      copyWrittenAt: [],
-      copyApprovalAt: [],
+      copyApproval: [""],
+      copyApprovalFeedback: [""],
+      copyLink: [""],
+      copyLinkAt: [""],
+      copyWrittenAt: [""],
+      copyApprovalAt: [""],
       priority: 'Normal'
     };
 
-    // Reset form and close immediately (don't wait for backend)
+    // Add task and wait for state update
+    await onAddTask(taskData);
+    
+    // Reset form and close after task is added
     setFormData({
       campaignId: '',
       scriptAssigned: '',
       quantity: '1'
     });
     onClose();
-    
-    // Add task in background
-    onAddTask(taskData);
   };
 
   const mediaBuyers = users.filter(u => u.department === 'MEDIA BUYING');
