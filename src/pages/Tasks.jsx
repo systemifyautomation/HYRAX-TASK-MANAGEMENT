@@ -153,6 +153,7 @@ const Tasks = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isAdminUser = isAdmin(currentUser.role);
+  const canManageTasks = isManager(currentUser?.role);
   const canGiveFeedback = currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN;
   const filtersRef = useRef(null);
   
@@ -1936,6 +1937,8 @@ This usually indicates a temporary workflow issue.`;
   }, [showFilters]);
 
   const handleAddTask = () => {
+    if (!canManageTasks) return;
+
     const taskToAdd = {
       ...newTask,
       status: newTask.status || 'approved',
@@ -1974,6 +1977,8 @@ This usually indicates a temporary workflow issue.`;
 
   // Task duplication functions
   const handleDuplicateTask = (task) => {
+    if (!canManageTasks) return;
+
     const duplicatedTask = {
       ...task,
       id: undefined, // Will be assigned by addTask
@@ -1985,6 +1990,8 @@ This usually indicates a temporary workflow issue.`;
   };
 
   const handleDuplicateSelectedTasks = () => {
+    if (!canManageTasks) return;
+
     const tasksToDuplicate = tasks.filter(task => selectedTasks.has(task.id));
     const duplicatedTasksData = tasksToDuplicate.map(task => ({
       ...task,
@@ -1998,6 +2005,8 @@ This usually indicates a temporary workflow issue.`;
   };
 
   const handleDeleteSelectedTasks = () => {
+    if (!canManageTasks) return;
+
     if (window.confirm(`Are you sure you want to delete ${selectedTasks.size} task${selectedTasks.size !== 1 ? 's' : ''}?`)) {
       const taskIdsArray = Array.from(selectedTasks);
       deleteTasks(taskIdsArray);
@@ -2627,7 +2636,7 @@ This usually indicates a temporary workflow issue.`;
 
         {/* Right side - Action Buttons */}
         <div className="flex items-center space-x-3">
-          {selectedTasks.size > 0 && (
+          {canManageTasks && selectedTasks.size > 0 && (
             <>
               <button
                 onClick={handleDuplicateSelectedTasks}
@@ -2721,7 +2730,10 @@ This usually indicates a temporary workflow issue.`;
                         updateTask={weekView === 'this-week' ? updateTaskOptimistic : updateScheduledTaskOptimistic}
                         deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
                         weekView={weekView}
-                        onAddTaskClick={() => setAddTaskModal({ user })}
+                        onAddTaskClick={() => {
+                          if (!canManageTasks) return;
+                          setAddTaskModal({ user });
+                        }}
                         onClick={(user, tasks) => {
                           // Don't set modal here - let the useEffect handle it based on URL
                           // This ensures the correct data source (tasks vs scheduledTasks) is used
@@ -2774,6 +2786,7 @@ This usually indicates a temporary workflow issue.`;
         onClose={handleCloseUserTasksModal}
         isFeedbackModalOpen={Boolean(feedbackModal && feedbackModal.columnKey === 'viewerLink')}
         onAddTaskClick={() => {
+          if (!canManageTasks) return;
           if (userTasksModal) {
             setAddTaskModal({ user: userTasksModal.user });
           }
@@ -2782,13 +2795,16 @@ This usually indicates a temporary workflow issue.`;
 
       {/* Add Task Modal */}
       <AddTaskModal
-        isOpen={Boolean(addTaskModal)}
+        isOpen={canManageTasks && Boolean(addTaskModal)}
         onClose={() => setAddTaskModal(null)}
         user={addTaskModal?.user}
         campaigns={campaigns}
         users={users}
         weekView={weekView}
+        canManageTasks={canManageTasks}
         onAddTask={async (taskData) => {
+          if (!canManageTasks) return;
+
           // Call appropriate function based on current view
           if (weekView === 'this-week') {
             await addTask(taskData);

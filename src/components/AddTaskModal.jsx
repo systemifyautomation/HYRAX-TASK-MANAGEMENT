@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { format } from 'date-fns';
 
-const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAddTask }) => {
+const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAddTask, canManageTasks = false }) => {
   const [formData, setFormData] = useState({
     campaignId: '',
     scriptAssigned: '',
@@ -13,6 +13,11 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!canManageTasks) {
+      onClose();
+      return;
+    }
     
     // Determine mediaType based on user department
     let taskType = 'VIDEO';
@@ -172,6 +177,7 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
             </button>
             <button
               type="submit"
+              disabled={!canManageTasks}
               className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
             >
               Add Task

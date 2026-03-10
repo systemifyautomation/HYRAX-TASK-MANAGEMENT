@@ -47,9 +47,10 @@ const UserTasksModal = ({
   const [adVersions, setAdVersions] = useState([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
-  const [activeTab, setActiveTab] = useState('versions'); // 'versions' or 'feedback'
   const [expandedCampaigns, setExpandedCampaigns] = useState(new Set()); // Track which campaigns are expanded
   const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
+  const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
+  const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
   const [editingCampaign, setEditingCampaign] = useState(null); // { campaignName, copyLink, scriptAssigned }
   
@@ -88,8 +89,43 @@ const UserTasksModal = ({
     const fetchAdVersions = async () => {
       if (!adDetailsOpen) {
         setAdVersions([]);
+        setLoadingVersions(false);
         return;
       }
+
+      // Get the current creative URL
+      const currentUrl = adDetailsOpen.taskData.viewerLink?.[adDetailsOpen.adIndex];
+      if (!currentUrl) {
+        setAdVersions([]);
+        setLoadingVersions(false);
+        return;
+      }
+
+      // Instant render from cache when available
+      const cachedTimeline = creativeHistoryCacheRef.current.get(currentUrl);
+      if (cachedTimeline) {
+        setAdVersions(cachedTimeline);
+        setLoadingVersions(false);
+        return;
+      }
+
+      // Optimistic instant timeline so details open immediately without blank loading state
+      const optimisticTimestamp =
+        adDetailsOpen.taskData.viewerLinkAt?.[adDetailsOpen.adIndex] ||
+        adDetailsOpen.taskData.updatedAt ||
+        adDetailsOpen.taskData.createdAt ||
+        new Date().toISOString();
+
+      setAdVersions([
+        {
+          type: 'creative',
+          url: currentUrl,
+          timestamp: optimisticTimestamp,
+          isCurrent: true,
+          dateSource: 'local (optimistic)',
+          sortKey: Number.MAX_SAFE_INTEGER
+        }
+      ]);
 
       setLoadingVersions(true);
       try {
@@ -97,14 +133,6 @@ const UserTasksModal = ({
         const adminEmail = currentUser.email;
         const adminPassword = localStorage.getItem('admin_password') || '';
         const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
-
-        // Get the current creative URL
-        const currentUrl = adDetailsOpen.taskData.viewerLink?.[adDetailsOpen.adIndex];
-        if (!currentUrl) {
-          setAdVersions([]);
-          setLoadingVersions(false);
-          return;
-        }
 
         const webhookUrl = 'https://workflows.wearehyrax.com/webhook/creative-history';
         const params = new URLSearchParams({
@@ -124,47 +152,75 @@ const UserTasksModal = ({
           const data = await response.json();
           if (Array.isArray(data) && data.length > 0) {
             const historyData = data[0];
+
+            const parseJsonArray = (value) => {
+              if (Array.isArray(value)) return value;
+              if (!value) return [];
+              try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            };
+
+            const toTimestamp = (value) => {
+              if (!value) return 0;
+              const parsed = new Date(value).getTime();
+              return Number.isNaN(parsed) ? 0 : parsed;
+            };
             
             // Parse history URLs and timestamps
-            const historyUrls = JSON.parse(historyData.history_url || '[]');
-            const historyTimestamps = JSON.parse(historyData.history_createdAt || '[]');
-            const feedbackHistory = JSON.parse(historyData.feedback_history || '[]');
-            const feedbackTimestamps = JSON.parse(historyData.feedback_createdAt || '[]');
+            const historyUrls = parseJsonArray(historyData.history_url);
+            const historyTimestamps = parseJsonArray(historyData.history_createdAt);
+            const feedbackHistory = parseJsonArray(historyData.feedback_history);
+            const feedbackTimestamps = parseJsonArray(historyData.feedback_createdAt);
             
             // Build combined timeline
             const timeline = [];
             
             // Add current version
-            timeline.push({
-              type: 'creative',
-              url: historyData.last_update_url,
-              timestamp: historyData.updatedAt,
-              isCurrent: true
-            });
+            if (historyData.last_update_url) {
+              timeline.push({
+                type: 'creative',
+                url: historyData.last_update_url,
+                timestamp: historyData.updatedAt || historyData.createdAt || null,
+                isCurrent: true,
+                dateSource: historyData.updatedAt ? 'updatedAt (current)' : 'createdAt (fallback)',
+                sortKey: Number.MAX_SAFE_INTEGER
+              });
+            }
             
             // Add historical versions
             historyUrls.forEach((url, index) => {
+              const timestamp = historyTimestamps[index] || historyData.createdAt || null;
               timeline.push({
                 type: 'creative',
                 url: url,
-                timestamp: historyTimestamps[index] || historyData.createdAt,
-                isCurrent: false
+                timestamp,
+                isCurrent: false,
+                dateSource: historyTimestamps[index] ? 'history_createdAt' : 'createdAt (fallback)',
+                sortKey: toTimestamp(timestamp)
               });
             });
             
             // Add feedback
             feedbackHistory.forEach((feedback, index) => {
+              const timestamp = feedbackTimestamps[index] || historyData.createdAt || null;
               timeline.push({
                 type: 'feedback',
                 feedback: feedback,
-                timestamp: feedbackTimestamps[index] || historyData.createdAt
+                timestamp,
+                dateSource: feedbackTimestamps[index] ? 'feedback_createdAt' : 'createdAt (fallback)',
+                sortKey: toTimestamp(timestamp)
               });
             });
             
-            // Sort by timestamp descending (newest first)
-            timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            // Keep current creative always first, then sort all others newest -> oldest
+            timeline.sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0));
             
             setAdVersions(timeline);
+            creativeHistoryCacheRef.current.set(currentUrl, timeline);
           } else {
             setAdVersions([]);
           }
@@ -188,6 +244,7 @@ const UserTasksModal = ({
 
   const isVideoEditor = safeUser.department === 'VIDEO EDITING';
   const isGraphicDesigner = safeUser.department === 'GRAPHIC DESIGN';
+  const canManageTasks = isManager(currentUser?.role);
 
   // Collect all viewer links from all tasks with proper ad numbering
   const allLinks = [];
@@ -248,35 +305,59 @@ const UserTasksModal = ({
     return ['preview', 'versions', 'comments', 'feedback'].includes(lastSegment) ? lastSegment : null;
   }, []);
 
-  const navigateToPreviewPath = useCallback(() => {
-    const segments = location.pathname.split('/').filter(Boolean);
-    if (!segments.length) return;
-    const currentTab = getRequestedTabFromPath(location.pathname);
-    if (currentTab && currentTab !== 'preview') {
-      setFeedbackModal(null);
-      const previewPath = `/${[...segments.slice(0, -1), 'preview'].join('/')}`;
-      navigate(previewPath, { replace: true });
-    }
-  }, [location.pathname, navigate, getRequestedTabFromPath, setFeedbackModal]);
-
   useEffect(() => {
-    if (!userTasksModal || !currentAd) return;
+    if (!userTasksModal || allLinks.length === 0) return;
 
     const requestedTab = getRequestedTabFromPath(location.pathname);
     if (requestedTab === 'versions' || requestedTab === 'comments') {
-      const targetTask = userTasksModal.tasks.find(task => task.id === currentAd.taskId);
-      if (targetTask) {
-        if (!adDetailsOpen || adDetailsOpen.taskId !== currentAd.taskId || adDetailsOpen.adIndex !== currentAd.linkIndex) {
-          setAdDetailsOpen({
-            taskId: targetTask.id,
-            adIndex: currentAd.linkIndex,
-            taskData: targetTask,
-            adNumber: currentAd.adNumber
-          });
+      const existingTarget = adDetailsOpen
+        ? allLinks.find(link => link.taskId === adDetailsOpen.taskId && link.linkIndex === adDetailsOpen.adIndex)
+        : null;
+
+      let targetAd = existingTarget;
+
+      if (!targetAd) {
+        const segments = location.pathname.split('/').filter(Boolean);
+        const adSegment = segments.find(segment => segment.startsWith('ad_'));
+        const adNumber = parseInt((adSegment || '').replace('ad_', ''), 10);
+
+        if (!Number.isNaN(adNumber)) {
+          targetAd = allLinks.find(link => link.adNumber === adNumber) || null;
         }
-        setActiveTab(requestedTab === 'versions' ? 'versions' : 'feedback');
+
+        if (!targetAd) {
+          targetAd = allLinks[currentPreviewIndex] || allLinks[0] || null;
+        }
+      }
+
+      if (targetAd) {
+        const targetTask = userTasksModal.tasks.find(task => task.id === targetAd.taskId);
+        if (targetTask) {
+          const targetPreviewIndex = allLinks.findIndex(
+            link => link.taskId === targetAd.taskId && link.linkIndex === targetAd.linkIndex
+          );
+
+          if (targetPreviewIndex !== -1 && targetPreviewIndex !== currentPreviewIndex) {
+            setCurrentPreviewIndex(targetPreviewIndex);
+          }
+
+          if (!adDetailsOpen || adDetailsOpen.taskId !== targetAd.taskId || adDetailsOpen.adIndex !== targetAd.linkIndex) {
+            setSelectedVersionPreview(null);
+            setAdDetailsOpen({
+              taskId: targetTask.id,
+              adIndex: targetAd.linkIndex,
+              taskData: targetTask,
+              adNumber: targetAd.adNumber
+            });
+          }
+        }
       }
     } else if (requestedTab === 'preview' || requestedTab === 'feedback') {
+      if (skipNextPreviewAutoCloseRef.current) {
+        skipNextPreviewAutoCloseRef.current = false;
+        return;
+      }
+
       // Close ad details sidebar when navigating back to preview or feedback
       if (adDetailsOpen) {
         setAdDetailsOpen(null);
@@ -284,7 +365,7 @@ const UserTasksModal = ({
         setFeedbackModal(null);
       }
     }
-  }, [userTasksModal, currentAd, location.pathname, getRequestedTabFromPath]);
+  }, [userTasksModal, allLinks, currentPreviewIndex, adDetailsOpen, location.pathname, getRequestedTabFromPath, setCurrentPreviewIndex]);
 
   useEffect(() => {
     if (!userTasksModal) return;
@@ -308,10 +389,14 @@ const UserTasksModal = ({
       tabSegment = 'feedback';
     } else if (requestedTab === 'feedback' && !isFeedbackModalOpen) {
       // If we were on feedback but modal closed, fall back
-      tabSegment = adDetailsOpen ? (activeTab === 'versions' ? 'versions' : 'comments') : 'preview';
+      tabSegment = adDetailsOpen ? 'versions' : 'preview';
     } else if (adDetailsOpen && !requestedTab) {
       // If details panel is open but no explicit tab in URL
-      tabSegment = activeTab === 'versions' ? 'versions' : 'comments';
+      tabSegment = 'versions';
+    }
+
+    if (tabSegment === 'comments') {
+      tabSegment = 'versions';
     }
 
     const path = `${basePath}/${userSlug}/${campaignSlug}/ad_${currentAd.adNumber}/${tabSegment}`;
@@ -319,7 +404,7 @@ const UserTasksModal = ({
     if (location.pathname !== path) {
       navigate(path, { replace: true });
     }
-  }, [userTasksModal, currentPreviewIndex, activeTab, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen, getRequestedTabFromPath, getBasePath]);
+  }, [userTasksModal, currentPreviewIndex, currentAd, location.pathname, navigate, campaigns, adDetailsOpen, isFeedbackModalOpen, getRequestedTabFromPath, getBasePath]);
 
   // Initialize first campaign as expanded when modal opens or user changes
   useEffect(() => {
@@ -773,19 +858,21 @@ const UserTasksModal = ({
                       {campaignName}
                     </h2>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const taskIds = campaignTasks.map(t => t.id);
-                          if (window.confirm(`Are you sure you want to delete all ${campaignTasks.length} task(s) for ${campaignName}?`)) {
-                            taskIds.forEach(id => deleteTask(id));
-                          }
-                        }}
-                        className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg transition-all hover:scale-110"
-                        title="Delete all tasks for this campaign"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canManageTasks && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const taskIds = campaignTasks.map(t => t.id);
+                            if (window.confirm(`Are you sure you want to delete all ${campaignTasks.length} task(s) for ${campaignName}?`)) {
+                              taskIds.forEach(id => deleteTask(id));
+                            }
+                          }}
+                          className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg transition-all hover:scale-110"
+                          title="Delete all tasks for this campaign"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {isExpanded ? (
                         <ChevronDown className="w-5 h-5 text-green-600" />
                       ) : (
@@ -1273,8 +1360,27 @@ const UserTasksModal = ({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        
-                                        // Navigate to versions URL, let effect handle opening sidebar
+
+                                        // Prevent the route-sync effect from immediately closing details on first click
+                                        skipNextPreviewAutoCloseRef.current = true;
+
+                                        const previewIndex = allLinks.findIndex(
+                                          item => item.taskId === task.id && item.linkIndex === slotIndex
+                                        );
+
+                                        if (previewIndex !== -1) {
+                                          setCurrentPreviewIndex(previewIndex);
+                                        }
+
+                                        setSelectedVersionPreview(null);
+                                        setAdDetailsOpen({
+                                          taskId: task.id,
+                                          adIndex: slotIndex,
+                                          taskData: task,
+                                          adNumber: adNumber
+                                        });
+
+                                        // Keep URL in details mode for deep-link consistency
                                         const userSlug = slugify(userTasksModal.user?.slug || userTasksModal.user?.name || userTasksModal.user?.email || userTasksModal.user?.id);
                                         const campaign = campaigns.find(c => c.id === parseInt(task.campaignId));
                                         const campaignSlug = getCampaignSlug(task.campaignId, campaign?.name);
@@ -1439,18 +1545,20 @@ const UserTasksModal = ({
           </div>
 
           {/* Add Task Button */}
-          <div className="mt-4 px-4">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddTaskClick && onAddTaskClick();
-              }}
-              className="flex items-center gap-2 text-red-600 hover:text-red-700 transition-colors font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              Add Task
-            </button>
-          </div>
+          {canManageTasks && (
+            <div className="mt-4 px-4">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddTaskClick && onAddTaskClick();
+                }}
+                className="flex items-center gap-2 text-red-600 hover:text-red-700 transition-colors font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add Task
+              </button>
+            </div>
+          )}
         </div>
       </div>
       
@@ -1486,44 +1594,9 @@ const UserTasksModal = ({
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  // Navigate directly to comments URL, let effect handle tab state
-                  const segments = location.pathname.split('/').filter(Boolean);
-                  if (segments.length > 0) {
-                    const commentsPath = `/${[...segments.slice(0, -1), 'comments'].join('/')}`;
-                    navigate(commentsPath, { replace: true });
-                  }
-                }}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'feedback'
-                    ? 'text-red-600 bg-red-50'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                Comments
-              </button>
-              <button
-                onClick={() => {
-                  // Navigate directly to versions URL, let effect handle tab state
-                  const segments = location.pathname.split('/').filter(Boolean);
-                  if (segments.length > 0) {
-                    const versionsPath = `/${[...segments.slice(0, -1), 'versions'].join('/')}`;
-                    navigate(versionsPath, { replace: true });
-                  }
-                }}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'versions'
-                    ? 'text-red-600 bg-red-50'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <History className="w-4 h-4" />
-                Versions
-              </button>
+            <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-50">
+              <History className="w-4 h-4" />
+              Timeline (Versions & Comments)
             </div>
           </div>
 
@@ -1537,133 +1610,109 @@ const UserTasksModal = ({
                 </div>
               </div>
             ) : (
-              <>
-                {/* Versions Tab */}
-                {activeTab === 'versions' && (
-                  <div className="p-4">
-                    {adVersions.filter(v => v.type === 'creative').length === 0 ? (
-                      <div className="text-center py-16">
-                        <History className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">No versions available</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {adVersions
-                          .filter(v => v.type === 'creative')
-                          .map((version, idx) => {
-                            const versionNumber = adVersions.filter(v => v.type === 'creative').length - idx;
-                            const isSelected = selectedVersionPreview?.url === version.url;
-                            const date = new Date(version.timestamp);
-                            
-                            return (
-                              <div
-                                key={idx}
-                                className={`group relative rounded-lg border p-3 cursor-pointer transition-all ${
-                                  version.isCurrent
-                                    ? 'border-red-300 bg-red-50/50 hover:bg-red-50'
-                                    : isSelected
-                                    ? 'border-blue-400 bg-blue-50 shadow-sm'
-                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
-                                }`}
-                                onClick={() => setSelectedVersionPreview(version)}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-semibold text-sm ${
-                                      version.isCurrent
-                                        ? 'bg-red-500 text-white'
-                                        : isSelected
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
-                                    }`}>
-                                      v{versionNumber}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <p className={`text-sm font-medium ${
-                                          version.isCurrent ? 'text-red-700' : isSelected ? 'text-blue-700' : 'text-gray-900'
-                                        }`}>
-                                          {version.isCurrent ? 'Current Version' : `Version ${versionNumber}`}
-                                        </p>
-                                      </div>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                        {' • '}
-                                        {date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <a
-                                    href={version.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
-                                    title="Open in new tab"
-                                  >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    )}
+              <div className="p-4">
+                {adVersions.length === 0 ? (
+                  <div className="text-center py-16">
+                    <History className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">No timeline activity yet</p>
                   </div>
-                )}
+                ) : (
+                  <div className="space-y-2">
+                    {adVersions.map((item, idx) => {
+                      const date = new Date(item.timestamp);
+                      const now = new Date();
+                      const diffMs = now - date;
+                      const diffMins = Math.floor(diffMs / 60000);
+                      const diffHours = Math.floor(diffMins / 60);
+                      const diffDays = Math.floor(diffHours / 24);
 
-                {/* Comments/Feedback Tab */}
-                {activeTab === 'feedback' && (
-                  <div className="p-4">
-                    {adVersions.filter(v => v.type === 'feedback').length === 0 ? (
-                      <div className="text-center py-16">
-                        <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-400 text-sm">No comments yet</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {adVersions
-                          .filter(v => v.type === 'feedback')
-                          .map((item, idx) => {
-                            const date = new Date(item.timestamp);
-                            const now = new Date();
-                            const diffMs = now - date;
-                            const diffMins = Math.floor(diffMs / 60000);
-                            const diffHours = Math.floor(diffMins / 60);
-                            const diffDays = Math.floor(diffHours / 24);
-                            
-                            let timeAgo;
-                            if (diffMins < 1) timeAgo = 'Just now';
-                            else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
-                            else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
-                            else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
-                            else timeAgo = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                            
-                            return (
-                              <div key={idx} className="flex gap-3 p-3 rounded-lg bg-orange-50/50 border border-orange-100">
-                                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
-                                  {item.feedbackBy?.[0]?.toUpperCase() || 'M'}
+                      let timeAgo;
+                      if (diffMins < 1) timeAgo = 'Just now';
+                      else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
+                      else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
+                      else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
+                      else timeAgo = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                      if (item.type === 'creative') {
+                        const creativeCount = adVersions.filter(v => v.type === 'creative').length;
+                        const creativeIndex = adVersions
+                          .slice(0, idx + 1)
+                          .filter(v => v.type === 'creative').length;
+                        const versionNumber = creativeCount - creativeIndex + 1;
+                        const isSelected = selectedVersionPreview?.url === item.url;
+
+                        return (
+                          <div
+                            key={`${item.type}-${idx}`}
+                            className={`group relative rounded-lg border p-3 cursor-pointer transition-all ${
+                              item.isCurrent
+                                ? 'border-red-300 bg-red-50/50 hover:bg-red-50'
+                                : isSelected
+                                ? 'border-blue-400 bg-blue-50 shadow-sm'
+                                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                            onClick={() => setSelectedVersionPreview(item)}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className={`w-8 h-8 flex items-center justify-center rounded-lg font-semibold text-sm ${
+                                  item.isCurrent
+                                    ? 'bg-red-500 text-white'
+                                    : isSelected
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                                }`}>
+                                  v{versionNumber}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <p className="text-sm font-semibold text-gray-900">
-                                      {item.feedbackBy || 'Manager'}
-                                    </p>
-                                    <span className="text-xs text-gray-400">•</span>
-                                    <p className="text-xs text-gray-500">{timeAgo}</p>
-                                  </div>
-                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                    {item.feedback}
+                                  <p className={`text-sm font-medium ${
+                                    item.isCurrent ? 'text-red-700' : isSelected ? 'text-blue-700' : 'text-gray-900'
+                                  }`}>
+                                    {item.isCurrent ? 'Current Version' : `Version ${versionNumber}`}
                                   </p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{timeAgo}</p>
+                                  <p className="text-[11px] text-gray-400 mt-0.5">Source: {item.dateSource || 'unknown'}</p>
                                 </div>
                               </div>
-                            );
-                          })}
-                      </div>
-                    )}
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                                title="Open in new tab"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={`${item.type}-${idx}`} className="flex gap-3 p-3 rounded-lg bg-orange-50/50 border border-orange-100">
+                          <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-sm">
+                            {item.feedbackBy?.[0]?.toUpperCase() || 'M'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {item.feedbackBy || 'Manager'}
+                              </p>
+                              <span className="text-xs text-gray-400">•</span>
+                              <p className="text-xs text-gray-500">{timeAgo}</p>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                              {item.feedback}
+                            </p>
+                            <p className="text-[11px] text-gray-400 mt-1">Source: {item.dateSource || 'unknown'}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

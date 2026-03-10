@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
-import { isAdmin } from '../constants/roles';
+import { isAdmin, isManager } from '../constants/roles';
 import { DateRangePicker } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
@@ -84,6 +84,7 @@ const generateWeekOptions = () => {
 const ScheduledTasks = () => {
   const { currentUser, scheduledTasks, setScheduledTasks, users, campaigns, scheduledTasksLoading, campaignsLoading, loadScheduledTasksFromWebhook, loadCampaignsData, addScheduledTask, addScheduledTasks, updateScheduledTask, deleteScheduledTask, deleteScheduledTasks, columns, addColumn, updateColumn, deleteColumn, loadUsers } = useApp();
   const isAdminUser = isAdmin(currentUser.role);
+  const canManageTasks = isManager(currentUser?.role);
   const filtersRef = useRef(null);
   
   // Load scheduled tasks and campaigns data when component mounts
@@ -230,6 +231,8 @@ const ScheduledTasks = () => {
   }, [showFilters]);
 
   const handleAddTask = () => {
+    if (!canManageTasks) return;
+
     const taskToAdd = {
       ...newTask,
       status: newTask.status || 'approved',
@@ -268,6 +271,8 @@ const ScheduledTasks = () => {
 
   // Task duplication functions
   const handleDuplicateTask = (task) => {
+    if (!canManageTasks) return;
+
     const duplicatedTask = {
       ...task,
       id: undefined, // Will be assigned by addScheduledTask
@@ -279,6 +284,8 @@ const ScheduledTasks = () => {
   };
 
   const handleDuplicateSelectedTasks = () => {
+    if (!canManageTasks) return;
+
     const tasksToDuplicate = scheduledTasks.filter(task => selectedTasks.has(task.id));
     const duplicatedTasksData = tasksToDuplicate.map(task => ({
       ...task,
@@ -292,6 +299,8 @@ const ScheduledTasks = () => {
   };
 
   const handleDeleteSelectedTasks = () => {
+    if (!canManageTasks) return;
+
     if (window.confirm(`Are you sure you want to delete ${selectedTasks.size} task${selectedTasks.size !== 1 ? 's' : ''}?`)) {
       const taskIdsArray = Array.from(selectedTasks);
       deleteScheduledTasks(taskIdsArray);
@@ -1138,7 +1147,7 @@ const ScheduledTasks = () => {
 
         {/* Right side - Action Buttons */}
         <div className="flex items-center space-x-3">
-          {selectedTasks.size > 0 && (
+          {canManageTasks && selectedTasks.size > 0 && (
             <>
               <button
                 onClick={handleDuplicateSelectedTasks}
@@ -1156,13 +1165,15 @@ const ScheduledTasks = () => {
               </button>
             </>
           )}
-          <button
-            onClick={() => setShowAddRow(!showAddRow)}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Task</span>
-          </button>
+          {canManageTasks && (
+            <button
+              onClick={() => setShowAddRow(!showAddRow)}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Task</span>
+            </button>
+          )}
           {false && isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}

@@ -17,6 +17,7 @@ const UserTaskCard = ({
   const [editingTaskId, setEditingTaskId] = useState(null);
   const canEditStatus = currentUser && isManager(currentUser.role);
   const canEditBuyer = currentUser && isManager(currentUser.role);
+  const canManageTasks = currentUser && isManager(currentUser.role);
 
   // Group tasks by campaign
   const tasksByCampaign = userTasks.reduce((acc, task) => {
@@ -62,19 +63,21 @@ const UserTaskCard = ({
                     <div className="flex items-center justify-between gap-2">
                       <h5 className="font-semibold text-gray-900 text-xs lg:text-sm truncate">{campaignName}</h5>
                       {/* Delete Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const taskIds = tasks.map(t => t.id);
-                          if (window.confirm(`Are you sure you want to delete all ${tasks.length} task(s) for ${campaignName}?`)) {
-                            taskIds.forEach(id => deleteTask(id));
-                          }
-                        }}
-                        className="p-1 lg:p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg transition-all hover:scale-110 flex-shrink-0"
-                        title="Delete all tasks for this campaign"
-                      >
-                        <Trash2 className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
-                      </button>
+                      {canManageTasks && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const taskIds = tasks.map(t => t.id);
+                            if (window.confirm(`Are you sure you want to delete all ${tasks.length} task(s) for ${campaignName}?`)) {
+                              taskIds.forEach(id => deleteTask(id));
+                            }
+                          }}
+                          className="p-1 lg:p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg transition-all hover:scale-110 flex-shrink-0"
+                          title="Delete all tasks for this campaign"
+                        >
+                          <Trash2 className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   
@@ -234,16 +237,18 @@ const UserTaskCard = ({
 
       {/* Add Task Button */}
       <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddTaskClick && onAddTaskClick();
-          }}
-          className="flex items-center gap-1.5 lg:gap-2 text-red-600 hover:text-red-700 transition-colors font-medium text-sm lg:text-base"
-        >
-          <Plus className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
-          Add Task
-        </button>
+        {canManageTasks && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddTaskClick && onAddTaskClick();
+            }}
+            className="flex items-center gap-1.5 lg:gap-2 text-red-600 hover:text-red-700 transition-colors font-medium text-sm lg:text-base"
+          >
+            <Plus className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
+            Add Task
+          </button>
+        )}
       </div>
     </div>
   );
