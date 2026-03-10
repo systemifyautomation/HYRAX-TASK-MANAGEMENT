@@ -64,7 +64,7 @@ export const AppProvider = ({ children }) => {
       id: 'copyWritten',
       name: 'Copy Written',
       key: 'copyWritten',
-      type: 'checkbox',
+      type: 'array-checkbox',
       width: 120,
       visible: true
     },
@@ -286,11 +286,20 @@ export const AppProvider = ({ children }) => {
                 headers: { 'Content-Type': 'application/json' }
               });
               if (response.ok) {
-                const data = await response.json();
-                if (Array.isArray(data)) {
-                  const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
-                  setTasks(validTasks);
-                  localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
+                const text = await response.text();
+                if (text) {
+                  try {
+                    const data = JSON.parse(text);
+                    if (Array.isArray(data)) {
+                      const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
+                      setTasks(validTasks);
+                      localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
+                    }
+                  } catch (jsonError) {
+                    console.error('Failed to parse tasks JSON:', jsonError);
+                  }
+                } else {
+                  console.log('Empty response from tasks webhook');
                 }
               }
             }
@@ -325,11 +334,20 @@ export const AppProvider = ({ children }) => {
                 headers: { 'Content-Type': 'application/json' }
               });
               if (response.ok) {
-                const data = await response.json();
-                if (Array.isArray(data)) {
-                  const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
-                  setScheduledTasks(validTasks);
-                  localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(validTasks));
+                const text = await response.text();
+                if (text) {
+                  try {
+                    const data = JSON.parse(text);
+                    if (Array.isArray(data)) {
+                      const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
+                      setScheduledTasks(validTasks);
+                      localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(validTasks));
+                    }
+                  } catch (jsonError) {
+                    console.error('Failed to parse scheduled tasks JSON:', jsonError);
+                  }
+                } else {
+                  console.log('Empty response from scheduled tasks webhook');
                 }
               }
             }
@@ -629,7 +647,20 @@ export const AppProvider = ({ children }) => {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const text = await response.text();
+        let data = [];
+        
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (error) {
+            console.error('Failed to parse tasks JSON:', error);
+            data = [];
+          }
+        } else {
+          console.info('Empty response from tasks webhook');
+        }
+        
         // Filter out empty objects (happens when a week has no tasks)
         const validTasks = Array.isArray(data) ? data.filter(task => task && Object.keys(task).length > 0 && task.id) : [];
         console.log('Tasks loaded from webhook:', validTasks.length || 0);
@@ -912,8 +943,12 @@ export const AppProvider = ({ children }) => {
     const newTask = {
       ...taskData,
       id: tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
-      // Ensure boolean fields are actual booleans, not null
-      copyWritten: taskData.copyWritten === true,
+      // Ensure array fields for copy-related data
+      copyLink: Array.isArray(taskData.copyLink) ? taskData.copyLink : (taskData.copyLink ? [taskData.copyLink] : []),
+      copyWritten: Array.isArray(taskData.copyWritten) ? taskData.copyWritten : (taskData.copyWritten ? [taskData.copyWritten === true] : [false]),
+      copyApproval: Array.isArray(taskData.copyApproval) ? taskData.copyApproval : (taskData.copyApproval ? [taskData.copyApproval] : []),
+      copyApprovalFeedback: Array.isArray(taskData.copyApprovalFeedback) ? taskData.copyApprovalFeedback : (taskData.copyApprovalFeedback ? [taskData.copyApprovalFeedback] : []),
+      scriptAssigned: Array.isArray(taskData.scriptAssigned) ? taskData.scriptAssigned : (taskData.scriptAssigned ? [taskData.scriptAssigned] : []),
       // Initialize array fields if not provided
       viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
       viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
@@ -925,9 +960,9 @@ export const AppProvider = ({ children }) => {
       slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
       slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
       // Initialize timestamp fields
-      copyLinkAt: taskData.copyLink ? currentTimestamp : null,
-      copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
-      copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+      copyLinkAt: Array.isArray(taskData.copyLink) ? taskData.copyLink.map(() => currentTimestamp) : (taskData.copyLink ? [currentTimestamp] : []),
+      copyWrittenAt: Array.isArray(taskData.copyWritten) ? taskData.copyWritten.map(() => currentTimestamp) : (taskData.copyWritten ? [currentTimestamp] : []),
+      copyApprovalAt: Array.isArray(taskData.copyApproval) ? taskData.copyApproval.map(() => currentTimestamp) : (taskData.copyApproval ? [currentTimestamp] : []),
       viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
       viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
       createdAt: currentTimestamp,
@@ -1000,8 +1035,12 @@ export const AppProvider = ({ children }) => {
       return {
         ...taskData,
         id: currentMaxId,
-        // Ensure boolean fields are actual booleans, not null
-        copyWritten: taskData.copyWritten === true,
+        // Ensure array fields for copy-related data
+        copyLink: Array.isArray(taskData.copyLink) ? taskData.copyLink : (taskData.copyLink ? [taskData.copyLink] : []),
+        copyWritten: Array.isArray(taskData.copyWritten) ? taskData.copyWritten : (taskData.copyWritten ? [taskData.copyWritten === true] : [false]),
+        copyApproval: Array.isArray(taskData.copyApproval) ? taskData.copyApproval : (taskData.copyApproval ? [taskData.copyApproval] : []),
+        copyApprovalFeedback: Array.isArray(taskData.copyApprovalFeedback) ? taskData.copyApprovalFeedback : (taskData.copyApprovalFeedback ? [taskData.copyApprovalFeedback] : []),
+        scriptAssigned: Array.isArray(taskData.scriptAssigned) ? taskData.scriptAssigned : (taskData.scriptAssigned ? [taskData.scriptAssigned] : []),
         // Initialize array fields if not provided
         viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
         viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
@@ -1013,9 +1052,9 @@ export const AppProvider = ({ children }) => {
         slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
         slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
         // Initialize timestamp fields
-        copyLinkAt: taskData.copyLink ? currentTimestamp : null,
-        copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
-        copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+        copyLinkAt: Array.isArray(taskData.copyLink) ? taskData.copyLink.map(() => currentTimestamp) : (taskData.copyLink ? [currentTimestamp] : []),
+        copyWrittenAt: Array.isArray(taskData.copyWritten) ? taskData.copyWritten.map(() => currentTimestamp) : (taskData.copyWritten ? [currentTimestamp] : []),
+        copyApprovalAt: Array.isArray(taskData.copyApproval) ? taskData.copyApproval.map(() => currentTimestamp) : (taskData.copyApproval ? [currentTimestamp] : []),
         viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
         viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
         createdAt: currentTimestamp,
@@ -1097,19 +1136,49 @@ export const AppProvider = ({ children }) => {
     
     // Add timestamps for specific field updates
     if (existingTask) {
-      // copyLinkAt - when copyLink is added or changed
-      if ('copyLink' in sanitizedUpdates && sanitizedUpdates.copyLink !== existingTask.copyLink) {
-        taskUpdates.copyLinkAt = currentTimestamp;
+      // copyLinkAt - array of timestamps matching copyLink array
+      if ('copyLink' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyLink)) {
+        const existingCopyLink = Array.isArray(existingTask.copyLink) ? existingTask.copyLink : [];
+        const existingTimestamps = Array.isArray(existingTask.copyLinkAt) ? existingTask.copyLinkAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyLink.map((link, index) => {
+          if (link !== existingCopyLink[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyLinkAt = newTimestamps;
       }
       
-      // copyWrittenAt - when copyWritten status changes
-      if ('copyWritten' in sanitizedUpdates && sanitizedUpdates.copyWritten !== existingTask.copyWritten) {
-        taskUpdates.copyWrittenAt = currentTimestamp;
+      // copyWrittenAt - array of timestamps matching copyWritten array
+      if ('copyWritten' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyWritten)) {
+        const existingCopyWritten = Array.isArray(existingTask.copyWritten) ? existingTask.copyWritten : [];
+        const existingTimestamps = Array.isArray(existingTask.copyWrittenAt) ? existingTask.copyWrittenAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyWritten.map((written, index) => {
+          if (written !== existingCopyWritten[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyWrittenAt = newTimestamps;
       }
       
-      // copyApprovalAt - when copyApproval status changes
-      if ('copyApproval' in sanitizedUpdates && sanitizedUpdates.copyApproval !== existingTask.copyApproval) {
-        taskUpdates.copyApprovalAt = currentTimestamp;
+      // copyApprovalAt - array of timestamps matching copyApproval array
+      if ('copyApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyApproval)) {
+        const existingCopyApproval = Array.isArray(existingTask.copyApproval) ? existingTask.copyApproval : [];
+        const existingTimestamps = Array.isArray(existingTask.copyApprovalAt) ? existingTask.copyApprovalAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyApproval.map((approval, index) => {
+          if (approval !== existingCopyApproval[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyApprovalAt = newTimestamps;
       }
       
       // viewerLinkAt - array of timestamps matching viewerLink array
@@ -1392,7 +1461,20 @@ export const AppProvider = ({ children }) => {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const text = await response.text();
+        let data = [];
+        
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (error) {
+            console.error('Failed to parse scheduled tasks JSON:', error);
+            data = [];
+          }
+        } else {
+          console.info('Empty response from scheduled tasks webhook');
+        }
+        
         // Filter out empty objects (happens when a week has no tasks)
         const validTasks = Array.isArray(data) ? data.filter(task => task && Object.keys(task).length > 0 && task.id) : [];
         console.log('Scheduled tasks loaded from webhook:', validTasks.length || 0);
@@ -1418,7 +1500,12 @@ export const AppProvider = ({ children }) => {
     const newTask = {
       ...taskData,
       id: scheduledTasks.length > 0 ? Math.max(...scheduledTasks.map(t => t.id)) + 1 : 1,
-      copyWritten: taskData.copyWritten === true,
+      // Ensure array fields for copy-related data
+      copyLink: Array.isArray(taskData.copyLink) ? taskData.copyLink : (taskData.copyLink ? [taskData.copyLink] : []),
+      copyWritten: Array.isArray(taskData.copyWritten) ? taskData.copyWritten : (taskData.copyWritten ? [taskData.copyWritten === true] : [false]),
+      copyApproval: Array.isArray(taskData.copyApproval) ? taskData.copyApproval : (taskData.copyApproval ? [taskData.copyApproval] : []),
+      copyApprovalFeedback: Array.isArray(taskData.copyApprovalFeedback) ? taskData.copyApprovalFeedback : (taskData.copyApprovalFeedback ? [taskData.copyApprovalFeedback] : []),
+      scriptAssigned: Array.isArray(taskData.scriptAssigned) ? taskData.scriptAssigned : (taskData.scriptAssigned ? [taskData.scriptAssigned] : []),
       viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
       viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
       viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
@@ -1429,9 +1516,9 @@ export const AppProvider = ({ children }) => {
       slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
       slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
       // Initialize timestamp fields
-      copyLinkAt: taskData.copyLink ? currentTimestamp : null,
-      copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
-      copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+      copyLinkAt: Array.isArray(taskData.copyLink) ? taskData.copyLink.map(() => currentTimestamp) : (taskData.copyLink ? [currentTimestamp] : []),
+      copyWrittenAt: Array.isArray(taskData.copyWritten) ? taskData.copyWritten.map(() => currentTimestamp) : (taskData.copyWritten ? [currentTimestamp] : []),
+      copyApprovalAt: Array.isArray(taskData.copyApproval) ? taskData.copyApproval.map(() => currentTimestamp) : (taskData.copyApproval ? [currentTimestamp] : []),
       viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
       viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
       createdAt: currentTimestamp,
@@ -1489,7 +1576,12 @@ export const AppProvider = ({ children }) => {
       return {
         ...taskData,
         id: currentMaxId,
-        copyWritten: taskData.copyWritten === true,
+        // Ensure array fields for copy-related data
+        copyLink: Array.isArray(taskData.copyLink) ? taskData.copyLink : (taskData.copyLink ? [taskData.copyLink] : []),
+        copyWritten: Array.isArray(taskData.copyWritten) ? taskData.copyWritten : (taskData.copyWritten ? [taskData.copyWritten === true] : [false]),
+        copyApproval: Array.isArray(taskData.copyApproval) ? taskData.copyApproval : (taskData.copyApproval ? [taskData.copyApproval] : []),
+        copyApprovalFeedback: Array.isArray(taskData.copyApprovalFeedback) ? taskData.copyApprovalFeedback : (taskData.copyApprovalFeedback ? [taskData.copyApprovalFeedback] : []),
+        scriptAssigned: Array.isArray(taskData.scriptAssigned) ? taskData.scriptAssigned : (taskData.scriptAssigned ? [taskData.scriptAssigned] : []),
         viewerLink: Array.isArray(taskData.viewerLink) ? taskData.viewerLink : [],
         viewerLinkApproval: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval : [],
         viewerLinkFeedback: Array.isArray(taskData.viewerLinkFeedback) ? taskData.viewerLinkFeedback : [],
@@ -1500,9 +1592,9 @@ export const AppProvider = ({ children }) => {
         slackPermalinkApproval: Array.isArray(taskData.slackPermalinkApproval) ? taskData.slackPermalinkApproval : [],
         slackPermalinkFeedback: Array.isArray(taskData.slackPermalinkFeedback) ? taskData.slackPermalinkFeedback : [],
         // Initialize timestamp fields
-        copyLinkAt: taskData.copyLink ? currentTimestamp : null,
-        copyWrittenAt: taskData.copyWritten === true ? currentTimestamp : null,
-        copyApprovalAt: taskData.copyApproval ? currentTimestamp : null,
+        copyLinkAt: Array.isArray(taskData.copyLink) ? taskData.copyLink.map(() => currentTimestamp) : (taskData.copyLink ? [currentTimestamp] : []),
+        copyWrittenAt: Array.isArray(taskData.copyWritten) ? taskData.copyWritten.map(() => currentTimestamp) : (taskData.copyWritten ? [currentTimestamp] : []),
+        copyApprovalAt: Array.isArray(taskData.copyApproval) ? taskData.copyApproval.map(() => currentTimestamp) : (taskData.copyApproval ? [currentTimestamp] : []),
         viewerLinkAt: Array.isArray(taskData.viewerLink) ? taskData.viewerLink.map(() => currentTimestamp) : [],
         viewerLinkApprovalAt: Array.isArray(taskData.viewerLinkApproval) ? taskData.viewerLinkApproval.map(() => currentTimestamp) : [],
         createdAt: currentTimestamp,
@@ -1563,19 +1655,49 @@ export const AppProvider = ({ children }) => {
     
     // Add timestamps for specific field updates
     if (existingTask) {
-      // copyLinkAt - when copyLink is added or changed
-      if ('copyLink' in sanitizedUpdates && sanitizedUpdates.copyLink !== existingTask.copyLink) {
-        taskUpdates.copyLinkAt = currentTimestamp;
+      // copyLinkAt - array of timestamps matching copyLink array
+      if ('copyLink' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyLink)) {
+        const existingCopyLink = Array.isArray(existingTask.copyLink) ? existingTask.copyLink : [];
+        const existingTimestamps = Array.isArray(existingTask.copyLinkAt) ? existingTask.copyLinkAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyLink.map((link, index) => {
+          if (link !== existingCopyLink[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyLinkAt = newTimestamps;
       }
       
-      // copyWrittenAt - when copyWritten status changes
-      if ('copyWritten' in sanitizedUpdates && sanitizedUpdates.copyWritten !== existingTask.copyWritten) {
-        taskUpdates.copyWrittenAt = currentTimestamp;
+      // copyWrittenAt - array of timestamps matching copyWritten array
+      if ('copyWritten' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyWritten)) {
+        const existingCopyWritten = Array.isArray(existingTask.copyWritten) ? existingTask.copyWritten : [];
+        const existingTimestamps = Array.isArray(existingTask.copyWrittenAt) ? existingTask.copyWrittenAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyWritten.map((written, index) => {
+          if (written !== existingCopyWritten[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyWrittenAt = newTimestamps;
       }
       
-      // copyApprovalAt - when copyApproval status changes
-      if ('copyApproval' in sanitizedUpdates && sanitizedUpdates.copyApproval !== existingTask.copyApproval) {
-        taskUpdates.copyApprovalAt = currentTimestamp;
+      // copyApprovalAt - array of timestamps matching copyApproval array
+      if ('copyApproval' in sanitizedUpdates && Array.isArray(sanitizedUpdates.copyApproval)) {
+        const existingCopyApproval = Array.isArray(existingTask.copyApproval) ? existingTask.copyApproval : [];
+        const existingTimestamps = Array.isArray(existingTask.copyApprovalAt) ? existingTask.copyApprovalAt : [];
+        
+        const newTimestamps = sanitizedUpdates.copyApproval.map((approval, index) => {
+          if (approval !== existingCopyApproval[index]) {
+            return currentTimestamp;
+          }
+          return existingTimestamps[index] || currentTimestamp;
+        });
+        
+        taskUpdates.copyApprovalAt = newTimestamps;
       }
       
       // viewerLinkAt - array of timestamps matching viewerLink array

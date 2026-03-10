@@ -2,20 +2,44 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { format } from 'date-fns';
 
-const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAddTask, canManageTasks = false }) => {
+const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAddTask, canManageTasks = false, existingTasks = [] }) => {
   const [formData, setFormData] = useState({
     campaignId: '',
     scriptAssigned: '',
     quantity: '1'
   });
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
+  // Get campaigns already assigned to this user
+  const userCampaigns = existingTasks
+    .filter(task => task.assignedTo === user?.id)
+    .map(task => parseInt(task.campaignId));
+
+  // Filter out campaigns that already have tasks for this user
+  const availableCampaigns = campaigns.filter(campaign => 
+    !userCampaigns.includes(campaign.id)
+  );
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    setError('');
 
     if (!canManageTasks) {
       onClose();
+      return;
+    }
+
+    // Check if campaign already exists for this user
+    const campaignId = parseInt(formData.campaignId);
+    const hasDuplicate = existingTasks.some(
+      task => task.assignedTo === user.id && parseInt(task.campaignId) === campaignId
+    );
+
+    if (hasDuplicate) {
+      const campaign = campaigns.find(c => c.id === campaignId);
+      setError(`This user already has a task for "${campaign?.name}". Please select a different campaign.`);
       return;
     }
     
@@ -51,14 +75,18 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
     const taskData = {
       campaignId: parseInt(formData.campaignId),
       assignedTo: user.id,
-      scriptAssigned: formData.scriptAssigned ? parseInt(formData.scriptAssigned) : null,
+      scriptAssigned: formData.scriptAssigned ? [parseInt(formData.scriptAssigned)] : [],
       quantity: formData.quantity,
       mediaType: taskType,
       status: 'Not done',
       week: weekRange,
-      copyWritten: false,
-      copyApproval: null,
-      copyLink: '',
+      copyWritten: [false],
+      copyApproval: [],
+      copyApprovalFeedback: [],
+      copyLink: [],
+      copyLinkAt: [],
+      copyWrittenAt: [],
+      copyApprovalAt: [],
       priority: 'Normal'
     };
 
@@ -100,6 +128,13 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
           <p className="text-xs text-gray-500">{user.department}</p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Campaign */}
@@ -110,16 +145,26 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
             <select
               required
               value={formData.campaignId}
-              onChange={(e) => setFormData({ ...formData, campaignId: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, campaignId: e.target.value });
+                setError('');
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             >
               <option value="">Select a campaign...</option>
-              {campaigns.map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
+              {availableCampaigns.length === 0 ? (
+                <option value="" disabled>All campaigns already assigned</option>
+              ) : (
+                availableCampaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))
+              )}
             </select>
+            {availableCampaigns.length === 0 && (
+              <p className="mt-1 text-xs text-orange-600">This user already has tasks for all available campaigns.</p>
+            )}
           </div>
 
           {/* Copy Assigned To */}

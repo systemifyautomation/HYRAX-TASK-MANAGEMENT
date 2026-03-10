@@ -894,8 +894,8 @@ const UserTasksModal = ({
                         const handleStartEdit = () => {
                           setEditingCampaign({
                             campaignName: campaignName,
-                            copyLink: firstTask.copyLink || '',
-                            scriptAssigned: firstTask.scriptAssigned || ''
+                            copyLink: Array.isArray(firstTask.copyLink) ? firstTask.copyLink : [firstTask.copyLink || ''],
+                            scriptAssigned: Array.isArray(firstTask.scriptAssigned) ? firstTask.scriptAssigned : [firstTask.scriptAssigned || '']
                           });
                         };
                         
@@ -909,14 +909,16 @@ const UserTasksModal = ({
                           // Update all tasks in this campaign
                           const updates = {
                             copyLink: editingCampaign.copyLink,
-                            scriptAssigned: editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null
+                            scriptAssigned: Array.isArray(editingCampaign.scriptAssigned) 
+                              ? editingCampaign.scriptAssigned.map(id => id ? parseInt(id) : null)
+                              : (editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null)
                           };
                           
-                          // If copyLink is provided, set copyWritten to true, otherwise set to false
-                          if (editingCampaign.copyLink && editingCampaign.copyLink.trim()) {
-                            updates.copyWritten = true;
+                          // Set copyWritten as array of booleans matching copyLink array
+                          if (Array.isArray(editingCampaign.copyLink)) {
+                            updates.copyWritten = editingCampaign.copyLink.map(link => !!(link && link.trim()));
                           } else {
-                            updates.copyWritten = false;
+                            updates.copyWritten = editingCampaign.copyLink && editingCampaign.copyLink.trim() ? [true] : [false];
                           }
                           
                           // Save all tasks in the campaign
@@ -937,112 +939,239 @@ const UserTasksModal = ({
                                 Copy Details
                               </h3>
                               
-                              {canEdit && !isEditing && (
-                                <button
-                                  onClick={handleStartEdit}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                  Edit
-                                </button>
-                              )}
-                              
-                              {isEditing && (
-                                <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                {/* Add Copy Button */}
+                                {canEdit && !isEditing && (
                                   <button
-                                    onClick={handleSaveEdit}
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      
+                                      // Convert single values to arrays and add new empty items
+                                      const updates = {
+                                        copyLink: Array.isArray(firstTask.copyLink) 
+                                          ? [...firstTask.copyLink, ''] 
+                                          : [firstTask.copyLink || '', ''],
+                                        copyApproval: Array.isArray(firstTask.copyApproval)
+                                          ? [...firstTask.copyApproval, '']
+                                          : [firstTask.copyApproval || '', ''],
+                                        copyApprovalFeedback: Array.isArray(firstTask.copyApprovalFeedback)
+                                          ? [...firstTask.copyApprovalFeedback, '']
+                                          : [firstTask.copyApprovalFeedback || '', ''],
+                                        copyWritten: Array.isArray(firstTask.copyWritten)
+                                          ? [...firstTask.copyWritten, false]
+                                          : [firstTask.copyWritten || false, false],
+                                        copyLinkAt: Array.isArray(firstTask.copyLinkAt)
+                                          ? [...firstTask.copyLinkAt, null]
+                                          : [firstTask.copyLinkAt || null, null],
+                                        copyApprovalAt: Array.isArray(firstTask.copyApprovalAt)
+                                          ? [...firstTask.copyApprovalAt, null]
+                                          : [firstTask.copyApprovalAt || null, null],
+                                        scriptAssigned: Array.isArray(firstTask.scriptAssigned)
+                                          ? [...firstTask.scriptAssigned, null]
+                                          : [firstTask.scriptAssigned || null, null]
+                                      };
+                                      
+                                      // Update all tasks in this campaign
+                                      for (const task of campaignTasks) {
+                                        await updateTask(task.id, updates);
+                                      }
+                                    }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                    title="Add copy link"
                                   >
-                                    <Save className="w-3.5 h-3.5" />
-                                    Save
+                                    <Plus className="w-3.5 h-3.5" />
+                                    Add Copy
                                   </button>
+                                )}
+                                
+                                {canEdit && !isEditing && (
                                   <button
-                                    onClick={handleCancelEdit}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 shadow-sm"
+                                    onClick={handleStartEdit}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
                                   >
-                                    <X className="w-3.5 h-3.5" />
-                                    Cancel
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    Edit
                                   </button>
-                                </div>
-                              )}
+                                )}
+                                
+                                {isEditing && (
+                                  <>
+                                    <button
+                                      onClick={handleSaveEdit}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                    >
+                                      <Save className="w-3.5 h-3.5" />
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 shadow-sm"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      Cancel
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             
-                            {/* Single Row with both fields */}
+                            {/* Copy Link & Script Assigned - aligned in same rows */}
                             <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
-                              <div className="grid grid-cols-2 gap-4">
-                                {/* Copy Link */}
-                                <div>
-                                  <label className="text-xs font-semibold text-blue-800 mb-1.5 block flex items-center gap-1">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                    </svg>
-                                    Copy Link
-                                  </label>
-                                  {isEditing ? (
-                                    <input
-                                      type="url"
-                                      value={editingCampaign.copyLink}
-                                      onChange={(e) => setEditingCampaign({ ...editingCampaign, copyLink: e.target.value })}
-                                      placeholder="Enter copy link..."
-                                      className="w-full px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
-                                  ) : (
-                                    <div className="min-h-[28px] flex items-center">
-                                      {firstTask.copyLink ? (
-                                        <a 
-                                          href={firstTask.copyLink} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-blue-600 hover:text-blue-800 underline truncate"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {firstTask.copyLink}
-                                        </a>
-                                      ) : (
-                                        <span className="text-xs text-gray-400 italic">Not provided</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Script Assigned */}
-                                <div>
-                                  <label className="text-xs font-semibold text-blue-800 mb-1.5 block flex items-center gap-1">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    Script Assigned
-                                  </label>
-                                  {isEditing ? (
-                                    <select
-                                      value={editingCampaign.scriptAssigned}
-                                      onChange={(e) => setEditingCampaign({ ...editingCampaign, scriptAssigned: e.target.value })}
-                                      className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
-                                    >
-                                      <option value="">-- Select User --</option>
-                                      {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
-                                        <option key={user.id} value={user.id}>
-                                          {user.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <div className="min-h-[28px] flex items-center">
-                                      {scriptUser ? (
-                                        <div className="flex items-center gap-1.5">
-                                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
-                                            {scriptUser.name.charAt(0).toUpperCase()}
-                                          </div>
-                                          <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
+                              {/* Header Row */}
+                              <div className="grid grid-cols-2 gap-4 mb-2">
+                                <label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                  </svg>
+                                  Copy Link
+                                </label>
+                                <label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  Script Assigned
+                                </label>
+                              </div>
+                              
+                              {/* Data Rows */}
+                              <div className="space-y-2">
+                                {isEditing ? (
+                                  // Edit mode - iterate through copy arrays
+                                  Array.isArray(editingCampaign.copyLink) && editingCampaign.copyLink.map((link, index) => {
+                                    const userId = Array.isArray(editingCampaign.scriptAssigned) ? editingCampaign.scriptAssigned[index] : '';
+                                    return (
+                                      <div key={index} className="grid grid-cols-2 gap-4 items-start">
+                                        {/* Copy Link Input */}
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
+                                          <input
+                                            type="url"
+                                            value={link || ''}
+                                            onChange={(e) => {
+                                              const newLinks = [...editingCampaign.copyLink];
+                                              newLinks[index] = e.target.value;
+                                              setEditingCampaign({ ...editingCampaign, copyLink: newLinks });
+                                            }}
+                                            placeholder="Enter copy link..."
+                                            className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                          />
                                         </div>
-                                      ) : firstTask.scriptAssigned ? (
-                                        <span className="text-xs text-gray-500">User ID: {firstTask.scriptAssigned}</span>
-                                      ) : (
-                                        <span className="text-xs text-gray-400 italic">Not assigned</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                        
+                                        {/* Script Assigned Dropdown */}
+                                        <div className="flex items-center gap-2">
+                                          <select
+                                            value={userId || ''}
+                                            onChange={(e) => {
+                                              const newAssignments = [...(Array.isArray(editingCampaign.scriptAssigned) ? editingCampaign.scriptAssigned : [])];
+                                              newAssignments[index] = e.target.value;
+                                              setEditingCampaign({ ...editingCampaign, scriptAssigned: newAssignments });
+                                            }}
+                                            className="flex-1 px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                                          >
+                                            <option value="">-- Select User --</option>
+                                            {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
+                                              <option key={user.id} value={user.id}>
+                                                {user.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          
+                                          {/* Delete Button */}
+                                          {editingCampaign.copyLink.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const newLinks = editingCampaign.copyLink.filter((_, i) => i !== index);
+                                                const newAssignments = Array.isArray(editingCampaign.scriptAssigned)
+                                                  ? editingCampaign.scriptAssigned.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newApprovals = Array.isArray(editingCampaign.copyApproval) 
+                                                  ? editingCampaign.copyApproval.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newFeedback = Array.isArray(editingCampaign.copyApprovalFeedback)
+                                                  ? editingCampaign.copyApprovalFeedback.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newWritten = Array.isArray(editingCampaign.copyWritten)
+                                                  ? editingCampaign.copyWritten.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newLinkAt = Array.isArray(editingCampaign.copyLinkAt)
+                                                  ? editingCampaign.copyLinkAt.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newWrittenAt = Array.isArray(editingCampaign.copyWrittenAt)
+                                                  ? editingCampaign.copyWrittenAt.filter((_, i) => i !== index)
+                                                  : [];
+                                                const newApprovalAt = Array.isArray(editingCampaign.copyApprovalAt)
+                                                  ? editingCampaign.copyApprovalAt.filter((_, i) => i !== index)
+                                                  : [];
+                                                setEditingCampaign({
+                                                  ...editingCampaign,
+                                                  copyLink: newLinks,
+                                                  scriptAssigned: newAssignments,
+                                                  copyApproval: newApprovals,
+                                                  copyApprovalFeedback: newFeedback,
+                                                  copyWritten: newWritten,
+                                                  copyLinkAt: newLinkAt,
+                                                  copyWrittenAt: newWrittenAt,
+                                                  copyApprovalAt: newApprovalAt
+                                                });
+                                              }}
+                                              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                              title="Delete this copy"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  // View mode - iterate through copy arrays
+                                  Array.isArray(firstTask.copyLink) && firstTask.copyLink.map((link, index) => {
+                                    const userId = Array.isArray(firstTask.scriptAssigned) ? firstTask.scriptAssigned[index] : '';
+                                    const scriptUser = users?.find(u => u.id === parseInt(userId));
+                                    
+                                    return (
+                                      <div key={index} className="grid grid-cols-2 gap-4 items-center">
+                                        {/* Copy Link Display */}
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
+                                          {link ? (
+                                            <a 
+                                              href={link} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-blue-600 hover:text-blue-800 underline block truncate flex-1"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {link}
+                                            </a>
+                                          ) : (
+                                            <span className="text-xs text-gray-400 italic flex-1">Empty</span>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Script Assigned Display */}
+                                        <div className="flex items-center">
+                                          {scriptUser ? (
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                                {scriptUser.name.charAt(0).toUpperCase()}
+                                              </div>
+                                              <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
+                                            </div>
+                                          ) : userId ? (
+                                            <span className="text-xs text-gray-500">User ID: {userId}</span>
+                                          ) : (
+                                            <span className="text-xs text-gray-400 italic">Not assigned</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })
+                                )}
                               </div>
                             </div>
                           </div>

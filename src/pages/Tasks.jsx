@@ -2245,6 +2245,9 @@ This usually indicates a temporary workflow issue.`;
       
       case 'text':
       case 'url':
+        const isCopyField = column.key === 'copyLink';
+        const canEditCopy = isCopyField ? canManageTasks : true;
+        
         return (
           <div className="flex items-center space-x-2">
             <input
@@ -2252,7 +2255,8 @@ This usually indicates a temporary workflow issue.`;
               type="text"
               defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
               onChange={(e) => handleChange(e.target.value)}
-              className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
+              disabled={isCopyField && !canEditCopy}
+              className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm ${isCopyField && !canEditCopy ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
               placeholder={column.key === 'quantity' ? 'x1' : column.name}
             />
             {column.key === 'copyLink' && value && !isNewTask && (
@@ -2270,6 +2274,46 @@ This usually indicates a temporary workflow issue.`;
                 <ExternalLink className="w-4 h-4" />
               </button>
             )}
+            {column.key === 'copyLink' && canManageTasks && !isNewTask && (
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  
+                  // Convert single values to arrays and add new empty items
+                  const updates = {
+                    copyLink: Array.isArray(task.copyLink) 
+                      ? [...task.copyLink, ''] 
+                      : [task.copyLink || '', ''],
+                    copyApproval: Array.isArray(task.copyApproval)
+                      ? [...task.copyApproval, '']
+                      : [task.copyApproval || '', ''],
+                    copyApprovalFeedback: Array.isArray(task.copyApprovalFeedback)
+                      ? [...task.copyApprovalFeedback, '']
+                      : [task.copyApprovalFeedback || '', ''],
+                    copyWritten: Array.isArray(task.copyWritten)
+                      ? [...task.copyWritten, false]
+                      : [task.copyWritten || false, false],
+                    copyLinkAt: Array.isArray(task.copyLinkAt)
+                      ? [...task.copyLinkAt, null]
+                      : [task.copyLinkAt || null, null],
+                    copyApprovalAt: Array.isArray(task.copyApprovalAt)
+                      ? [...task.copyApprovalAt, null]
+                      : [task.copyApprovalAt || null, null],
+                    scriptAssigned: Array.isArray(task.scriptAssigned)
+                      ? [...task.scriptAssigned, null]
+                      : [task.scriptAssigned || null, null]
+                  };
+                  
+                  await updateTask(task.id, updates);
+                }}
+                className="p-1.5 text-white bg-green-600 hover:bg-green-700 rounded transition-colors flex-shrink-0"
+                title="Add copy link"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </div>
         );
       
@@ -2284,20 +2328,95 @@ This usually indicates a temporary workflow issue.`;
           />
         );
       
+      case 'array-checkbox':
+        // Handle array of checkboxes (e.g., copyWritten)
+        const checkboxArrayValue = Array.isArray(value) ? value : [value || false];
+        const canEditCheckboxArray = column.key === 'copyWritten' ? canManageTasks : true;
+        
+        return (
+          <div className="space-y-1">
+            {checkboxArrayValue.map((checked, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
+                <input
+                  type="checkbox"
+                  checked={checked || false}
+                  onChange={(e) => {
+                    const newArray = [...checkboxArrayValue];
+                    newArray[index] = e.target.checked;
+                    handleChange(newArray);
+                  }}
+                  disabled={!canEditCheckboxArray}
+                  className={`w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-500 transition-all ${!canEditCheckboxArray ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                />
+                {canEditCheckboxArray && checkboxArrayValue.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      
+                      // Remove item at index from all copy arrays
+                      const updates = {
+                        copyWritten: Array.isArray(task.copyWritten) 
+                          ? task.copyWritten.filter((_, i) => i !== index)
+                          : [task.copyWritten].filter((_, i) => i !== index),
+                        copyLink: Array.isArray(task.copyLink)
+                          ? task.copyLink.filter((_, i) => i !== index)
+                          : [task.copyLink].filter((_, i) => i !== index),
+                        copyApproval: Array.isArray(task.copyApproval)
+                          ? task.copyApproval.filter((_, i) => i !== index)
+                          : [task.copyApproval].filter((_, i) => i !== index),
+                        copyApprovalFeedback: Array.isArray(task.copyApprovalFeedback)
+                          ? task.copyApprovalFeedback.filter((_, i) => i !== index)
+                          : [task.copyApprovalFeedback].filter((_, i) => i !== index),
+                        copyLinkAt: Array.isArray(task.copyLinkAt)
+                          ? task.copyLinkAt.filter((_, i) => i !== index)
+                          : [task.copyLinkAt].filter((_, i) => i !== index),
+                        copyWrittenAt: Array.isArray(task.copyWrittenAt)
+                          ? task.copyWrittenAt.filter((_, i) => i !== index)
+                          : [task.copyWrittenAt].filter((_, i) => i !== index),
+                        copyApprovalAt: Array.isArray(task.copyApprovalAt)
+                          ? task.copyApprovalAt.filter((_, i) => i !== index)
+                          : [task.copyApprovalAt].filter((_, i) => i !== index),
+                        scriptAssigned: Array.isArray(task.scriptAssigned)
+                          ? task.scriptAssigned.filter((_, i) => i !== index)
+                          : [task.scriptAssigned].filter((_, i) => i !== index)
+                      };
+                      
+                      await updateTask(task.id, updates);
+                    }}
+                    className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                    title="Delete this copy"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      
       case 'checkbox':
+        const isCopyWrittenField = column.key === 'copyWritten';
+        const canEditCopyWritten = isCopyWrittenField ? canManageTasks : true;
+        
         return (
           <div className="flex items-center justify-center">
             <input
               type="checkbox"
               checked={value || false}
               onChange={(e) => handleChange(e.target.checked)}
-              className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-all"
+              disabled={isCopyWrittenField && !canEditCopyWritten}
+              className={`w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 transition-all ${isCopyWrittenField && !canEditCopyWritten ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             />
           </div>
         );
       
       case 'dropdown':
         const isApprovalColumn = column.key === 'copyApproval' || column.key === 'adApproval';
+        const isCopyApprovalColumn = column.key === 'copyApproval';
+        const canEditCopyApproval = isCopyApprovalColumn ? canManageTasks : true;
         const hasFeedback = isApprovalColumn && value === 'Left feedback' && !isNewTask;
         const dropdownFeedbackKey = column.key === 'copyApproval' ? 'copyApprovalFeedback' : 'adApprovalFeedback';
         const feedbackText = task?.[dropdownFeedbackKey] || 'No feedback provided';
@@ -2307,7 +2426,8 @@ This usually indicates a temporary workflow issue.`;
             <select
               value={value || ''}
               onChange={(e) => handleChange(e.target.value)}
-              className={`flex-1 px-3 py-2 text-sm rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-opacity-80 cursor-pointer border font-medium shadow-sm ${
+              disabled={isCopyApprovalColumn && !canEditCopyApproval}
+              className={`flex-1 px-3 py-2 text-sm rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-opacity-80 ${isCopyApprovalColumn && !canEditCopyApproval ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'} border font-medium shadow-sm ${
                 getCurrentValueColors(column.key, value)
               }`}
             >
@@ -2492,6 +2612,24 @@ This usually indicates a temporary workflow issue.`;
       
       case 'date':
         return <span className="text-sm text-gray-900">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      
+      case 'array-checkbox':
+        // Handle array of checkboxes
+        const checkboxArray = Array.isArray(value) ? value : [value || false];
+        return (
+          <div className="flex flex-wrap gap-1">
+            {checkboxArray.map((checked, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">#{index + 1}</span>
+                {checked ? (
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-green-100 text-green-600 text-xs">✓</span>
+                ) : (
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 text-gray-400 text-xs">✗</span>
+                )}
+              </div>
+            ))}
+          </div>
+        );
       
       case 'checkbox':
         return value ? (
@@ -2802,6 +2940,7 @@ This usually indicates a temporary workflow issue.`;
         users={users}
         weekView={weekView}
         canManageTasks={canManageTasks}
+        existingTasks={weekView === 'this-week' ? tasks : scheduledTasks}
         onAddTask={async (taskData) => {
           if (!canManageTasks) return;
 

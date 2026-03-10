@@ -84,11 +84,13 @@ const UserTaskCard = ({
                   {/* Campaign Content */}
                   <div className="bg-white">
                     {tasks.map((task, idx) => {
-                      const assignedBuyer = task.scriptAssigned 
-                        ? users.find(u => u.id === parseInt(task.scriptAssigned))
-                        : null;
-                      // Check for copyWritten field (handle both casing variations)
-                      const copyComplete = task.copyWritten === true || task.CopyWritten === true;
+                      // Handle copy arrays
+                      const copyLinks = Array.isArray(task.copyLink) ? task.copyLink : [task.copyLink || ''];
+                      const scriptAssignments = Array.isArray(task.scriptAssigned) ? task.scriptAssigned : [task.scriptAssigned || ''];
+                      const copyWrittenArray = Array.isArray(task.copyWritten) ? task.copyWritten : [task.copyWritten || false];
+                      
+                      // Get the maximum length to ensure all arrays are displayed
+                      const maxCopies = Math.max(copyLinks.length, scriptAssignments.length, copyWrittenArray.length);
                       
                       // Use task.status for Task Status (not copyApproval)
                       let taskStatus = task.status || 'Not done';
@@ -98,130 +100,162 @@ const UserTaskCard = ({
                       
                       return (
                         <div key={task.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
-                          {/* Task Info Row */}
-                          <div className="grid grid-cols-3 gap-2 lg:gap-4 px-2 lg:px-4 py-1.5 lg:py-2 items-start">
-                            {/* Copy Assigned To */}
-                            <div className="flex flex-col items-center">
-                              <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight mb-1.5 lg:mb-2">
-                                Copy Assigned To
-                              </p>
-                              <div className="flex items-center justify-center h-[32px] lg:h-[36px]">
-                                {canEditBuyer ? (
-                                  <div className="relative">
-                                    <select
-                                      value={task.scriptAssigned || ''}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        const newBuyerId = e.target.value ? parseInt(e.target.value) : null;
-                                        updateTask(task.id, { scriptAssigned: newBuyerId });
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="appearance-none text-[10px] lg:text-xs font-medium px-2 lg:px-3 py-1 lg:py-1.5 pr-6 lg:pr-7 rounded-md cursor-pointer transition-all duration-200 border-2 border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm hover:shadow text-center min-w-[100px] lg:min-w-[120px]"
-                                    >
-                                      <option value="" className="bg-white text-gray-900">Not assigned</option>
-                                      {mediaBuyers.map(buyer => (
-                                        <option key={buyer.id} value={buyer.id} className="bg-white text-gray-900">
-                                          {buyer.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <div className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none text-blue-700">
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <p className="text-xs lg:text-sm font-medium text-gray-900 text-center">
-                                    {assignedBuyer ? assignedBuyer.name : (
-                                      <span className="text-gray-400 italic">Not assigned</span>
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
+                          {/* Header Row - Display only once */}
+                          <div className="grid grid-cols-3 gap-2 lg:gap-4 px-2 lg:px-4 py-1.5 lg:py-2">
+                            <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
+                              Copy Assigned To
+                            </p>
+                            <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
+                              Copy Complete
+                            </p>
+                            <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
+                              Task Status
+                            </p>
+                          </div>
+                          
+                          {/* Data Rows - One for each copy */}
+                          {Array.from({ length: maxCopies }).map((_, copyIndex) => {
+                            const scriptAssignedId = scriptAssignments[copyIndex] || '';
+                            const assignedBuyer = scriptAssignedId 
+                              ? users.find(u => u.id === parseInt(scriptAssignedId))
+                              : null;
+                            const copyComplete = copyWrittenArray[copyIndex] === true;
                             
-                            {/* Copy Complete */}
-                            <div className="flex flex-col items-center">
-                              <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight mb-1.5 lg:mb-2">
-                                Copy Complete
-                              </p>
-                              <div className="flex items-center justify-center h-[32px] lg:h-[36px]">
-                                <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
-                                  copyComplete 
-                                    ? 'bg-green-600 border-green-600' 
-                                    : 'bg-white border-gray-300'
-                                }`}>
-                                  {copyComplete && (
-                                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
+                            return (
+                              <div key={copyIndex} className="grid grid-cols-3 gap-2 lg:gap-4 px-2 lg:px-4 py-1.5 lg:py-2 items-center">
+                                {/* Copy Assigned To */}
+                                <div className="flex items-center justify-center">
+                                  {canEditBuyer ? (
+                                    <div className="relative w-full max-w-[140px]">
+                                      <select
+                                        value={scriptAssignedId || ''}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const newBuyerId = e.target.value ? parseInt(e.target.value) : null;
+                                          const newScriptAssignments = [...scriptAssignments];
+                                          newScriptAssignments[copyIndex] = newBuyerId;
+                                          updateTask(task.id, { scriptAssigned: newScriptAssignments });
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="appearance-none w-full text-[10px] lg:text-xs font-medium px-2 lg:px-3 py-1 lg:py-1.5 pr-6 lg:pr-7 rounded-md cursor-pointer transition-all duration-200 border-2 border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 shadow-sm hover:shadow text-center"
+                                      >
+                                        <option value="" className="bg-white text-gray-900">Not assigned</option>
+                                        {mediaBuyers.map(buyer => (
+                                          <option key={buyer.id} value={buyer.id} className="bg-white text-gray-900">
+                                            {buyer.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <div className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none text-blue-700">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs lg:text-sm font-medium text-gray-900 text-center">
+                                      {assignedBuyer ? assignedBuyer.name : (
+                                        <span className="text-gray-400 italic">Not assigned</span>
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                {/* Copy Complete */}
+                                <div className="flex items-center justify-center">
+                                  {canEditBuyer ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newCopyWritten = [...copyWrittenArray];
+                                        newCopyWritten[copyIndex] = !newCopyWritten[copyIndex];
+                                        updateTask(task.id, { copyWritten: newCopyWritten });
+                                      }}
+                                      className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all cursor-pointer hover:scale-110 ${
+                                        copyComplete 
+                                          ? 'bg-green-600 border-green-600' 
+                                          : 'bg-white border-gray-300 hover:border-green-400'
+                                      }`}
+                                    >
+                                      {copyComplete && (
+                                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${
+                                      copyComplete 
+                                        ? 'bg-green-600 border-green-600' 
+                                        : 'bg-white border-gray-300'
+                                    }`}>
+                                      {copyComplete && (
+                                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Task Status - Show on every copy row */}
+                                <div className="flex items-center justify-center">
+                                  {canEditStatus ? (
+                                    <div className="relative">
+                                      <select
+                                        value={taskStatus}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          updateTask(task.id, { status: e.target.value });
+                                          setEditingTaskId(null);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`appearance-none text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 pr-4 lg:pr-5 rounded-full cursor-pointer transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm hover:shadow-md text-center ${
+                                          taskStatus === 'Approved' 
+                                            ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
+                                          taskStatus === 'Needs Review' 
+                                            ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
+                                          taskStatus === 'Left Feedback' 
+                                            ? 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200' :
+                                          'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                                        }`}
+                                      >
+                                        <option value="Not done" className="bg-white text-gray-900">Not done</option>
+                                        <option value="Needs Review" className="bg-white text-gray-900">Needs Review</option>
+                                        <option value="Left Feedback" className="bg-white text-gray-900">Left Feedback</option>
+                                        <option value="Approved" className="bg-white text-gray-900">Approved</option>
+                                      </select>
+                                      <div className={`absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none ${
+                                        taskStatus === 'Approved' 
+                                          ? 'text-green-700' :
+                                        taskStatus === 'Needs Review' 
+                                          ? 'text-orange-700' :
+                                        taskStatus === 'Left Feedback' 
+                                          ? 'text-purple-700' :
+                                        'text-gray-600'
+                                      }`}>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className={`inline-block text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full ${
+                                      taskStatus === 'Approved' 
+                                        ? 'bg-green-100 text-green-700' :
+                                      taskStatus === 'Needs Review' 
+                                        ? 'bg-orange-100 text-orange-700' :
+                                      taskStatus === 'Left Feedback' 
+                                        ? 'bg-purple-100 text-purple-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {taskStatus}
+                                    </span>
                                   )}
                                 </div>
                               </div>
-                            </div>
-                            
-                            {/* Task Status */}
-                            <div className="flex flex-col items-center">
-                              <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight mb-1.5 lg:mb-2">
-                                Task Status
-                              </p>
-                              <div className="flex items-center justify-center h-[32px] lg:h-[36px]">
-                                {canEditStatus ? (
-                                  <div className="relative">
-                                    <select
-                                      value={taskStatus}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        updateTask(task.id, { status: e.target.value });
-                                        setEditingTaskId(null);
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className={`appearance-none text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 pr-4 lg:pr-5 rounded-full cursor-pointer transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm hover:shadow-md text-center ${
-                                        taskStatus === 'Approved' 
-                                          ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' :
-                                        taskStatus === 'Needs Review' 
-                                          ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200' :
-                                        taskStatus === 'Left Feedback' 
-                                          ? 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200' :
-                                        'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-                                      }`}
-                                    >
-                                      <option value="Not done" className="bg-white text-gray-900">Not done</option>
-                                      <option value="Needs Review" className="bg-white text-gray-900">Needs Review</option>
-                                      <option value="Left Feedback" className="bg-white text-gray-900">Left Feedback</option>
-                                      <option value="Approved" className="bg-white text-gray-900">Approved</option>
-                                    </select>
-                                    <div className={`absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none ${
-                                      taskStatus === 'Approved' 
-                                        ? 'text-green-700' :
-                                      taskStatus === 'Needs Review' 
-                                        ? 'text-orange-700' :
-                                      taskStatus === 'Left Feedback' 
-                                        ? 'text-purple-700' :
-                                      'text-gray-600'
-                                    }`}>
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className={`inline-block text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full ${
-                                    taskStatus === 'Approved' 
-                                      ? 'bg-green-100 text-green-700' :
-                                    taskStatus === 'Needs Review' 
-                                      ? 'bg-orange-100 text-orange-700' :
-                                    taskStatus === 'Left Feedback' 
-                                      ? 'bg-purple-100 text-purple-700' :
-                                    'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    {taskStatus}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
