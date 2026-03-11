@@ -101,7 +101,10 @@ const UserTaskCard = ({
                       return (
                         <div key={task.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
                           {/* Header Row - Display only once */}
-                          <div className="grid grid-cols-3 gap-2 lg:gap-4 px-2 lg:px-4 py-1.5 lg:py-2">
+                          <div className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2" style={{ gridTemplateColumns: '20px auto auto auto' }}>
+                            <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
+                              
+                            </p>
                             <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
                               Copy Assigned To
                             </p>
@@ -122,7 +125,14 @@ const UserTaskCard = ({
                             const copyComplete = copyWrittenArray[copyIndex] === true;
                             
                             return (
-                              <div key={copyIndex} className="grid grid-cols-3 gap-2 lg:gap-4 px-2 lg:px-4 py-1.5 lg:py-2 items-center">
+                              <div key={copyIndex} className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2 items-center" style={{ gridTemplateColumns: '20px auto auto auto' }}>
+                                {/* Copy Number - Use task index for sequential numbering across campaign */}
+                                <div className="flex items-center justify-center">
+                                  <span className="text-[9px] lg:text-[10px] font-bold text-gray-700">
+                                    #{idx + 1}
+                                  </span>
+                                </div>
+                                
                                 {/* Copy Assigned To */}
                                 <div className="flex items-center justify-center">
                                   {canEditBuyer ? (

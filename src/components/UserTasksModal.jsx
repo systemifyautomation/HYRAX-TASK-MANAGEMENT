@@ -52,7 +52,7 @@ const UserTasksModal = ({
   const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
   const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
-  const [editingCampaign, setEditingCampaign] = useState(null); // { campaignName, copyLink, scriptAssigned }
+  const [editingCampaign, setEditingCampaign] = useState(null); // { taskId, copyLink, scriptAssigned }
   
   const slugify = (value) => {
     if (!value) return '';
@@ -259,6 +259,11 @@ const UserTasksModal = ({
     groups[campaignName].push(task);
     return groups;
   }, {});
+  
+  // Sort tasks within each campaign by task ID
+  Object.keys(tasksByCampaign).forEach(campaignName => {
+    tasksByCampaign[campaignName].sort((a, b) => a.id - b.id);
+  });
   
   // Build links with correct ad numbers
   Object.entries(tasksByCampaign).forEach(([campaignName, campaignTasks]) => {
@@ -831,6 +836,9 @@ const UserTasksModal = ({
                 return groups;
               }, {})
             ).map(([campaignName, campaignTasks]) => {
+              // Sort tasks by ID within this campaign
+              const sortedCampaignTasks = [...campaignTasks].sort((a, b) => a.id - b.id);
+              
               const isExpanded = expandedCampaigns.has(campaignName);
               
               return (
@@ -862,7 +870,7 @@ const UserTasksModal = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const taskIds = campaignTasks.map(t => t.id);
+                            const taskIds = sortedCampaignTasks.map(t => t.id);
                             if (window.confirm(`Are you sure you want to delete all ${campaignTasks.length} task(s) for ${campaignName}?`)) {
                               taskIds.forEach(id => deleteTask(id));
                             }
@@ -884,18 +892,36 @@ const UserTasksModal = ({
                   {/* Collapsible Campaign Content */}
                   {isExpanded && (
                     <div className="p-4 space-y-4">
-                      {/* Campaign Info Section */}
+                      {/* Task Sets */}
+                      {sortedCampaignTasks.map((task, taskIndex) => {
+                  const actualTaskIndex = userTasksModal.tasks.findIndex(t => t.id === task.id);
+                  const campaignForTask = campaigns.find(c => c.id === parseInt(task.campaignId));
+
+                  const quantity = parseInt(task.quantity?.replace('x', '') || '1');
+                  const totalSlots = isVideoEditor ? quantity * 2 : quantity;
+                  
+                  // Calculate actual slots to render (including additional creatives beyond original quantity)
+                  const viewerLinkCount = task.viewerLink ? task.viewerLink.length : 0;
+                  const actualSlotsCount = Math.max(totalSlots, viewerLinkCount);
+
+                  return (
+                    <div key={task.id} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      {/* Task Set Header */}
+                      <div className="mb-4">
+                        <h4 className="text-base font-bold text-gray-900">Task Set #{taskIndex + 1}</h4>
+                      </div>
+                      
+                      {/* Copy Details Section */}
                       {(() => {
-                        const firstTask = campaignTasks[0];
-                        const scriptUser = users?.find(u => u.id === parseInt(firstTask.scriptAssigned));
-                        const isEditing = editingCampaign?.campaignName === campaignName;
+                        const scriptUser = users?.find(u => u.id === parseInt(task.scriptAssigned?.[0]));
+                        const isEditing = editingCampaign?.taskId === task.id;
                         const canEdit = isManager(currentUser?.role);
                         
                         const handleStartEdit = () => {
                           setEditingCampaign({
-                            campaignName: campaignName,
-                            copyLink: Array.isArray(firstTask.copyLink) ? firstTask.copyLink : [firstTask.copyLink || ''],
-                            scriptAssigned: Array.isArray(firstTask.scriptAssigned) ? firstTask.scriptAssigned : [firstTask.scriptAssigned || '']
+                            taskId: task.id,
+                            copyLink: Array.isArray(task.copyLink) ? task.copyLink[0] || '' : task.copyLink || '',
+                            scriptAssigned: Array.isArray(task.scriptAssigned) ? task.scriptAssigned[0] || '' : task.scriptAssigned || ''
                           });
                         };
                         
@@ -906,28 +932,26 @@ const UserTasksModal = ({
                         const handleSaveEdit = async () => {
                           if (!editingCampaign) return;
                           
-                          // Update all tasks in this campaign
+                          // Preserve existing arrays and update only the first element
+                          const existingCopyApproval = Array.isArray(task.copyApproval) ? [...task.copyApproval] : [''];
+                          const existingCopyApprovalFeedback = Array.isArray(task.copyApprovalFeedback) ? [...task.copyApprovalFeedback] : [''];
+                          
+                          // Update this specific task with the single copy
                           const updates = {
-                            copyLink: editingCampaign.copyLink,
-                            scriptAssigned: Array.isArray(editingCampaign.scriptAssigned) 
-                              ? editingCampaign.scriptAssigned.map(id => id ? parseInt(id) : null)
-                              : (editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null)
+                            copyLink: [editingCampaign.copyLink],
+                            scriptAssigned: [editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null],
+                            copyWritten: [!!(editingCampaign.copyLink && editingCampaign.copyLink.trim())],
+                            copyApproval: existingCopyApproval,
+                            copyApprovalFeedback: existingCopyApprovalFeedback
                           };
                           
-                          // Set copyWritten as array of booleans matching copyLink array
-                          if (Array.isArray(editingCampaign.copyLink)) {
-                            updates.copyWritten = editingCampaign.copyLink.map(link => !!(link && link.trim()));
-                          } else {
-                            updates.copyWritten = editingCampaign.copyLink && editingCampaign.copyLink.trim() ? [true] : [false];
-                          }
-                          
-                          // Save all tasks in the campaign
-                          for (const task of campaignTasks) {
-                            await updateTask(task.id, updates);
-                          }
+                          await updateTask(task.id, updates);
                           
                           setEditingCampaign(null);
                         };
+                        
+                        const copyLink = Array.isArray(task.copyLink) ? task.copyLink[0] : task.copyLink;
+                        const scriptAssignedId = Array.isArray(task.scriptAssigned) ? task.scriptAssigned[0] : task.scriptAssigned;
                         
                         return (
                           <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
@@ -936,56 +960,10 @@ const UserTasksModal = ({
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Copy Details
+                                Copy
                               </h3>
                               
                               <div className="flex items-center gap-2">
-                                {/* Add Copy Button */}
-                                {canEdit && !isEditing && (
-                                  <button
-                                    type="button"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      
-                                      // Convert single values to arrays and add new empty items
-                                      const updates = {
-                                        copyLink: Array.isArray(firstTask.copyLink) 
-                                          ? [...firstTask.copyLink, ''] 
-                                          : [firstTask.copyLink || '', ''],
-                                        copyApproval: Array.isArray(firstTask.copyApproval)
-                                          ? [...firstTask.copyApproval, '']
-                                          : [firstTask.copyApproval || '', ''],
-                                        copyApprovalFeedback: Array.isArray(firstTask.copyApprovalFeedback)
-                                          ? [...firstTask.copyApprovalFeedback, '']
-                                          : [firstTask.copyApprovalFeedback || '', ''],
-                                        copyWritten: Array.isArray(firstTask.copyWritten)
-                                          ? [...firstTask.copyWritten, false]
-                                          : [firstTask.copyWritten || false, false],
-                                        copyLinkAt: Array.isArray(firstTask.copyLinkAt)
-                                          ? [...firstTask.copyLinkAt, null]
-                                          : [firstTask.copyLinkAt || null, null],
-                                        copyApprovalAt: Array.isArray(firstTask.copyApprovalAt)
-                                          ? [...firstTask.copyApprovalAt, null]
-                                          : [firstTask.copyApprovalAt || null, null],
-                                        scriptAssigned: Array.isArray(firstTask.scriptAssigned)
-                                          ? [...firstTask.scriptAssigned, null]
-                                          : [firstTask.scriptAssigned || null, null]
-                                      };
-                                      
-                                      // Update all tasks in this campaign
-                                      for (const task of campaignTasks) {
-                                        await updateTask(task.id, updates);
-                                      }
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-                                    title="Add copy link"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    Add Copy
-                                  </button>
-                                )}
-                                
                                 {canEdit && !isEditing && (
                                   <button
                                     onClick={handleStartEdit}
@@ -1017,7 +995,7 @@ const UserTasksModal = ({
                               </div>
                             </div>
                             
-                            {/* Copy Link & Script Assigned - aligned in same rows */}
+                            {/* Copy Link & Script Assigned */}
                             <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
                               {/* Header Row */}
                               <div className="grid grid-cols-2 gap-4 mb-2">
@@ -1035,171 +1013,84 @@ const UserTasksModal = ({
                                 </label>
                               </div>
                               
-                              {/* Data Rows */}
-                              <div className="space-y-2">
-                                {isEditing ? (
-                                  // Edit mode - iterate through copy arrays
-                                  Array.isArray(editingCampaign.copyLink) && editingCampaign.copyLink.map((link, index) => {
-                                    const userId = Array.isArray(editingCampaign.scriptAssigned) ? editingCampaign.scriptAssigned[index] : '';
-                                    return (
-                                      <div key={index} className="grid grid-cols-2 gap-4 items-start">
-                                        {/* Copy Link Input */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
-                                          <input
-                                            type="url"
-                                            value={link || ''}
-                                            onChange={(e) => {
-                                              const newLinks = [...editingCampaign.copyLink];
-                                              newLinks[index] = e.target.value;
-                                              setEditingCampaign({ ...editingCampaign, copyLink: newLinks });
-                                            }}
-                                            placeholder="Enter copy link..."
-                                            className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                          />
+                              {/* Data Row */}
+                              {isEditing ? (
+                                // Edit mode
+                                <div className="grid grid-cols-2 gap-4 items-start">
+                                  {/* Copy Link Input */}
+                                  <input
+                                    type="url"
+                                    value={editingCampaign.copyLink || ''}
+                                    onChange={(e) => {
+                                      setEditingCampaign({ ...editingCampaign, copyLink: e.target.value });
+                                    }}
+                                    placeholder="Enter copy link..."
+                                    className="px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+                                  
+                                  {/* Script Assigned Dropdown */}
+                                  <select
+                                    value={editingCampaign.scriptAssigned || ''}
+                                    onChange={(e) => {
+                                      setEditingCampaign({ ...editingCampaign, scriptAssigned: e.target.value });
+                                    }}
+                                    className="px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                                  >
+                                    <option value="">-- Select User --</option>
+                                    {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
+                                      <option key={user.id} value={user.id}>
+                                        {user.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                // View mode
+                                <div className="grid grid-cols-2 gap-4 items-center">
+                                  {/* Copy Link Display */}
+                                  <div className="flex items-center">
+                                    {copyLink ? (
+                                      <a 
+                                        href={copyLink} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800 underline block truncate"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {copyLink}
+                                      </a>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">Empty</span>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Script Assigned Display */}
+                                  <div className="flex items-center">
+                                    {scriptUser ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                          {scriptUser.name.charAt(0).toUpperCase()}
                                         </div>
-                                        
-                                        {/* Script Assigned Dropdown */}
-                                        <div className="flex items-center gap-2">
-                                          <select
-                                            value={userId || ''}
-                                            onChange={(e) => {
-                                              const newAssignments = [...(Array.isArray(editingCampaign.scriptAssigned) ? editingCampaign.scriptAssigned : [])];
-                                              newAssignments[index] = e.target.value;
-                                              setEditingCampaign({ ...editingCampaign, scriptAssigned: newAssignments });
-                                            }}
-                                            className="flex-1 px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
-                                          >
-                                            <option value="">-- Select User --</option>
-                                            {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
-                                              <option key={user.id} value={user.id}>
-                                                {user.name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                          
-                                          {/* Delete Button */}
-                                          {editingCampaign.copyLink.length > 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const newLinks = editingCampaign.copyLink.filter((_, i) => i !== index);
-                                                const newAssignments = Array.isArray(editingCampaign.scriptAssigned)
-                                                  ? editingCampaign.scriptAssigned.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newApprovals = Array.isArray(editingCampaign.copyApproval) 
-                                                  ? editingCampaign.copyApproval.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newFeedback = Array.isArray(editingCampaign.copyApprovalFeedback)
-                                                  ? editingCampaign.copyApprovalFeedback.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newWritten = Array.isArray(editingCampaign.copyWritten)
-                                                  ? editingCampaign.copyWritten.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newLinkAt = Array.isArray(editingCampaign.copyLinkAt)
-                                                  ? editingCampaign.copyLinkAt.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newWrittenAt = Array.isArray(editingCampaign.copyWrittenAt)
-                                                  ? editingCampaign.copyWrittenAt.filter((_, i) => i !== index)
-                                                  : [];
-                                                const newApprovalAt = Array.isArray(editingCampaign.copyApprovalAt)
-                                                  ? editingCampaign.copyApprovalAt.filter((_, i) => i !== index)
-                                                  : [];
-                                                setEditingCampaign({
-                                                  ...editingCampaign,
-                                                  copyLink: newLinks,
-                                                  scriptAssigned: newAssignments,
-                                                  copyApproval: newApprovals,
-                                                  copyApprovalFeedback: newFeedback,
-                                                  copyWritten: newWritten,
-                                                  copyLinkAt: newLinkAt,
-                                                  copyWrittenAt: newWrittenAt,
-                                                  copyApprovalAt: newApprovalAt
-                                                });
-                                              }}
-                                              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-                                              title="Delete this copy"
-                                            >
-                                              <Trash2 className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                        </div>
+                                        <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
                                       </div>
-                                    );
-                                  })
-                                ) : (
-                                  // View mode - iterate through copy arrays
-                                  Array.isArray(firstTask.copyLink) && firstTask.copyLink.map((link, index) => {
-                                    const userId = Array.isArray(firstTask.scriptAssigned) ? firstTask.scriptAssigned[index] : '';
-                                    const scriptUser = users?.find(u => u.id === parseInt(userId));
-                                    
-                                    return (
-                                      <div key={index} className="grid grid-cols-2 gap-4 items-center">
-                                        {/* Copy Link Display */}
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
-                                          {link ? (
-                                            <a 
-                                              href={link} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer"
-                                              className="text-xs text-blue-600 hover:text-blue-800 underline block truncate flex-1"
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              {link}
-                                            </a>
-                                          ) : (
-                                            <span className="text-xs text-gray-400 italic flex-1">Empty</span>
-                                          )}
-                                        </div>
-                                        
-                                        {/* Script Assigned Display */}
-                                        <div className="flex items-center">
-                                          {scriptUser ? (
-                                            <div className="flex items-center gap-1.5">
-                                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
-                                                {scriptUser.name.charAt(0).toUpperCase()}
-                                              </div>
-                                              <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
-                                            </div>
-                                          ) : userId ? (
-                                            <span className="text-xs text-gray-500">User ID: {userId}</span>
-                                          ) : (
-                                            <span className="text-xs text-gray-400 italic">Not assigned</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
+                                    ) : scriptAssignedId ? (
+                                      <span className="text-xs text-gray-500">User ID: {scriptAssignedId}</span>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">Not assigned</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
                       })()}
                       
-                      {/* Tasks and Ad Creatives */}
-                      {campaignTasks.map((task, taskIndex) => {
-                  const actualTaskIndex = userTasksModal.tasks.findIndex(t => t.id === task.id);
-                  const campaignForTask = campaigns.find(c => c.id === parseInt(task.campaignId));
-                  const adOffset = campaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
-                    const qty = parseInt(prevTask.quantity?.replace('x', '') || '1');
-                    return sum + qty;
-                  }, 0);
-
-                  const quantity = parseInt(task.quantity?.replace('x', '') || '1');
-                  const totalSlots = isVideoEditor ? quantity * 2 : quantity;
-                  
-                  // Calculate actual slots to render (including additional creatives beyond original quantity)
-                  const viewerLinkCount = task.viewerLink ? task.viewerLink.length : 0;
-                  const actualSlotsCount = Math.max(totalSlots, viewerLinkCount);
-
-                  return (
-                    <div key={task.id} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      {/* Ad Creatives */}
                       <div className="space-y-3">
                         {Array.from({ length: actualSlotsCount }).map((_, i) => {
                           const slotIndex = i;
-                          const adNumber = adOffset + Math.floor(i / (isVideoEditor ? 2 : 1)) + 1;
+                          const adNumber = Math.floor(i / (isVideoEditor ? 2 : 1)) + 1;
                           const formatIndex = isVideoEditor ? i % 2 : 0;
                           const formatLabel = isVideoEditor ? (formatIndex === 0 ? 'Facebook Format' : 'Reel') : null;
                           
@@ -1463,17 +1354,37 @@ const UserTasksModal = ({
                                         
                                         updatedApprovals[slotIndex] = 'Approved';
                                         
+                                        // Check if all ad creatives with uploads are now approved
+                                        const viewerLinks = task.viewerLink || [];
+                                        const hasUploads = viewerLinks.some(link => link && link.trim());
+                                        
+                                        // Only check slots that have actual uploads
+                                        const allUploadedCreativesApproved = hasUploads && viewerLinks.every((link, idx) => {
+                                          // If no upload in this slot, ignore it
+                                          if (!link || !link.trim()) return true;
+                                          // If upload exists, check if it's approved/uploaded
+                                          const approval = updatedApprovals[idx];
+                                          return approval === 'Approved' || approval === 'Uploaded';
+                                        });
+                                        
                                         const updatedTasks = [...userTasksModal.tasks];
                                         updatedTasks[actualTaskIndex] = { 
                                           ...task, 
-                                          viewerLinkApproval: updatedApprovals
+                                          viewerLinkApproval: updatedApprovals,
+                                          ...(allUploadedCreativesApproved && { status: 'Approved' })
                                         };
                                         setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
                                         
-                                        // Only send approval status - webhook will generate timestamp
-                                        updateTask(task.id, { 
+                                        // Update approval status and task status if all uploaded creatives are approved
+                                        const updates = { 
                                           viewerLinkApproval: updatedApprovals
-                                        });
+                                        };
+                                        
+                                        if (allUploadedCreativesApproved) {
+                                          updates.status = 'Approved';
+                                        }
+                                        
+                                        updateTask(task.id, updates);
                                       }}
                                       className="w-full flex items-center justify-center gap-2 px-6 py-3.5 text-base font-bold text-white bg-green-500 rounded-xl hover:bg-green-600 hover:shadow-lg transform hover:scale-[1.02] transition-all shadow-md"
                                       title="Approve"

@@ -2315,46 +2315,6 @@ This usually indicates a temporary workflow issue.`;
                 <ExternalLink className="w-4 h-4" />
               </button>
             )}
-            {column.key === 'copyLink' && canManageTasks && !isNewTask && (
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  
-                  // Convert single values to arrays and add new empty items
-                  const updates = {
-                    copyLink: Array.isArray(task.copyLink) 
-                      ? [...task.copyLink, ''] 
-                      : [task.copyLink || '', ''],
-                    copyApproval: Array.isArray(task.copyApproval)
-                      ? [...task.copyApproval, '']
-                      : [task.copyApproval || '', ''],
-                    copyApprovalFeedback: Array.isArray(task.copyApprovalFeedback)
-                      ? [...task.copyApprovalFeedback, '']
-                      : [task.copyApprovalFeedback || '', ''],
-                    copyWritten: Array.isArray(task.copyWritten)
-                      ? [...task.copyWritten, false]
-                      : [task.copyWritten || false, false],
-                    copyLinkAt: Array.isArray(task.copyLinkAt)
-                      ? [...task.copyLinkAt, null]
-                      : [task.copyLinkAt || null, null],
-                    copyApprovalAt: Array.isArray(task.copyApprovalAt)
-                      ? [...task.copyApprovalAt, null]
-                      : [task.copyApprovalAt || null, null],
-                    scriptAssigned: Array.isArray(task.scriptAssigned)
-                      ? [...task.scriptAssigned, null]
-                      : [task.scriptAssigned || null, null]
-                  };
-                  
-                  await updateTask(task.id, updates);
-                }}
-                className="p-1.5 text-white bg-green-600 hover:bg-green-700 rounded transition-colors flex-shrink-0"
-                title="Add copy link"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
           </div>
         );
       
@@ -2755,21 +2715,24 @@ This usually indicates a temporary workflow issue.`;
               <div className="text-2xl font-bold text-gray-900">{filteredTasks.length}</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">In Progress</div>
+              <div className="text-sm text-gray-500 mb-1">Not Done</div>
               <div className="text-2xl font-bold text-blue-600">
-                {filteredTasks.filter(t => t.status === 'in_progress').length}
+                {filteredTasks.filter(t => {
+                  const status = t.status || 'Not done';
+                  return status === 'Not done' || status === 'Not Done' || status === 'In Progress';
+                }).length}
               </div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Completed</div>
+              <div className="text-sm text-gray-500 mb-1">Approved</div>
               <div className="text-2xl font-bold text-green-600">
-                {filteredTasks.filter(t => t.status === 'approved').length}
+                {filteredTasks.filter(t => t.status === 'Approved').length}
               </div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="text-sm text-gray-500 mb-1">Needs Review</div>
               <div className="text-2xl font-bold text-amber-600">
-                {filteredTasks.filter(t => t.status === 'submitted').length}
+                {filteredTasks.filter(t => t.status === 'Needs Review').length}
               </div>
             </div>
           </div>
@@ -2852,10 +2815,24 @@ This usually indicates a temporary workflow issue.`;
             const usersWithWebhookTasks = users.filter(user =>
               filteredTasks.some(task => String(task.assignedTo) === String(user.id))
             );
+            
+            // Include all video editors and graphic designers even without tasks
+            const videoEditorsAndDesigners = users.filter(user => {
+              const dept = user.department?.trim().toUpperCase();
+              return dept === 'VIDEO EDITING' || dept === 'GRAPHIC DESIGN';
+            });
+            
+            // Combine users with tasks and video editors/designers (remove duplicates)
+            const allRelevantUsers = [...usersWithWebhookTasks];
+            videoEditorsAndDesigners.forEach(user => {
+              if (!allRelevantUsers.some(u => u.id === user.id)) {
+                allRelevantUsers.push(user);
+              }
+            });
 
             let visibleUsers;
             if (isManager(currentUser?.role)) {
-              visibleUsers = usersWithWebhookTasks;
+              visibleUsers = allRelevantUsers;
             } else {
               const currentUserFromWebhook = users.filter(
                 user => String(user.id) === String(currentUser?.id)
