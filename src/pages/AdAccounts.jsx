@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Save, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isAdmin } from '../constants/roles';
 
@@ -41,8 +41,82 @@ const AdAccounts = () => {
     Status: 'Active'
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, accountId: null });
+  
+  // Filter and sort states
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
+  const [pixelIdFilter, setPixelIdFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
+
+  // Get unique values for filters
+  const uniqueCampaigns = useMemo(() => {
+    const campaigns = [...new Set(adAccounts.map(acc => acc.Campaign).filter(Boolean))];
+    return campaigns.sort();
+  }, [adAccounts]);
+
+  const uniquePixelIds = useMemo(() => {
+    const pixelIds = [...new Set(adAccounts.map(acc => acc.Pixel_ID).filter(Boolean))];
+    return pixelIds.sort();
+  }, [adAccounts]);
+
+  // Handle sorting
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Get sort icon
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) {
+      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUp className="w-4 h-4 text-primary-600" /> : 
+      <ArrowDown className="w-4 h-4 text-primary-600" />;
+  };
+
+  // Filter and sort ad accounts
+  const filteredAndSortedAccounts = useMemo(() => {
+    let filtered = [...adAccounts];
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(acc => acc.Status === statusFilter);
+    }
+
+    // Apply campaign filter
+    if (campaignFilter !== 'all') {
+      filtered = filtered.filter(acc => acc.Campaign === campaignFilter);
+    }
+
+    // Apply pixel ID filter
+    if (pixelIdFilter !== 'all') {
+      filtered = filtered.filter(acc => acc.Pixel_ID === pixelIdFilter);
+    }
+
+    // Apply sorting
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [adAccounts, statusFilter, campaignFilter, pixelIdFilter, sortConfig]);
 
   useEffect(() => {
     if (isAdminUser) {
@@ -245,7 +319,7 @@ const AdAccounts = () => {
         <p className="text-gray-600 mt-2">Manage and view all advertising accounts</p>
       </div>
 
-      {/* Refresh Button */}
+      {/* Action Buttons */}
       <div className="mb-4 flex gap-3">
         <button
           onClick={fetchAdAccounts}
@@ -262,6 +336,104 @@ const AdAccounts = () => {
           Add Ad Account
         </button>
       </div>
+
+      {/* Filters */}
+      {!loading && !error && adAccounts.length > 0 && (
+        <div className="mb-4 bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="w-5 h-5 text-gray-600" />
+            <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Status Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+              >
+                <option value="all">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Campaign Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Campaign
+              </label>
+              <select
+                value={campaignFilter}
+                onChange={(e) => setCampaignFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+              >
+                <option value="all">All Campaigns</option>
+                {uniqueCampaigns.map((campaign) => (
+                  <option key={campaign} value={campaign}>
+                    {campaign}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Pixel ID Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Pixel ID
+              </label>
+              <select
+                value={pixelIdFilter}
+                onChange={(e) => setPixelIdFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+              >
+                <option value="all">All Pixel IDs</option>
+                {uniquePixelIds.map((pixelId) => (
+                  <option key={pixelId} value={pixelId}>
+                    {pixelId}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {/* Active Filters Summary */}
+          {(statusFilter !== 'all' || campaignFilter !== 'all' || pixelIdFilter !== 'all') && (
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Active filters:</span>
+              {statusFilter !== 'all' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                  Status: {statusFilter}
+                </span>
+              )}
+              {campaignFilter !== 'all' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                  Campaign: {campaignFilter}
+                </span>
+              )}
+              {pixelIdFilter !== 'all' && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                  Pixel: {pixelIdFilter}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setStatusFilter('all');
+                  setCampaignFilter('all');
+                  setPixelIdFilter('all');
+                  setSortConfig({ key: null, direction: 'asc' });
+                }}
+                className="ml-2 text-xs text-primary-600 hover:text-primary-700 underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -291,7 +463,13 @@ const AdAccounts = () => {
                     Ad Account ID
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Campaign
+                    <button
+                      onClick={() => handleSort('Campaign')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                    >
+                      Campaign
+                      {getSortIcon('Campaign')}
+                    </button>
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     V
@@ -303,7 +481,13 @@ const AdAccounts = () => {
                     ADSPOWER
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pixel ID
+                    <button
+                      onClick={() => handleSort('Pixel_ID')}
+                      className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                    >
+                      Pixel ID
+                      {getSortIcon('Pixel_ID')}
+                    </button>
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -314,14 +498,14 @@ const AdAccounts = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {adAccounts.length === 0 ? (
+                {filteredAndSortedAccounts.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
-                      No ad accounts found
+                      {adAccounts.length === 0 ? 'No ad accounts found' : 'No ad accounts match the selected filters'}
                     </td>
                   </tr>
                 ) : (
-                  adAccounts.map((account, index) => {
+                  filteredAndSortedAccounts.map((account, index) => {
                     const isEditing = editingId === account.id;
                     return (
                       <tr key={account.id || index} className="hover:bg-gray-50 transition-colors">
@@ -473,7 +657,7 @@ const AdAccounts = () => {
       {/* Summary */}
       {!loading && !error && adAccounts.length > 0 && (
         <div className="mt-4 text-sm text-gray-600">
-          Total Ad Accounts: <span className="font-semibold">{adAccounts.length}</span>
+          Showing <span className="font-semibold">{filteredAndSortedAccounts.length}</span> of <span className="font-semibold">{adAccounts.length}</span> ad accounts
         </div>
       )}
 

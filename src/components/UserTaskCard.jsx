@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { isManager } from '../constants/roles';
 
 const UserTaskCard = ({ 
@@ -14,10 +15,18 @@ const UserTaskCard = ({
   deleteTask,
   weekView
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [editingTaskId, setEditingTaskId] = useState(null);
   const canEditStatus = currentUser && isManager(currentUser.role);
   const canEditBuyer = currentUser && isManager(currentUser.role);
   const canManageTasks = currentUser && isManager(currentUser.role);
+  
+  const getUserSlug = (userId) => {
+    const user = users.find(u => u.id === parseInt(userId));
+    if (!user) return null;
+    return encodeURIComponent(user.name.toLowerCase().replace(/\s+/g, '-'));
+  };
 
   // Group tasks by campaign
   const tasksByCampaign = userTasks.reduce((acc, task) => {
@@ -101,7 +110,19 @@ const UserTaskCard = ({
                       return (
                         <div key={task.id} className={idx > 0 ? 'border-t border-gray-100' : ''}>
                           {/* Header Row - Display only once */}
-                          <div className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2" style={{ gridTemplateColumns: '20px auto auto auto' }}>
+                          <div 
+                            className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2 cursor-pointer hover:bg-gray-50 transition-colors" 
+                            style={{ gridTemplateColumns: '20px auto auto auto' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const userSlug = getUserSlug(user.id) || 'user';
+                              const isNextWeek = location.pathname.startsWith('/next-week');
+                              const taskPath = isNextWeek 
+                                ? `/next-week/cards/${userSlug}/task/${task.id}` 
+                                : `/cards/${userSlug}/task/${task.id}`;
+                              navigate(taskPath, { replace: true });
+                            }}
+                          >
                             <p className="text-[8px] lg:text-[10px] font-medium text-gray-500 uppercase tracking-tight text-center">
                               
                             </p>
@@ -125,7 +146,20 @@ const UserTaskCard = ({
                             const copyComplete = copyWrittenArray[copyIndex] === true;
                             
                             return (
-                              <div key={copyIndex} className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2 items-center" style={{ gridTemplateColumns: '20px auto auto auto' }}>
+                              <div 
+                                key={copyIndex} 
+                                className="grid gap-1 lg:gap-2 px-2 lg:px-4 py-1.5 lg:py-2 items-center cursor-pointer hover:bg-gray-50 transition-colors" 
+                                style={{ gridTemplateColumns: '20px auto auto auto' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const userSlug = getUserSlug(user.id) || 'user';
+                                  const isNextWeek = location.pathname.startsWith('/next-week');
+                                  const taskPath = isNextWeek 
+                                    ? `/next-week/cards/${userSlug}/task/${task.id}` 
+                                    : `/cards/${userSlug}/task/${task.id}`;
+                                  navigate(taskPath, { replace: true });
+                                }}
+                              >
                                 {/* Copy Number - Use task index for sequential numbering across campaign */}
                                 <div className="flex items-center justify-center">
                                   <span className="text-[9px] lg:text-[10px] font-bold text-gray-700">

@@ -23,6 +23,10 @@ export const AppProvider = ({ children }) => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [users, setUsers] = useState([]);
   
+  // Track optimistically added tasks (not yet in database)
+  const [optimisticTaskIds, setOptimisticTaskIds] = useState(new Set());
+  const [optimisticScheduledTaskIds, setOptimisticScheduledTaskIds] = useState(new Set());
+  
   // Loading states for each data type
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -292,8 +296,23 @@ export const AppProvider = ({ children }) => {
                     const data = JSON.parse(text);
                     if (Array.isArray(data)) {
                       const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
-                      setTasks(validTasks);
-                      localStorage.setItem('hyrax_tasks', JSON.stringify(validTasks));
+                      
+                      // Preserve optimistically added tasks that aren't in the webhook response yet
+                      const webhookTaskIds = new Set(validTasks.map(t => t.id));
+                      const currentOptimisticTasks = tasks.filter(t => optimisticTaskIds.has(t.id) && !webhookTaskIds.has(t.id));
+                      
+                      // Merge webhook data with optimistic tasks
+                      const mergedTasks = [...validTasks, ...currentOptimisticTasks];
+                      
+                      // Clean up tracking for tasks that now appear in webhook
+                      setOptimisticTaskIds(prev => {
+                        const updated = new Set(prev);
+                        validTasks.forEach(t => updated.delete(t.id));
+                        return updated;
+                      });
+                      
+                      setTasks(mergedTasks);
+                      localStorage.setItem('hyrax_tasks', JSON.stringify(mergedTasks));
                     }
                   } catch (jsonError) {
                     console.error('Failed to parse tasks JSON:', jsonError);
@@ -340,8 +359,23 @@ export const AppProvider = ({ children }) => {
                     const data = JSON.parse(text);
                     if (Array.isArray(data)) {
                       const validTasks = data.filter(task => task && Object.keys(task).length > 0 && task.id);
-                      setScheduledTasks(validTasks);
-                      localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(validTasks));
+                      
+                      // Preserve optimistically added scheduled tasks that aren't in the webhook response yet
+                      const webhookTaskIds = new Set(validTasks.map(t => t.id));
+                      const currentOptimisticTasks = scheduledTasks.filter(t => optimisticScheduledTaskIds.has(t.id) && !webhookTaskIds.has(t.id));
+                      
+                      // Merge webhook data with optimistic tasks
+                      const mergedTasks = [...validTasks, ...currentOptimisticTasks];
+                      
+                      // Clean up tracking for tasks that now appear in webhook
+                      setOptimisticScheduledTaskIds(prev => {
+                        const updated = new Set(prev);
+                        validTasks.forEach(t => updated.delete(t.id));
+                        return updated;
+                      });
+                      
+                      setScheduledTasks(mergedTasks);
+                      localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(mergedTasks));
                     }
                   } catch (jsonError) {
                     console.error('Failed to parse scheduled tasks JSON:', jsonError);
@@ -363,7 +397,7 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Background refresh error:', error);
     }
-  }, [isAuthenticated, currentUser, tasks.length, scheduledTasks.length]);
+  }, [isAuthenticated, currentUser, tasks, scheduledTasks, optimisticTaskIds, optimisticScheduledTaskIds]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -916,16 +950,8 @@ export const AppProvider = ({ children }) => {
             });
           }
 
-          // Mark as uploaded and remove stored creative records for optimization
+          // Mark as uploaded (keep viewerLink intact for preview access)
           sanitizedUpdates.viewerLinkApproval[index] = 'Uploaded';
-
-          const nextLinks = Array.isArray(sanitizedUpdates.viewerLink) ? [...sanitizedUpdates.viewerLink] : [...existingLinks];
-          nextLinks[index] = '';
-          sanitizedUpdates.viewerLink = nextLinks;
-
-          const nextFeedback = Array.isArray(sanitizedUpdates.viewerLinkFeedback) ? [...sanitizedUpdates.viewerLinkFeedback] : [...existingFeedback];
-          nextFeedback[index] = '';
-          sanitizedUpdates.viewerLinkFeedback = nextFeedback;
         }
       });
     }
@@ -973,6 +999,9 @@ export const AppProvider = ({ children }) => {
     const updatedTasks = [...tasks, newTask];
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Track this task as optimistically added
+    setOptimisticTaskIds(prev => new Set(prev).add(newTask.id));
     
     // Send to webhook
     try {
@@ -1066,6 +1095,13 @@ export const AppProvider = ({ children }) => {
     const updatedTasks = [...tasks, ...newTasks];
     setTasks(updatedTasks);
     localStorage.setItem('hyrax_tasks', JSON.stringify(updatedTasks));
+    
+    // Track these tasks as optimistically added
+    setOptimisticTaskIds(prev => {
+      const updated = new Set(prev);
+      newTasks.forEach(t => updated.add(t.id));
+      return updated;
+    });
     
     // Send all tasks to webhook in a single request
     try {
@@ -1529,6 +1565,9 @@ export const AppProvider = ({ children }) => {
     setScheduledTasks(updatedTasks);
     localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
     
+    // Track this scheduled task as optimistically added
+    setOptimisticScheduledTaskIds(prev => new Set(prev).add(newTask.id));
+    
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
@@ -1605,6 +1644,13 @@ export const AppProvider = ({ children }) => {
     const updatedTasks = [...scheduledTasks, ...newTasks];
     setScheduledTasks(updatedTasks);
     localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
+
+    // Track these scheduled tasks as optimistically added
+    setOptimisticScheduledTaskIds(prev => {
+      const updated = new Set(prev);
+      newTasks.forEach(t => updated.add(t.id));
+      return updated;
+    });
 
     try {
       const adminEmail = currentUser?.email || '';

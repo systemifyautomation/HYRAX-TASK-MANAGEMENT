@@ -1,4 +1,4 @@
-import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Edit2, Save, Download } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Download } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { USER_ROLES, isManager } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -48,11 +48,11 @@ const UserTasksModal = ({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
   const [expandedCampaigns, setExpandedCampaigns] = useState(new Set()); // Track which campaigns are expanded
+  const [expandedTaskSets, setExpandedTaskSets] = useState(new Set()); // Track which task sets are expanded
   const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
   const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
   const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
-  const [editingCampaign, setEditingCampaign] = useState(null); // { taskId, copyLink, scriptAssigned }
   
   const slugify = (value) => {
     if (!value) return '';
@@ -378,6 +378,13 @@ const UserTasksModal = ({
     const basePath = getBasePath();
     const requestedTab = getRequestedTabFromPath(location.pathname);
 
+    // Check if we're in campaign/task view - if so, skip this URL management
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    const hasCampaignTask = pathSegments.includes('campaign') && pathSegments.includes('task');
+    if (hasCampaignTask) {
+      return;
+    }
+
     if (!currentAd) {
       const fallbackPath = userSlug ? `${basePath}/${userSlug}` : basePath;
       if (location.pathname !== fallbackPath) {
@@ -430,16 +437,66 @@ const UserTasksModal = ({
           return groups;
         }, {});
         
-        const firstCampaignName = Object.keys(campaignGroups)[0];
-        if (firstCampaignName) {
-          setExpandedCampaigns(new Set([firstCampaignName]));
+        // Check URL for campaign and task information
+        const pathSegments = location.pathname.split('/').filter(Boolean);
+        let urlTaskId = null;
+        
+        // Parse URL patterns: /cards/{user}/campaign/{campaign}/task/{taskId} or /next-week/cards/{user}/campaign/{campaign}/task/{taskId}
+        const campaignIndex = pathSegments.indexOf('campaign');
+        const taskIndex = pathSegments.indexOf('task');
+        
+        if (campaignIndex !== -1 && taskIndex !== -1 && taskIndex > campaignIndex) {
+          urlTaskId = parseInt(pathSegments[taskIndex + 1]);
+        }
+        
+        // Priority 1: URL contains task ID
+        if (urlTaskId) {
+          const urlTask = userTasksModal.tasks.find(t => t.id === urlTaskId);
+          if (urlTask) {
+            const campaign = campaigns.find(c => c.id === parseInt(urlTask.campaignId));
+            const campaignName = campaign?.name || 'No Campaign';
+            setExpandedCampaigns(new Set([campaignName]));
+            setExpandedTaskSets(new Set([urlTaskId]));
+            return;
+          }
+        }
+        
+        // Priority 2: focusedTaskId is provided
+        if (userTasksModal.focusedTaskId) {
+          const focusedTask = userTasksModal.tasks.find(t => t.id === userTasksModal.focusedTaskId);
+          if (focusedTask) {
+            const campaign = campaigns.find(c => c.id === parseInt(focusedTask.campaignId));
+            const campaignName = campaign?.name || 'No Campaign';
+            setExpandedCampaigns(new Set([campaignName]));
+            setExpandedTaskSets(new Set([userTasksModal.focusedTaskId]));
+          } else {
+            // Task not found, expand first campaign as fallback
+            const firstCampaignName = Object.keys(campaignGroups)[0];
+            if (firstCampaignName) {
+              setExpandedCampaigns(new Set([firstCampaignName]));
+              const firstTask = campaignGroups[firstCampaignName]?.[0];
+              if (firstTask) {
+                setExpandedTaskSets(new Set([firstTask.id]));
+              }
+            }
+          }
+        } else {
+          // Priority 3: No focused task, expand first campaign and first task
+          const firstCampaignName = Object.keys(campaignGroups)[0];
+          if (firstCampaignName) {
+            setExpandedCampaigns(new Set([firstCampaignName]));
+            const firstTask = campaignGroups[firstCampaignName]?.[0];
+            if (firstTask) {
+              setExpandedTaskSets(new Set([firstTask.id]));
+            }
+          }
         }
       }
     } else {
       // Reset when modal closes
       lastModalUserRef.current = null;
     }
-  }, [userTasksModal, campaigns]);
+  }, [userTasksModal, campaigns, location.pathname]);
 
   const getPreviewUrl = (url) => {
     if (!url) return url;
@@ -851,15 +908,34 @@ const UserTasksModal = ({
                         : 'bg-gray-50 hover:bg-gray-100'
                     }`}
                     onClick={() => {
-                      setExpandedCampaigns(prev => {
-                        const newSet = new Set(prev);
-                        if (isExpanded) {
-                          newSet.delete(campaignName);
-                        } else {
-                          newSet.add(campaignName);
+                      if (isExpanded) {
+                        // If clicking on already expanded campaign, collapse it
+                        setExpandedCampaigns(new Set());
+                        setExpandedTaskSets(new Set());
+                      } else {
+                        // Collapse all other campaigns and expand only this one
+                        setExpandedCampaigns(new Set([campaignName]));
+                        // Automatically expand first task set when campaign opens
+                        const firstTask = sortedCampaignTasks[0];
+                        if (firstTask) {
+                          setExpandedTaskSets(new Set([firstTask.id]));
+                          
+                          // Update URL and preview (deferred to avoid render cycle and ensure correct order)
+                          const basePath = getBasePath();
+                          const userSlug = slugify(userTasksModal.user.name);
+                          const campaignSlug = getCampaignSlug(firstTask.campaignId, campaignName);
+                          const newPath = `${basePath}/${userSlug}/campaign/${campaignSlug}/task/${firstTask.id}`;
+                          const firstCreativeIndex = allLinks.findIndex(link => link.taskId === firstTask.id);
+                          
+                          setTimeout(() => {
+                            navigate(newPath, { replace: true });
+                            // Set preview after navigation to prevent useEffect from overriding
+                            if (firstCreativeIndex !== -1) {
+                              setCurrentPreviewIndex(firstCreativeIndex);
+                            }
+                          }, 0);
                         }
-                        return newSet;
-                      });
+                      }
                     }}
                   >
                     <h2 className="text-lg font-bold text-gray-800">
@@ -905,49 +981,83 @@ const UserTasksModal = ({
                   const actualSlotsCount = Math.max(totalSlots, viewerLinkCount);
 
                   return (
-                    <div key={task.id} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      {/* Task Set Header */}
-                      <div className="mb-4">
+                    <div key={task.id} className="mb-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      {/* Task Set Header - Only show if multiple tasks in campaign */}
+                      {sortedCampaignTasks.length > 1 && (
+                      <div 
+                        className="flex items-center justify-between cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition-colors"
+                        onClick={() => {
+                          const isCurrentlyExpanded = expandedTaskSets.has(task.id);
+                          
+                          if (isCurrentlyExpanded) {
+                            // If already expanded, collapse it
+                            setExpandedTaskSets(new Set());
+                          } else {
+                            // If collapsed, expand this one and collapse others
+                            setExpandedTaskSets(new Set([task.id]));
+                            
+                            // Update URL and preview (deferred to avoid render cycle and ensure correct order)
+                            const basePath = getBasePath();
+                            const userSlug = slugify(userTasksModal.user.name);
+                            const campaignSlug = getCampaignSlug(task.campaignId, campaignName);
+                            const newPath = `${basePath}/${userSlug}/campaign/${campaignSlug}/task/${task.id}`;
+                            const firstCreativeIndex = allLinks.findIndex(link => link.taskId === task.id);
+                            
+                            setTimeout(() => {
+                              navigate(newPath, { replace: true });
+                              // Set preview after navigation to prevent useEffect from overriding
+                              if (firstCreativeIndex !== -1) {
+                                setCurrentPreviewIndex(firstCreativeIndex);
+                              }
+                            }, 0);
+                          }
+                        }}
+                      >
                         <h4 className="text-base font-bold text-gray-900">Task Set #{taskIndex + 1}</h4>
+                        <div className="flex items-center gap-2">
+                          {expandedTaskSets.has(task.id) ? (
+                            <ChevronDown className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-gray-600" />
+                          )}
+                        </div>
                       </div>
+                      )}
                       
+                      {/* Task Set Content - Always show if single task, or show if expanded when multiple tasks */}
+                      {(sortedCampaignTasks.length === 1 || expandedTaskSets.has(task.id)) && (
+                      <>
                       {/* Copy Details Section */}
                       {(() => {
                         const scriptUser = users?.find(u => u.id === parseInt(task.scriptAssigned?.[0]));
-                        const isEditing = editingCampaign?.taskId === task.id;
                         const canEdit = isManager(currentUser?.role);
                         
-                        const handleStartEdit = () => {
-                          setEditingCampaign({
-                            taskId: task.id,
-                            copyLink: Array.isArray(task.copyLink) ? task.copyLink[0] || '' : task.copyLink || '',
-                            scriptAssigned: Array.isArray(task.scriptAssigned) ? task.scriptAssigned[0] || '' : task.scriptAssigned || ''
-                          });
-                        };
-                        
-                        const handleCancelEdit = () => {
-                          setEditingCampaign(null);
-                        };
-                        
-                        const handleSaveEdit = async () => {
-                          if (!editingCampaign) return;
-                          
+                        const handleCopyLinkChange = async (newLink) => {
                           // Preserve existing arrays and update only the first element
                           const existingCopyApproval = Array.isArray(task.copyApproval) ? [...task.copyApproval] : [''];
                           const existingCopyApprovalFeedback = Array.isArray(task.copyApprovalFeedback) ? [...task.copyApprovalFeedback] : [''];
                           
-                          // Update this specific task with the single copy
                           const updates = {
-                            copyLink: [editingCampaign.copyLink],
-                            scriptAssigned: [editingCampaign.scriptAssigned ? parseInt(editingCampaign.scriptAssigned) : null],
-                            copyWritten: [!!(editingCampaign.copyLink && editingCampaign.copyLink.trim())],
+                            copyLink: [newLink],
+                            copyWritten: [!!(newLink && newLink.trim())],
                             copyApproval: existingCopyApproval,
                             copyApprovalFeedback: existingCopyApprovalFeedback
                           };
                           
                           await updateTask(task.id, updates);
+                        };
+                        
+                        const handleScriptAssignedChange = async (newScriptId) => {
+                          const existingCopyApproval = Array.isArray(task.copyApproval) ? [...task.copyApproval] : [''];
+                          const existingCopyApprovalFeedback = Array.isArray(task.copyApprovalFeedback) ? [...task.copyApprovalFeedback] : [''];
                           
-                          setEditingCampaign(null);
+                          const updates = {
+                            scriptAssigned: [newScriptId ? parseInt(newScriptId) : null],
+                            copyApproval: existingCopyApproval,
+                            copyApprovalFeedback: existingCopyApprovalFeedback
+                          };
+                          
+                          await updateTask(task.id, updates);
                         };
                         
                         const copyLink = Array.isArray(task.copyLink) ? task.copyLink[0] : task.copyLink;
@@ -962,37 +1072,6 @@ const UserTasksModal = ({
                                 </svg>
                                 Copy
                               </h3>
-                              
-                              <div className="flex items-center gap-2">
-                                {canEdit && !isEditing && (
-                                  <button
-                                    onClick={handleStartEdit}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white hover:bg-blue-50 border border-blue-300 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    Edit
-                                  </button>
-                                )}
-                                
-                                {isEditing && (
-                                  <>
-                                    <button
-                                      onClick={handleSaveEdit}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-                                    >
-                                      <Save className="w-3.5 h-3.5" />
-                                      Save
-                                    </button>
-                                    <button
-                                      onClick={handleCancelEdit}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 shadow-sm"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                      Cancel
-                                    </button>
-                                  </>
-                                )}
-                              </div>
                             </div>
                             
                             {/* Copy Link & Script Assigned */}
@@ -1013,27 +1092,27 @@ const UserTasksModal = ({
                                 </label>
                               </div>
                               
-                              {/* Data Row */}
-                              {isEditing ? (
-                                // Edit mode
-                                <div className="grid grid-cols-2 gap-4 items-start">
-                                  {/* Copy Link Input */}
-                                  <input
-                                    type="url"
-                                    value={editingCampaign.copyLink || ''}
-                                    onChange={(e) => {
-                                      setEditingCampaign({ ...editingCampaign, copyLink: e.target.value });
-                                    }}
-                                    placeholder="Enter copy link..."
-                                    className="px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  />
-                                  
-                                  {/* Script Assigned Dropdown */}
+                              {/* Data Row - Always Editable */}
+                              <div className="grid grid-cols-2 gap-4 items-start">
+                                {/* Copy Link Input - Always Editable */}
+                                <input
+                                  type="url"
+                                  defaultValue={copyLink || ''}
+                                  onBlur={(e) => {
+                                    const newValue = e.target.value.trim();
+                                    if (newValue !== (copyLink || '')) {
+                                      handleCopyLinkChange(newValue);
+                                    }
+                                  }}
+                                  placeholder="Paste copy link here..."
+                                  className="px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                
+                                {/* Script Assigned - Editable for managers, display for others */}
+                                {canEdit ? (
                                   <select
-                                    value={editingCampaign.scriptAssigned || ''}
-                                    onChange={(e) => {
-                                      setEditingCampaign({ ...editingCampaign, scriptAssigned: e.target.value });
-                                    }}
+                                    value={scriptAssignedId || ''}
+                                    onChange={(e) => handleScriptAssignedChange(e.target.value)}
                                     className="px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                                   >
                                     <option value="">-- Select User --</option>
@@ -1043,29 +1122,8 @@ const UserTasksModal = ({
                                       </option>
                                     ))}
                                   </select>
-                                </div>
-                              ) : (
-                                // View mode
-                                <div className="grid grid-cols-2 gap-4 items-center">
-                                  {/* Copy Link Display */}
-                                  <div className="flex items-center">
-                                    {copyLink ? (
-                                      <a 
-                                        href={copyLink} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-600 hover:text-blue-800 underline block truncate"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {copyLink}
-                                      </a>
-                                    ) : (
-                                      <span className="text-xs text-gray-400 italic">Empty</span>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Script Assigned Display */}
-                                  <div className="flex items-center">
+                                ) : (
+                                  <div className="flex items-center px-2.5 py-1.5">
                                     {scriptUser ? (
                                       <div className="flex items-center gap-1.5">
                                         <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
@@ -1079,8 +1137,8 @@ const UserTasksModal = ({
                                       <span className="text-xs text-gray-400 italic">Not assigned</span>
                                     )}
                                   </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -1172,8 +1230,24 @@ const UserTasksModal = ({
                                   </button>
                                 </div>
                               ) : isUploadedToFacebook ? (
-                                <div className="flex items-center justify-center py-8 border border-green-200 rounded-lg bg-green-50">
+                                <div className="flex flex-col items-center justify-center gap-3 py-8 border border-green-200 rounded-lg bg-green-50">
                                   <p className="text-base font-semibold text-green-700">Uploaded to Facebook</p>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Find the preview index for this creative
+                                      const previewIndex = allLinks.findIndex(
+                                        link => link.taskId === task.id && link.linkIndex === slotIndex
+                                      );
+                                      if (previewIndex !== -1) {
+                                        setCurrentPreviewIndex(previewIndex);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-white hover:bg-green-100 border border-green-300 rounded-lg transition-colors shadow-sm"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    Preview
+                                  </button>
                                 </div>
                               ) : hasUpload ? (
                                 <div className="space-y-5">
@@ -1574,6 +1648,8 @@ const UserTasksModal = ({
                           </div>
                         </button>
                       </div>
+                      </>
+                      )}
                     </div>
                   );
                 })}

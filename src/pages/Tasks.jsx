@@ -508,7 +508,7 @@ const Tasks = () => {
   const [feedbackModal, setFeedbackModal] = useState(null); // { taskId, type: 'copyApproval' | 'adApproval', currentFeedback }
   const [copyLinkModal, setCopyLinkModal] = useState(null); // { taskId, url, currentFeedback, currentApproval }
   const [expandedCards, setExpandedCards] = useState({}); // Track which cards have expanded details {taskId: true/false}
-  const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks } for managing user's tasks
+  const [userTasksModal, setUserTasksModal] = useState(null); // { user, tasks, focusedTaskId? } for managing user's tasks
   const [addTaskModal, setAddTaskModal] = useState(null); // { user } for adding new task
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0); // Current ad preview index
   const [uploadingCreatives, setUploadingCreatives] = useState({}); // Track upload progress {taskId-adIndex: progress}
@@ -642,6 +642,11 @@ const Tasks = () => {
     
     // Check for /next-week/cards/{user_slug} format (3 segments)
     if (segments.length === 3 && segments[0] === 'next-week' && segments[1] === 'cards') {
+      return true;
+    }
+    
+    // Check for campaign/task patterns
+    if (segments.includes('campaign') && segments.includes('task')) {
       return true;
     }
     
@@ -940,15 +945,40 @@ const Tasks = () => {
     
     let userSlug = null;
     let targetWeekView = 'this-week';
+    let targetTaskId = null;
     
     // Check if path is /cards/{user_slug} (exactly 2 segments)
     if (segments.length === 2 && segments[0] === 'cards') {
       userSlug = decodeURIComponent(segments[1]);
       targetWeekView = 'this-week';
     }
+    // Check if path is /cards/{user_slug}/task/{task_id} (exactly 4 segments)
+    else if (segments.length === 4 && segments[0] === 'cards' && segments[2] === 'task') {
+      userSlug = decodeURIComponent(segments[1]);
+      targetTaskId = parseInt(segments[3]);
+      targetWeekView = 'this-week';
+    }
+    // Check if path is /cards/{user_slug}/campaign/{campaign_slug}/task/{task_id} (exactly 6 segments)
+    else if (segments.length === 6 && segments[0] === 'cards' && segments[2] === 'campaign' && segments[4] === 'task') {
+      userSlug = decodeURIComponent(segments[1]);
+      targetTaskId = parseInt(segments[5]);
+      targetWeekView = 'this-week';
+    }
     // Check if path is /next-week/cards/{user_slug} (exactly 3 segments)
     else if (segments.length === 3 && segments[0] === 'next-week' && segments[1] === 'cards') {
       userSlug = decodeURIComponent(segments[2]);
+      targetWeekView = 'next-week';
+    }
+    // Check if path is /next-week/cards/{user_slug}/task/{task_id} (exactly 5 segments)
+    else if (segments.length === 5 && segments[0] === 'next-week' && segments[1] === 'cards' && segments[3] === 'task') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetTaskId = parseInt(segments[4]);
+      targetWeekView = 'next-week';
+    }
+    // Check if path is /next-week/cards/{user_slug}/campaign/{campaign_slug}/task/{task_id} (exactly 7 segments)
+    else if (segments.length === 7 && segments[0] === 'next-week' && segments[1] === 'cards' && segments[3] === 'campaign' && segments[5] === 'task') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetTaskId = parseInt(segments[6]);
       targetWeekView = 'next-week';
     } else {
       return;
@@ -992,7 +1022,7 @@ const Tasks = () => {
     }
 
     setCurrentPreviewIndex(0);
-    setUserTasksModal({ user, tasks: modalTasks });
+    setUserTasksModal({ user, tasks: modalTasks, focusedTaskId: targetTaskId });
   }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal, applyOptimisticUpdates]);
   
   // Debounce timer ref for text inputs

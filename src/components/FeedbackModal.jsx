@@ -4,46 +4,56 @@ const FeedbackModal = ({ feedbackModal, setFeedbackModal, onSaveFeedback }) => {
   if (!feedbackModal) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <div className="bg-gray-900/95 backdrop-blur-md border border-red-600 rounded-xl shadow-2xl max-w-2xl w-full p-6" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4), 0 0 80px rgba(220, 38, 38, 0.2)' }}>
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-bold text-red-600">
-            {feedbackModal.type === 'copyApproval' 
-              ? 'Copy Approval Feedback' 
-              : feedbackModal.type === 'adApproval'
-              ? 'Ad Approval Feedback'
-              : `${feedbackModal.columnKey} Feedback`}
-          </h3>
-          <button onClick={() => setFeedbackModal(null)} className="text-gray-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
-          </button>
+    <>
+      {/* Backdrop overlay */}
+      <div className="fixed inset-0 bg-black/20 z-[55] pointer-events-none" />
+      
+      {/* Right sidebar */}
+      <div className="fixed inset-y-0 right-0 w-[35%] bg-white shadow-2xl z-[60] flex flex-col border-l-2 border-red-500">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xl font-semibold text-gray-900">
+              {feedbackModal.type === 'copyApproval' 
+                ? 'Copy Approval Feedback' 
+                : feedbackModal.type === 'adApproval'
+                ? 'Ad Approval Feedback'
+                : `${feedbackModal.columnKey} Feedback`}
+            </h3>
+            <button onClick={() => setFeedbackModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">Feedback Details</label>
-            <textarea
-              value={feedbackModal.currentFeedback}
-              onChange={(e) => setFeedbackModal({ ...feedbackModal, currentFeedback: e.target.value })}
-              readOnly={feedbackModal.readOnly}
-              placeholder="Enter feedback details here..."
-              rows={8}
-              className="w-full px-4 py-3 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600 resize-none"
-            />
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Feedback Details</label>
+              <textarea
+                value={feedbackModal.currentFeedback}
+                onChange={(e) => setFeedbackModal({ ...feedbackModal, currentFeedback: e.target.value })}
+                readOnly={feedbackModal.readOnly}
+                placeholder="Enter feedback details here..."
+                rows={12}
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600 resize-none"
+              />
+            </div>
           </div>
+        </div>
 
+        <div className="border-t border-gray-200 p-6">
           <div className="flex space-x-3">
             {!feedbackModal.readOnly ? (
               <>
                 <button
                   onClick={() => onSaveFeedback(feedbackModal.currentFeedback)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg shadow-red-600/50"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all shadow-lg"
                 >
                   Save Feedback
                 </button>
                 <button
                   onClick={() => setFeedbackModal(null)}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -51,7 +61,7 @@ const FeedbackModal = ({ feedbackModal, setFeedbackModal, onSaveFeedback }) => {
             ) : (
               <button
                 onClick={() => setFeedbackModal(null)}
-                className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors"
               >
                 Close
               </button>
@@ -59,7 +69,7 @@ const FeedbackModal = ({ feedbackModal, setFeedbackModal, onSaveFeedback }) => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
