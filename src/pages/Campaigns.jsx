@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, MessageSquare, BarChart3 } from 'lucide-react';
+import { FolderOpen, MessageSquare, BarChart3, Plus } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
 const Campaigns = () => {
-  const { campaigns, tasks } = useApp();
+  const { campaigns, tasks, currentUser } = useApp();
   const navigate = useNavigate();
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
   // Get tasks for a specific campaign
   const getTasksByCampaign = (campaignId) => {
@@ -24,9 +26,18 @@ const Campaigns = () => {
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="page-title">Campaigns</h1>
-        <p className="text-gray-600 mt-2">Manage all Facebook ad campaigns and their tasks</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Campaigns</h1>
+          <p className="text-gray-600 mt-2">Manage all Facebook ad campaigns and their tasks</p>
+        </div>
+        <button
+          onClick={() => setIsChatModalOpen(true)}
+          className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+        >
+          <Plus className="w-5 h-5" />
+          <span>New Campaign</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -97,6 +108,12 @@ const Campaigns = () => {
           );
         })}
       </div>
+
+      <NewCampaignChatModal
+        isOpen={isChatModalOpen}
+        onClose={() => setIsChatModalOpen(false)}
+        currentUser={currentUser}
+      />
     </div>
   );
 };

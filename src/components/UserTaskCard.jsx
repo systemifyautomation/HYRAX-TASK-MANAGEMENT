@@ -23,9 +23,19 @@ const UserTaskCard = ({
   const canManageTasks = currentUser && isManager(currentUser.role);
   
   const getUserSlug = (userId) => {
-    const user = users.find(u => u.id === parseInt(userId));
-    if (!user) return null;
-    return encodeURIComponent(user.name.toLowerCase().replace(/\s+/g, '-'));
+    const u = users.find(u => u.id === parseInt(userId));
+    if (!u) return null;
+    return slugify(u.slug || u.name || u.email || u.username || u.id);
+  };
+
+  const slugify = (value) => {
+    if (!value) return '';
+    return value
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
   };
 
   // Group tasks by campaign
@@ -68,7 +78,19 @@ const UserTaskCard = ({
               return (
                 <div key={campaignId} className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                   {/* Campaign Header */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-gray-200">
+                  <div 
+                    className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-gray-200 cursor-pointer hover:from-blue-100 hover:to-indigo-100 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const userSlug = getUserSlug(user.id) || 'user';
+                      const campaignSlug = slugify(campaign?.slug || campaign?.name || campaignId);
+                      const isNextWeek = location.pathname.startsWith('/next-week');
+                      const campaignPath = isNextWeek 
+                        ? `/next-week/cards/${userSlug}/campaign/${campaignSlug}` 
+                        : `/cards/${userSlug}/campaign/${campaignSlug}`;
+                      navigate(campaignPath, { replace: true });
+                    }}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <h5 className="font-semibold text-gray-900 text-xs lg:text-sm truncate">{campaignName}</h5>
                       {/* Delete Button */}
@@ -116,10 +138,11 @@ const UserTaskCard = ({
                             onClick={(e) => {
                               e.stopPropagation();
                               const userSlug = getUserSlug(user.id) || 'user';
+                              const campSlug = slugify(campaign?.slug || campaign?.name || campaignId);
                               const isNextWeek = location.pathname.startsWith('/next-week');
                               const taskPath = isNextWeek 
-                                ? `/next-week/cards/${userSlug}/task/${task.id}` 
-                                : `/cards/${userSlug}/task/${task.id}`;
+                                ? `/next-week/cards/${userSlug}/campaign/${campSlug}/task/${task.id}` 
+                                : `/cards/${userSlug}/campaign/${campSlug}/task/${task.id}`;
                               navigate(taskPath, { replace: true });
                             }}
                           >
@@ -153,10 +176,11 @@ const UserTaskCard = ({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const userSlug = getUserSlug(user.id) || 'user';
+                                  const campSlug = slugify(campaign?.slug || campaign?.name || campaignId);
                                   const isNextWeek = location.pathname.startsWith('/next-week');
                                   const taskPath = isNextWeek 
-                                    ? `/next-week/cards/${userSlug}/task/${task.id}` 
-                                    : `/cards/${userSlug}/task/${task.id}`;
+                                    ? `/next-week/cards/${userSlug}/campaign/${campSlug}/task/${task.id}` 
+                                    : `/cards/${userSlug}/campaign/${campSlug}/task/${task.id}`;
                                   navigate(taskPath, { replace: true });
                                 }}
                               >

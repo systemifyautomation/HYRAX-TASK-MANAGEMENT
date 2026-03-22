@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Upload, CheckCircle, Filter, ChevronDown } from 'lucide-react';
+import { BarChart3, Filter, ChevronDown } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { startOfWeek, endOfWeek, addWeeks } from 'date-fns';
 import { isManager } from '../constants/roles';
 
 // Helper function to get Monday of a given date
@@ -36,7 +36,7 @@ const getWeekDateRange = (weekOffset) => {
 };
 
 const Performance = () => {
-  const { currentUser, users } = useApp();
+  const { currentUser } = useApp();
   const [selectedWeek, setSelectedWeek] = useState(getWeekDateRange(-1)); // Default to last week
   const [performanceData, setPerformanceData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -71,121 +71,97 @@ const Performance = () => {
 
       setLoading(true);
       try {
-        const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
-        if (!webhookUrl) {
-          console.error('VITE_TASKS_WEBHOOK_URL not configured');
-          return;
-        }
-
-        const userEmail = currentUser?.email || '';
-        const adminPassword = localStorage.getItem('admin_password') || '';
+        // Parse the selectedWeek to get start_date and end_date
+        // Format: "dd/MM/yyyy - dd/MM/yyyy"
+        const [startDateStr, endDateStr] = selectedWeek.split(' - ');
         
-        // Helper function to get today's date in UTC format dd/MM/yyyy
-        const getTodayUTC = () => {
-          const now = new Date();
-          const day = String(now.getUTCDate()).padStart(2, '0');
-          const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-          const year = now.getUTCFullYear();
-          return `${day}/${month}/${year}`;
+        // Convert from dd/MM/yyyy to yyyy-MM-dd
+        const convertToYYYYMMDD = (dateStr) => {
+          const [day, month, year] = dateStr.split('/');
+          return `${year}-${month}-${day}`;
         };
         
-        const loginDate = localStorage.getItem('login_date') || getTodayUTC();
-        
-        // Hash function (same as in AuthContext)
-        const hashThreeInputs = async (input1, input2, input3) => {
-          const combined = input1.toString() + input2.toString() + input3.toString();
-          const encoder = new TextEncoder();
-          const data = encoder.encode(combined);
-          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-          return hashHex;
-        };
+        const startDate = convertToYYYYMMDD(startDateStr);
+        const endDate = convertToYYYYMMDD(endDateStr);
 
-        const code = await hashThreeInputs(userEmail, adminPassword, loginDate);
-
+        // Fetch performance data
+        const performanceWebhookUrl = 'https://workflows.wearehyrax.com/webhook/performance-webhook';
         const params = new URLSearchParams({
-          requested_by: userEmail,
-          code: code
+          start_date: startDate,
+          end_date: endDate
         });
 
-        // Add week parameter (date range string like "24/11/2025 - 30/11/2025")
-        if (selectedWeek) {
-          params.append('week', selectedWeek);
-        }
-
-        const response = await fetch(`${webhookUrl}?${params}`, {
+        const response = await fetch(`${performanceWebhookUrl}?${params}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
 
         if (response.ok) {
-          const tasks = await response.json();
-          const validTasks = Array.isArray(tasks) ? tasks.filter(task => task && Object.keys(task).length > 0 && task.id) : [];
+          const performanceMetrics = await response.json();
+          console.log('Performance metrics from webhook:', performanceMetrics);
           
-          // Filter users who are video editors or graphic designers
-          let creativeUsers = users.filter(user => 
-            user.department === 'VIDEO EDITING' || user.department === 'GRAPHIC DESIGN'
-          );
-          
-          // If not manager/admin, only show current user's performance
-          if (!isManager(currentUser?.role)) {
-            creativeUsers = creativeUsers.filter(user => user.id === currentUser?.id);
+          // Ensure we have valid data
+          if (!Array.isArray(performanceMetrics) || performanceMetrics.length === 0) {
+            console.log('No performance data available');
+            setPerformanceData([]);
+            setLoading(false);
+            return;
           }
-
-          // Calculate performance metrics for each user
-          const metrics = creativeUsers.map(user => {
-            // Filter tasks assigned to this user
-            const userTasks = validTasks.filter(task => 
-              task.assignedTo && parseInt(task.assignedTo) === user.id
-            );
-
-            // Calculate assigned creatives (sum of quantity)
-            const assigned = userTasks.reduce((sum, task) => {
-              const quantity = parseInt(task.quantity) || 0;
-              const isVideoEditor = user.department === 'VIDEO EDITING';
-              // Video editors create 2 formats per ad (Facebook + Reel)
-              return sum + (isVideoEditor ? quantity * 2 : quantity);
-            }, 0);
-
-            // Calculate uploaded creatives
-            const uploaded = userTasks.reduce((sum, task) => {
-              if (!task.viewerLink) return sum;
-              const links = Array.isArray(task.viewerLink) ? task.viewerLink : [];
-              // Count non-empty links
-              return sum + links.filter(link => link && link.trim()).length;
-            }, 0);
-
-            // Calculate approved creatives
-            const approved = userTasks.reduce((sum, task) => {
-              if (!task.viewerLink || task.status !== 'Approved') return sum;
-              const links = Array.isArray(task.viewerLink) ? task.viewerLink : [];
-              // Count approved non-empty links
-              return sum + links.filter(link => link && link.trim()).length;
-            }, 0);
-
-            // Calculate completion rate
-            const completionRate = assigned > 0 ? Math.round((uploaded / assigned) * 100) : 0;
-            const approvalRate = uploaded > 0 ? Math.round((approved / uploaded) * 100) : 0;
-
+          
+          // Parse performance data (webhook includes user_name and user_department)
+          const metrics = performanceMetrics.map((metric, index) => {
+            // Parse values with proper fallbacks and handling for string formats
+            // spend is a string with commas: "1,855.02"
+            const spendStr = (metric.spend || '0').replace(/,/g, '');
+            const spend = parseFloat(spendStr);
+            
+            // ctr is a string: "4.303"
+            const ctr = parseFloat(metric.ctr || '0');
+            
+            // impressions is a number: 30822
+            const impressions = parseInt(metric.impressions || 0);
+            
+            // clicks is a string: "642"
+            const clicks = parseInt(metric.clicks || '0');
+            
+            // count_ads is a string: "33"
+            const numberOfAds = parseInt(metric.count_ads || '0');
+            
             return {
-              id: user.id,
-              name: user.name,
-              department: user.department,
-              assigned,
-              uploaded,
-              approved,
-              completionRate,
-              approvalRate
+              id: index, // Use index as ID since webhook doesn't provide user_id
+              name: metric.user_name || 'Unknown User',
+              initials: metric.user_name === 'Not assigned' 
+                ? 'NA' 
+                : metric.user_name 
+                  ? metric.user_name.split(' ').filter(n => n).map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                  : '??',
+              department: metric.user_department || 'N/A',
+              spend: isNaN(spend) ? 0 : spend,
+              ctr: isNaN(ctr) ? 0 : ctr,
+              impressions: isNaN(impressions) ? 0 : impressions,
+              clicks: isNaN(clicks) ? 0 : clicks,
+              numberOfAds: isNaN(numberOfAds) ? 0 : numberOfAds
             };
+          }).sort((a, b) => {
+            // Always move "Not assigned" to the end
+            if (a.name === 'Not assigned') return 1;
+            if (b.name === 'Not assigned') return -1;
+            return 0; // Keep original order for all other entries
           });
 
-          // Sort by assigned count (descending)
-          metrics.sort((a, b) => b.assigned - a.assigned);
-          setPerformanceData(metrics);
+          // Filter by role if not manager/admin
+          let filteredMetrics = metrics;
+          if (!isManager(currentUser?.role)) {
+            // Filter by matching user name since webhook doesn't provide user_id
+            filteredMetrics = metrics.filter(m => m.name === currentUser?.name);
+          }
+
+          // Sort by spend (descending)
+          filteredMetrics.sort((a, b) => (b.spend || 0) - (a.spend || 0));
+          setPerformanceData(filteredMetrics);
           
           // Cache the data for this week
-          setCachedData(prev => ({ ...prev, [selectedWeek]: metrics }));
+          setCachedData(prev => ({ ...prev, [selectedWeek]: filteredMetrics }));
         } else {
           console.error('Failed to fetch performance data:', response.status);
         }
@@ -196,7 +172,7 @@ const Performance = () => {
       }
     };
 
-    if (currentUser && users.length > 0 && selectedWeek) {
+    if (currentUser && selectedWeek) {
       fetchPerformanceData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,16 +180,15 @@ const Performance = () => {
 
   // Calculate totals
   const totals = performanceData.reduce((acc, row) => ({
-    assigned: acc.assigned + row.assigned,
-    uploaded: acc.uploaded + row.uploaded,
-    approved: acc.approved + row.approved
-  }), { assigned: 0, uploaded: 0, approved: 0 });
+    spend: acc.spend + (row.spend || 0),
+    impressions: acc.impressions + (row.impressions || 0),
+    clicks: acc.clicks + (row.clicks || 0),
+    numberOfAds: acc.numberOfAds + (row.numberOfAds || 0)
+  }), { spend: 0, impressions: 0, clicks: 0, numberOfAds: 0 });
 
-  const totalCompletionRate = totals.assigned > 0 
-    ? Math.round((totals.uploaded / totals.assigned) * 100) 
-    : 0;
-  const totalApprovalRate = totals.uploaded > 0 
-    ? Math.round((totals.approved / totals.uploaded) * 100) 
+  // Calculate average CTR
+  const avgCTR = performanceData.length > 0
+    ? (performanceData.reduce((sum, row) => sum + (row.ctr || 0), 0) / performanceData.length).toFixed(2)
     : 0;
 
   return (
@@ -270,25 +245,30 @@ const Performance = () => {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Assigned</div>
-          <div className="text-2xl font-bold text-gray-900">{totals.assigned}</div>
+          <div className="text-sm text-gray-500 mb-1">Total Spend</div>
+          <div className="text-2xl font-bold text-gray-900">${(totals.spend || 0).toLocaleString()}</div>
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Uploaded</div>
-          <div className="text-2xl font-bold text-blue-600">{totals.uploaded}</div>
+          <div className="text-sm text-gray-500 mb-1">Avg CTR</div>
+          <div className="text-2xl font-bold text-blue-600">{avgCTR || 0}%</div>
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Approved</div>
-          <div className="text-2xl font-bold text-green-600">{totals.approved}</div>
+          <div className="text-sm text-gray-500 mb-1">Total Impressions</div>
+          <div className="text-2xl font-bold text-purple-600">{(totals.impressions || 0).toLocaleString()}</div>
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Completion Rate</div>
-          <div className="text-2xl font-bold text-amber-600">{totalCompletionRate}%</div>
+          <div className="text-sm text-gray-500 mb-1">Total Clicks</div>
+          <div className="text-2xl font-bold text-green-600">{(totals.clicks || 0).toLocaleString()}</div>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div className="text-sm text-gray-500 mb-1">Total Ads</div>
+          <div className="text-2xl font-bold text-amber-600">{totals.numberOfAds || 0}</div>
         </div>
       </div>
 
@@ -316,11 +296,11 @@ const Performance = () => {
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Member</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Department</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Uploaded</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Approved</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Completion</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Approval Rate</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Spend</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">CTR</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Impressions</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Clicks</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider"># of Ads</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,80 +312,44 @@ const Performance = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {row.name.charAt(0)}
+                          {row.initials}
                         </div>
                         <span className="font-medium text-gray-900">{row.name}</span>
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
-                        row.department === 'VIDEO EDITING' 
-                          ? 'bg-blue-50 text-blue-700' 
-                          : 'bg-purple-50 text-purple-700'
-                      }`}>
-                        {row.department === 'VIDEO EDITING' ? '🎬 Video Editor' : '🎨 Graphic Designer'}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
+                        {row.department}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className="text-base font-semibold text-gray-900">
-                        {row.assigned}
+                        ${(row.spend || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="text-base font-semibold text-blue-600">
-                        {row.uploaded}
+                      <span className={`text-base font-semibold ${
+                        (row.ctr || 0) >= 2 ? 'text-green-600' :
+                        (row.ctr || 0) >= 1 ? 'text-amber-600' :
+                        'text-red-600'
+                      }`}>
+                        {(row.ctr || 0).toFixed(2)}%
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className="text-base font-semibold text-purple-600">
+                        {(row.impressions || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className="text-base font-semibold text-green-600">
-                        {row.approved}
+                        {(row.clicks || 0).toLocaleString()}
                       </span>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <span className={`text-sm font-semibold ${
-                          row.completionRate >= 80 ? 'text-green-600' :
-                          row.completionRate >= 50 ? 'text-amber-600' :
-                          row.completionRate >= 30 ? 'text-orange-600' :
-                          'text-red-600'
-                        }`}>
-                          {row.completionRate}%
-                        </span>
-                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              row.completionRate >= 80 ? 'bg-green-500' :
-                              row.completionRate >= 50 ? 'bg-amber-500' :
-                              row.completionRate >= 30 ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
-                            style={{ width: `${row.completionRate}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <span className={`text-sm font-semibold ${
-                          row.approvalRate >= 80 ? 'text-green-600' :
-                          row.approvalRate >= 50 ? 'text-amber-600' :
-                          row.approvalRate >= 30 ? 'text-orange-600' :
-                          'text-red-600'
-                        }`}>
-                          {row.approvalRate}%
-                        </span>
-                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              row.approvalRate >= 80 ? 'bg-green-500' :
-                              row.approvalRate >= 50 ? 'bg-amber-500' :
-                              row.approvalRate >= 30 ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
-                            style={{ width: `${row.approvalRate}%` }}
-                          />
-                        </div>
-                      </div>
+                    <td className="py-4 px-4 text-center">
+                      <span className="text-base font-semibold text-amber-600">
+                        {row.numberOfAds || 0}
+                      </span>
                     </td>
                   </tr>
                 ))}

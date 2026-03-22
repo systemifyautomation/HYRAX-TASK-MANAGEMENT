@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
 const CampaignsList = () => {
-  const { campaigns, tasks, campaignsLoading, loadCampaignsData } = useApp();
+  const { campaigns, tasks, campaignsLoading, loadCampaignsData, currentUser } = useApp();
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const itemsPerPage = 15;
 
   // Load campaigns when component mounts
@@ -99,6 +102,13 @@ const CampaignsList = () => {
               )}
             </div>
             <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setIsChatModalOpen(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Campaign</span>
+              </button>
               <button
                 onClick={handleRefresh}
                 disabled={campaignsLoading}
@@ -271,6 +281,12 @@ const CampaignsList = () => {
           </div>
         </div>
       </div>
+
+      <NewCampaignChatModal
+        isOpen={isChatModalOpen}
+        onClose={() => setIsChatModalOpen(false)}
+        currentUser={currentUser}
+      />
     </div>
   );
 };

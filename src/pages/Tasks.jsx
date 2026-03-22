@@ -645,6 +645,16 @@ const Tasks = () => {
       return true;
     }
     
+    // Check for /cards/{user_slug}/campaign/{campaign_slug} format (4 segments)
+    if (segments.length === 4 && segments[0] === 'cards' && segments[2] === 'campaign') {
+      return true;
+    }
+    
+    // Check for /next-week/cards/{user_slug}/campaign/{campaign_slug} format (5 segments)
+    if (segments.length === 5 && segments[0] === 'next-week' && segments[1] === 'cards' && segments[3] === 'campaign') {
+      return true;
+    }
+    
     // Check for campaign/task patterns
     if (segments.includes('campaign') && segments.includes('task')) {
       return true;
@@ -952,6 +962,11 @@ const Tasks = () => {
       userSlug = decodeURIComponent(segments[1]);
       targetWeekView = 'this-week';
     }
+    // Check if path is /cards/{user_slug}/campaign/{campaign_slug} (exactly 4 segments)
+    else if (segments.length === 4 && segments[0] === 'cards' && segments[2] === 'campaign') {
+      userSlug = decodeURIComponent(segments[1]);
+      targetWeekView = 'this-week';
+    }
     // Check if path is /cards/{user_slug}/task/{task_id} (exactly 4 segments)
     else if (segments.length === 4 && segments[0] === 'cards' && segments[2] === 'task') {
       userSlug = decodeURIComponent(segments[1]);
@@ -966,6 +981,11 @@ const Tasks = () => {
     }
     // Check if path is /next-week/cards/{user_slug} (exactly 3 segments)
     else if (segments.length === 3 && segments[0] === 'next-week' && segments[1] === 'cards') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetWeekView = 'next-week';
+    }
+    // Check if path is /next-week/cards/{user_slug}/campaign/{campaign_slug} (exactly 5 segments)
+    else if (segments.length === 5 && segments[0] === 'next-week' && segments[1] === 'cards' && segments[3] === 'campaign') {
       userSlug = decodeURIComponent(segments[2]);
       targetWeekView = 'next-week';
     }

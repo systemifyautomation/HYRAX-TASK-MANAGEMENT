@@ -38,6 +38,7 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    initials: '',
     role: 'team_member',
     department: 'MEDIA BUYING',
     password: '', // Optional password reset
@@ -167,6 +168,7 @@ const UserManagement = () => {
         const webhookParams = new URLSearchParams({
           email: formData.email,
           name: formData.name,
+          initials: formData.initials || '',
           role: formData.role,
           department: formData.department
         });
@@ -214,6 +216,7 @@ const UserManagement = () => {
     setFormData({
       name: '',
       email: '',
+      initials: '',
       role: 'team_member',
       department: 'MEDIA BUYING',
       password: '',
@@ -350,6 +353,7 @@ const UserManagement = () => {
           id: editingUser.id.toString(),
           email: formData.email,
           name: formData.name,
+          initials: formData.initials || '',
           role: formData.role,
           department: formData.department
         });
@@ -464,6 +468,7 @@ const UserManagement = () => {
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">User</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Initials</th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Role</th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
@@ -473,7 +478,7 @@ const UserManagement = () => {
           <tbody className="divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
+                <td colSpan={6} className="px-6 py-12 text-center">
                   <div className="flex flex-col items-center">
                     <img 
                       src="https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif" 
@@ -486,7 +491,7 @@ const UserManagement = () => {
               </tr>
             ) : displayUsers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
+                <td colSpan={6} className="px-6 py-12 text-center">
                   <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">No users found</p>
                 </td>
@@ -500,6 +505,11 @@ const UserManagement = () => {
                         <p className="font-medium text-gray-900">{user.name}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                      {user.initials || '-'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {user.email}
@@ -580,6 +590,18 @@ const UserManagement = () => {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                   placeholder="e.g., john@hyrax.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">Initials</label>
+                <input
+                  type="text"
+                  value={formData.initials}
+                  onChange={(e) => setFormData({ ...formData, initials: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                  placeholder="e.g., JD"
+                  maxLength="5"
                 />
               </div>
 

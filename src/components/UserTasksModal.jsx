@@ -53,6 +53,7 @@ const UserTasksModal = ({
   const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
   const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
+  const campaignRefs = useRef({}); // Refs to campaign elements for scrolling
   
   const slugify = (value) => {
     if (!value) return '';
@@ -385,6 +386,12 @@ const UserTasksModal = ({
       return;
     }
 
+    // Check if we're in campaign-only view (clicked from card overview) - preserve the URL
+    const hasCampaignOnly = pathSegments.includes('campaign') && !pathSegments.some(s => s.startsWith('ad_'));
+    if (hasCampaignOnly) {
+      return;
+    }
+
     if (!currentAd) {
       const fallbackPath = userSlug ? `${basePath}/${userSlug}` : basePath;
       if (location.pathname !== fallbackPath) {
@@ -440,11 +447,18 @@ const UserTasksModal = ({
         // Check URL for campaign and task information
         const pathSegments = location.pathname.split('/').filter(Boolean);
         let urlTaskId = null;
+        let urlCampaignSlug = null;
         
         // Parse URL patterns: /cards/{user}/campaign/{campaign}/task/{taskId} or /next-week/cards/{user}/campaign/{campaign}/task/{taskId}
         const campaignIndex = pathSegments.indexOf('campaign');
         const taskIndex = pathSegments.indexOf('task');
         
+        // Extract campaign slug if present
+        if (campaignIndex !== -1 && campaignIndex + 1 < pathSegments.length) {
+          urlCampaignSlug = pathSegments[campaignIndex + 1];
+        }
+        
+        // Extract task ID if present
         if (campaignIndex !== -1 && taskIndex !== -1 && taskIndex > campaignIndex) {
           urlTaskId = parseInt(pathSegments[taskIndex + 1]);
         }
@@ -461,7 +475,31 @@ const UserTasksModal = ({
           }
         }
         
-        // Priority 2: focusedTaskId is provided
+        // Priority 2: URL contains campaign slug (without task ID)
+        if (urlCampaignSlug) {
+          // Find campaign by matching slug
+          const matchedCampaignName = Object.keys(campaignGroups).find(name => {
+            const campaign = campaigns.find(c => c.name === name);
+            if (campaign) {
+              const campaignSlug = slugify(campaign.slug || campaign.name || campaign.id);
+              return campaignSlug === urlCampaignSlug;
+            }
+            // Also check if the slug matches the slugified campaign name directly
+            return slugify(name) === urlCampaignSlug;
+          });
+          
+          if (matchedCampaignName) {
+            setExpandedCampaigns(new Set([matchedCampaignName]));
+            // Expand first task in the campaign
+            const firstTask = campaignGroups[matchedCampaignName]?.[0];
+            if (firstTask) {
+              setExpandedTaskSets(new Set([firstTask.id]));
+            }
+            return;
+          }
+        }
+        
+        // Priority 3: focusedTaskId is provided
         if (userTasksModal.focusedTaskId) {
           const focusedTask = userTasksModal.tasks.find(t => t.id === userTasksModal.focusedTaskId);
           if (focusedTask) {
@@ -481,7 +519,7 @@ const UserTasksModal = ({
             }
           }
         } else {
-          // Priority 3: No focused task, expand first campaign and first task
+          // Priority 4: No focused task, expand first campaign and first task
           const firstCampaignName = Object.keys(campaignGroups)[0];
           if (firstCampaignName) {
             setExpandedCampaigns(new Set([firstCampaignName]));
@@ -497,6 +535,19 @@ const UserTasksModal = ({
       lastModalUserRef.current = null;
     }
   }, [userTasksModal, campaigns, location.pathname]);
+
+  // Scroll to expanded campaign
+  useEffect(() => {
+    if (expandedCampaigns.size > 0) {
+      const expandedCampaignName = Array.from(expandedCampaigns)[0];
+      const campaignElement = campaignRefs.current[expandedCampaignName];
+      if (campaignElement) {
+        setTimeout(() => {
+          campaignElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    }
+  }, [expandedCampaigns]);
 
   const getPreviewUrl = (url) => {
     if (!url) return url;
@@ -899,7 +950,11 @@ const UserTasksModal = ({
               const isExpanded = expandedCampaigns.has(campaignName);
               
               return (
-                <div key={campaignName} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <div 
+                  key={campaignName} 
+                  ref={(el) => { campaignRefs.current[campaignName] = el; }}
+                  className="border border-gray-200 rounded-lg overflow-hidden bg-white"
+                >
                   {/* Collapsible Campaign Header */}
                   <div 
                     className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 ${
@@ -1077,7 +1132,7 @@ const UserTasksModal = ({
                             {/* Copy Link & Script Assigned */}
                             <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
                               {/* Header Row */}
-                              <div className="grid grid-cols-2 gap-4 mb-2">
+                              <div className="grid gap-4 mb-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
                                 <label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -1093,20 +1148,34 @@ const UserTasksModal = ({
                               </div>
                               
                               {/* Data Row - Always Editable */}
-                              <div className="grid grid-cols-2 gap-4 items-start">
+                              <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '2fr 1fr' }}>
                                 {/* Copy Link Input - Always Editable */}
-                                <input
-                                  type="url"
-                                  defaultValue={copyLink || ''}
-                                  onBlur={(e) => {
-                                    const newValue = e.target.value.trim();
-                                    if (newValue !== (copyLink || '')) {
-                                      handleCopyLinkChange(newValue);
-                                    }
-                                  }}
-                                  placeholder="Paste copy link here..."
-                                  className="px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
+                                <div className="flex items-start gap-1.5">
+                                  <textarea
+                                    defaultValue={copyLink || ''}
+                                    onBlur={(e) => {
+                                      const newValue = e.target.value.trim();
+                                      if (newValue !== (copyLink || '')) {
+                                        handleCopyLinkChange(newValue);
+                                      }
+                                    }}
+                                    placeholder="Paste copy link here..."
+                                    rows={3}
+                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
+                                  />
+                                  {copyLink && (
+                                    <a
+                                      href={copyLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors flex-shrink-0"
+                                      title="Open copy link"
+                                    >
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  )}
+                                </div>
                                 
                                 {/* Script Assigned - Editable for managers, display for others */}
                                 {canEdit ? (
@@ -1148,7 +1217,14 @@ const UserTasksModal = ({
                       <div className="space-y-3">
                         {Array.from({ length: actualSlotsCount }).map((_, i) => {
                           const slotIndex = i;
-                          const adNumber = Math.floor(i / (isVideoEditor ? 2 : 1)) + 1;
+                          
+                          // Calculate ad offset: sum of all previous tasks' quantities in this campaign
+                          const adOffset = sortedCampaignTasks.slice(0, taskIndex).reduce((sum, prevTask) => {
+                            const qty = parseInt(prevTask.quantity?.replace('x', '') || '1');
+                            return sum + qty;
+                          }, 0);
+                          
+                          const adNumber = adOffset + Math.floor(i / (isVideoEditor ? 2 : 1)) + 1;
                           const formatIndex = isVideoEditor ? i % 2 : 0;
                           const formatLabel = isVideoEditor ? (formatIndex === 0 ? 'Facebook Format' : 'Reel') : null;
                           
