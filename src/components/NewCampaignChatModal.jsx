@@ -212,41 +212,41 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => handleClose(false)}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex-1">
             <div className="flex items-center space-x-2">
-              <h2 className="text-xl font-bold text-gray-900">New Campaign</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">New Campaign</h2>
               {messages.length > 1 && (
-                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium rounded-full">
                   In Progress
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-600">Chat to create your campaign</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Chat to create your campaign</p>
           </div>
           <div className="flex items-center space-x-2">
             {messages.length > 1 && (
               <button
                 onClick={handleStartNewConversation}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title="Start new campaign"
               >
-                <RotateCcw className="w-5 h-5 text-gray-500" />
+                <RotateCcw className="w-5 h-5 text-gray-500 dark:text-gray-400" />
               </button>
             )}
             <button
               onClick={() => handleClose(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -256,13 +256,13 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser }) => {
                 className={`max-w-[80%] rounded-lg px-4 py-2 ${
                   message.role === 'user'
                     ? 'bg-primary-600 text-white'
-                    : 'bg-white text-gray-900 border border-gray-200'
+                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700'
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 <p
                   className={`text-xs mt-1 ${
-                    message.role === 'user' ? 'text-primary-100' : 'text-gray-500'
+                    message.role === 'user' ? 'text-primary-100' : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
                   {new Date(message.timestamp).toLocaleTimeString([], {
@@ -276,7 +276,7 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser }) => {
           
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white text-gray-900 border border-gray-200 rounded-lg px-4 py-2">
+              <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2">
                 <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
               </div>
             </div>
@@ -286,7 +286,7 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser }) => {
         </div>
 
         {/* Input Area */}
-        <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 bg-white">
+        <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
           <div className="flex space-x-2">
             <input
               ref={inputRef}
@@ -295,7 +295,7 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser }) => {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Type your message..."
               disabled={isLoading}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 dark:text-gray-100"
             />
             <button
               type="submit"

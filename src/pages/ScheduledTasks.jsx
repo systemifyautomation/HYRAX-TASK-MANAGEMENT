@@ -335,32 +335,32 @@ const ScheduledTasks = () => {
   const getDropdownOptionColors = (columnKey, optionValue) => {
     if (columnKey === 'status') {
       const statusColors = {
-        not_started: 'bg-gray-100 text-gray-700 border-gray-200',
-        in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
-        submitted: 'bg-purple-100 text-purple-700 border-purple-200',
-        needs_revision: 'bg-amber-100 text-amber-700 border-amber-200',
-        approved: 'bg-green-100 text-green-700 border-green-200',
+        not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+        in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+        submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+        needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+        approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
       };
-      return statusColors[optionValue] || 'bg-gray-100 text-gray-700 border-gray-200';
+      return statusColors[optionValue] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
     }
     if (columnKey === 'priority') {
       const priorityColors = {
-        urgent: 'bg-red-100 text-red-700 border-red-200',
-        high: 'bg-orange-100 text-orange-700 border-orange-200',
-        normal: 'bg-blue-100 text-blue-700 border-blue-200',
-        low: 'bg-gray-100 text-gray-700 border-gray-200',
+        urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
+        high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+        normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+        low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
       };
-      return priorityColors[optionValue] || 'bg-blue-100 text-blue-700 border-blue-200';
+      return priorityColors[optionValue] || 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800';
     }
     // Default colors for custom dropdowns
-    const defaultColors = ['bg-indigo-100 text-indigo-700 border-indigo-200', 'bg-emerald-100 text-emerald-700 border-emerald-200', 'bg-pink-100 text-pink-700 border-pink-200', 'bg-cyan-100 text-cyan-700 border-cyan-200', 'bg-violet-100 text-violet-700 border-violet-200'];
+    const defaultColors = ['bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800', 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800', 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800', 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800'];
     const hash = optionValue.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
     return defaultColors[Math.abs(hash) % defaultColors.length];
   };
 
   // Helper function to get current value colors for dropdowns
   const getCurrentValueColors = (columnKey, value) => {
-    if (!value) return 'bg-gray-50 text-gray-500 border-gray-200';
+    if (!value) return 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700';
     return getDropdownOptionColors(columnKey, value);
   };
 
@@ -446,7 +446,7 @@ const ScheduledTasks = () => {
                     newArray[index] = e.target.value;
                     handleChange(newArray);
                   }}
-                  className="flex-1 px-2 py-1 text-xs bg-white text-black border border-gray-200 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                   placeholder={`${column.name} ${index + 1}`}
                 />
                 {!isNewTask && (
@@ -455,13 +455,13 @@ const ScheduledTasks = () => {
                       type="checkbox"
                       checked={approvalArray[index] || false}
                       onChange={(e) => handleApprovalChange(index, e.target.checked)}
-                      className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-500 cursor-pointer"
+                      className="w-4 h-4 text-green-600 dark:text-green-400 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 cursor-pointer"
                       title="Manager approval"
                     />
                     <div className="relative">
                       <div 
-                        className={`peer w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
-                          isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : feedbackArray[index] ? 'cursor-help' : 'opacity-30 cursor-not-allowed'
+                        className={`peer w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-700 ${
+                          isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300 dark:hover:border-red-700' : feedbackArray[index] ? 'cursor-help' : 'opacity-30 cursor-not-allowed'
                         }`}
                         onClick={() => isAdminUser && handleArrayFeedback(index)}
                       >
@@ -510,7 +510,7 @@ const ScheduledTasks = () => {
             type="text"
             defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
             onChange={(e) => handleChange(e.target.value)}
-            className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
+            className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500`}
             placeholder={column.key === 'quantity' ? 'x1' : column.name}
           />
         );
@@ -521,7 +521,7 @@ const ScheduledTasks = () => {
             type="number"
             value={value || ''}
             onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
-            className="w-full px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
+            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500"
             placeholder={column.name}
           />
         );
@@ -533,7 +533,7 @@ const ScheduledTasks = () => {
               type="checkbox"
               checked={value || false}
               onChange={(e) => handleChange(e.target.checked)}
-              className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-all"
+              className="w-5 h-5 text-primary-600 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-all"
             />
           </div>
         );
@@ -553,16 +553,16 @@ const ScheduledTasks = () => {
                 getCurrentValueColors(column.key, value)
               }`}
             >
-              <option value="" className="bg-white text-gray-500">Select...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select...</option>
               {column.options?.map((option) => (
-                <option key={option} value={option} className="bg-white text-gray-800">{option}</option>
+                <option key={option} value={option} className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">{option}</option>
               ))}
             </select>
             {hasFeedback && (
               <div className="relative">
                 <div 
-                  className={`peer w-6 h-6 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
-                    isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : 'cursor-help'
+                  className={`peer w-6 h-6 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-700 ${
+                    isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300 dark:hover:border-red-700' : 'cursor-help'
                   }`}
                   onClick={() => isAdminUser && handleShowFeedback(task, column.key)}
                 >
@@ -588,7 +588,7 @@ const ScheduledTasks = () => {
             type="date"
             value={value || ''}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
+            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500 cursor-pointer"
           />
         );
       
@@ -629,14 +629,14 @@ const ScheduledTasks = () => {
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 cursor-pointer font-medium text-blue-800 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer font-medium text-blue-800 dark:text-blue-200 shadow-sm"
             >
-              <option value="" className="bg-white text-gray-500">Select user...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select user...</option>
               {filteredUsers.map((user) => (
                 <option 
                   key={user.id} 
                   value={user.id}
-                  className="bg-white text-gray-800 hover:bg-blue-50 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-2 px-3 font-medium"
                 >
                   {user.name}
                 </option>
@@ -651,14 +651,14 @@ const ScheduledTasks = () => {
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 cursor-pointer font-medium text-emerald-800 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 dark:from-emerald-900/30 to-teal-50 dark:to-teal-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 cursor-pointer font-medium text-emerald-800 dark:text-emerald-200 shadow-sm"
             >
-              <option value="" className="bg-white text-gray-500">Select campaign...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select campaign...</option>
               {campaigns.map((campaign) => (
                 <option 
                   key={campaign.id} 
                   value={campaign.id}
-                  className="bg-white text-gray-800 hover:bg-emerald-50 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 py-2 px-3 font-medium"
                 >
                   {campaign.name}
                 </option>
@@ -673,10 +673,10 @@ const ScheduledTasks = () => {
           <select
             value={weekValue}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 cursor-pointer font-medium text-purple-800 shadow-sm"
+            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-pink-50 dark:to-pink-900/30 border border-purple-200 dark:border-purple-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer font-medium text-purple-800 dark:text-purple-200 shadow-sm"
           >
             {weekOptions.map(option => (
-              <option key={option.value} value={option.value} className="bg-white text-gray-800">
+              <option key={option.value} value={option.value} className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
                 {option.label}
               </option>
             ))}
@@ -684,14 +684,14 @@ const ScheduledTasks = () => {
         );
       
       default:
-        return <span className="text-sm text-gray-700">{value || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300">{value || '-'}</span>;
     }
   };
 
   const formatCellValue = (value, column) => {
     // Special handling for quantity field - default to "x1" if no value
     if (!value && column.key === 'quantity') {
-      return <span className="text-sm text-gray-700">x1</span>;
+      return <span className="text-sm text-gray-700 dark:text-gray-300">x1</span>;
     }
     
     if (!value) return <span className="text-gray-400">-</span>;
@@ -709,7 +709,7 @@ const ScheduledTasks = () => {
                 href={item}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-black hover:bg-gray-200 rounded-md font-medium hover:underline"
+                className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-medium hover:underline"
                 title={item}
               >
                 Link {index + 1} →
@@ -721,25 +721,25 @@ const ScheduledTasks = () => {
       case 'user':
         const user = users.find(u => u.id === value);
         return user ? (
-          <span className="text-sm font-medium text-gray-900">{user.name}</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</span>
         ) : <span className="text-gray-400">-</span>;
       
       case 'campaign':
         const campaign = campaigns.find(c => c.id === value);
         return campaign ? (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-medium">
             {campaign.name}
           </span>
         ) : <span className="text-gray-400">-</span>;
       
       case 'date':
-        return <span className="text-sm text-gray-900">{format(new Date(value), 'MMM d, yyyy')}</span>;
+        return <span className="text-sm text-gray-900 dark:text-gray-100">{format(new Date(value), 'MMM d, yyyy')}</span>;
       
       case 'checkbox':
         return value ? (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 text-green-600">✓</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">✓</span>
         ) : (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 text-gray-400">✗</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 text-gray-400">✗</span>
         );
       
       case 'url':
@@ -752,80 +752,80 @@ const ScheduledTasks = () => {
       case 'dropdown':
         if (column.key === 'status') {
           const statusColors = {
-            not_started: 'bg-gray-100 text-gray-700',
-            in_progress: 'bg-blue-100 text-blue-700',
-            submitted: 'bg-purple-100 text-purple-700',
-            needs_revision: 'bg-amber-100 text-amber-700',
-            approved: 'bg-green-100 text-green-700',
+            not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+            in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+            submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+            needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+            approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
           };
           return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 text-gray-700'}`}>
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
               {value?.replace(/_/g, ' ').toUpperCase() || '-'}
             </span>
           );
         }
         if (column.key === 'priority') {
           const priorityColors = {
-            urgent: 'bg-red-100 text-red-700 border-red-200',
-            high: 'bg-orange-100 text-orange-700 border-orange-200',
-            normal: 'bg-blue-100 text-blue-700 border-blue-200',
-            low: 'bg-gray-100 text-gray-700 border-gray-200',
+            urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
+            high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+            normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+            low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
           };
           return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${priorityColors[value] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${priorityColors[value] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
               {value?.toUpperCase() || '-'}
             </span>
           );
         }
-        return <span className="text-sm text-gray-700 capitalize">{value?.replace(/_/g, ' ') || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{value?.replace(/_/g, ' ') || '-'}</span>;
       
       default:
-        return <span className="text-sm text-gray-700">{value || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300">{value || '-'}</span>;
     }
   };
 
   // Show loading state while data is being fetched
   if (scheduledTasksLoading || campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading scheduled tasks...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading scheduled tasks...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex flex-col">
       <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">
           <h1 className="page-title">
             Scheduled Tasks
           </h1>
-          <p className="text-gray-600 mt-2">Manage scheduled future tasks in a powerful spreadsheet view</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage scheduled future tasks in a powerful spreadsheet view</p>
           
           {/* Stats Bar */}
           <div className="grid grid-cols-4 gap-4 mt-6">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Total Tasks</div>
-              <div className="text-2xl font-bold text-gray-900">{filteredTasks.length}</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Tasks</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{filteredTasks.length}</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">In Progress</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">In Progress</div>
               <div className="text-2xl font-bold text-blue-600">
                 {filteredTasks.filter(t => t.status === 'in_progress').length}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Completed</div>
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Completed</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {filteredTasks.filter(t => t.status === 'approved').length}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Needs Review</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Needs Review</div>
               <div className="text-2xl font-bold text-amber-600">
                 {filteredTasks.filter(t => t.status === 'submitted').length}
               </div>
@@ -855,7 +855,7 @@ const ScheduledTasks = () => {
                     value={newColumn.name}
                     onChange={(e) => setNewColumn({ ...newColumn, name: e.target.value })}
                     placeholder="e.g., Status, Priority, Notes"
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                    className="w-full px-4 py-2.5 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                   />
                 </div>
                 <div>
@@ -891,7 +891,7 @@ const ScheduledTasks = () => {
                               setNewColumn({ ...newColumn, dropdownOptions: newOptions });
                             }}
                             placeholder={`Option ${index + 1}`}
-                            className="flex-1 px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                            className="flex-1 px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                           />
                           <button
                             onClick={() => {
@@ -936,7 +936,7 @@ const ScheduledTasks = () => {
                             type="text"
                             value={editingColumn.name}
                             onChange={(e) => setEditingColumn({ ...editingColumn, name: e.target.value })}
-                            className="w-full px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                            className="w-full px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                             placeholder="Column name"
                           />
                         </div>
@@ -973,7 +973,7 @@ const ScheduledTasks = () => {
                                       setEditingColumn({ ...editingColumn, options: newOptions });
                                     }}
                                     placeholder={`Option ${index + 1}`}
-                                    className="flex-1 px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                                    className="flex-1 px-4 py-2 bg-gray-800 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                                   />
                                   <button
                                     onClick={() => {
@@ -1075,12 +1075,12 @@ const ScheduledTasks = () => {
           <div className="relative">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm ${
+              className={`p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm ${
                 (selectedCampaign || selectedUser) ? 'border-primary-500 bg-primary-50' : ''
               }`}
               title="Filters"
             >
-              <Filter className="w-4 h-4 text-gray-700" />
+              <Filter className="w-4 h-4 text-gray-700 dark:text-gray-300" />
             </button>
             
             {/* Filter Dropdown */}
@@ -1151,14 +1151,14 @@ const ScheduledTasks = () => {
             <>
               <button
                 onClick={handleDuplicateSelectedTasks}
-                className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+                className="px-4 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
               >
                 <Copy className="w-4 h-4" />
                 <span>Duplicate ({selectedTasks.size})</span>
               </button>
               <button
                 onClick={handleDeleteSelectedTasks}
-                className="px-4 py-2 bg-white border border-red-200 hover:border-red-300 text-red-700 hover:text-red-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+                className="px-4 py-2 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Delete ({selectedTasks.size})</span>
@@ -1177,7 +1177,7 @@ const ScheduledTasks = () => {
           {false && isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}
-              className="px-4 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
             >
               <Settings className="w-4 h-4" />
               <span>Manage Columns</span>
@@ -1191,7 +1191,7 @@ const ScheduledTasks = () => {
           {/* MEDIA BUYING - Grouped by Users, then Campaigns */}
           {users.filter(u => u.department === 'MEDIA BUYING').length > 0 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">MEDIA BUYING</h2>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">MEDIA BUYING</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {users.filter(u => u.department === 'MEDIA BUYING').map(user => {
@@ -1215,25 +1215,29 @@ const ScheduledTasks = () => {
                   }, {});
 
                   return (
-                    <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
+                    <div key={user.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-shadow">
                       {/* User Header */}
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 border-b border-gray-200">
+                      <div className="bg-gradient-to-br from-blue-50 dark:from-blue-900/30 to-indigo-100 dark:to-indigo-900/30 p-6 border-b border-gray-200 dark:border-gray-700">
                         <div className="flex flex-col items-center">
-                          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
-                            {user.name.charAt(0)}
-                          </div>
-                          <h3 className="text-lg font-bold text-gray-900 text-center">{user.name}</h3>
-                          <p className="text-xs text-gray-500 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
+                          {user.profile_picture ? (
+                            <img src={user.profile_picture} alt={user.name} className="w-20 h-20 rounded-full object-cover shadow-lg mb-3" />
+                          ) : (
+                            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3">
+                              {user.name.charAt(0)}
+                            </div>
+                          )}
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 text-center">{user.name}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
                         </div>
                       </div>
 
                       {/* Campaign Filter */}
-                      <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
-                        <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
+                      <div className="px-4 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Filter by Campaign</label>
                         <select
                           value={cardCampaignFilter}
                           onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                         >
                           <option value="">All Campaigns</option>
                           {campaigns.map((campaign) => (
@@ -1253,24 +1257,24 @@ const ScheduledTasks = () => {
                             const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                             
                             return (
-                              <div key={campaignId} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                                <h4 className="font-semibold text-sm text-gray-800 mb-2">{campaign?.name || 'Unknown Campaign'}</h4>
+                              <div key={campaignId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-900">
+                                <h4 className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-2">{campaign?.name || 'Unknown Campaign'}</h4>
                                 
                                 <div className="space-y-2">
                                   {scheduledTasks.map(task => {
                                     const getPriorityColor = (priority) => {
                                       switch(priority?.toLowerCase()) {
-                                        case 'critical': return 'bg-red-100 text-red-700';
-                                        case 'high': return 'bg-orange-100 text-orange-700';
-                                        case 'normal': return 'bg-blue-100 text-blue-700';
-                                        case 'low': return 'bg-gray-100 text-gray-700';
-                                        case 'paused': return 'bg-purple-100 text-purple-700';
-                                        default: return 'bg-gray-100 text-gray-700';
+                                        case 'critical': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+                                        case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
+                                        case 'normal': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+                                        case 'low': return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                                        case 'paused': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+                                        default: return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
                                       }
                                     };
 
                                     return (
-                                      <div key={task.id} className="text-xs bg-white p-3 rounded border border-gray-200">
+                                      <div key={task.id} className="text-xs bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
                                         <div className="flex items-center justify-between mb-2">
                                           <select
                                             value={task.priority || 'Normal'}
@@ -1286,7 +1290,7 @@ const ScheduledTasks = () => {
                                           <select
                                             value={task.mediaType || ''}
                                             onChange={(e) => updateScheduledTask(task.id, { mediaType: e.target.value })}
-                                            className="px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded cursor-pointer"
+                                            className="px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded cursor-pointer"
                                           >
                                             <option value="">Select...</option>
                                             <option value="IMAGE">IMAGE</option>
@@ -1297,30 +1301,30 @@ const ScheduledTasks = () => {
                                         <div className="space-y-2 mt-2">
                                           {/* Copy Written */}
                                           <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Copy Written:</span>
+                                            <span className="font-semibold text-gray-600 dark:text-gray-400 w-24">Copy Written:</span>
                                             <input
                                               type="checkbox"
                                               checked={task.copyWritten || false}
                                               onChange={(e) => updateScheduledTask(task.id, { copyWritten: e.target.checked })}
-                                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                              className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                             />
-                                            <span className={task.copyWritten ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                                            <span className={task.copyWritten ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-400'}>
                                               {task.copyWritten ? 'Yes' : 'No'}
                                             </span>
                                           </div>
                                           
                                           {/* Copy Link */}
                                           <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Copy Link:</span>
+                                            <span className="font-semibold text-gray-600 dark:text-gray-400 w-24">Copy Link:</span>
                                             <input
                                               type="text"
                                               value={task.copyLink || ''}
                                               onChange={(e) => updateScheduledTask(task.id, { copyLink: e.target.value })}
-                                              className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                              className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500"
                                               placeholder="Enter link..."
                                             />
                                             {task.copyLink && (
-                                              <a href={task.copyLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                              <a href={task.copyLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300">
                                                 <ExternalLink className="w-3 h-3" />
                                               </a>
                                             )}
@@ -1328,15 +1332,15 @@ const ScheduledTasks = () => {
                                           
                                           {/* Copy Approval */}
                                           <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-gray-600 w-24">Approval:</span>
+                                            <span className="font-semibold text-gray-600 dark:text-gray-400 w-24">Approval:</span>
                                             <select
                                               value={task.copyApproval || ''}
                                               onChange={(e) => updateScheduledTask(task.id, { copyApproval: e.target.value })}
                                               className={`flex-1 px-2 py-1 text-xs border rounded cursor-pointer ${
-                                                task.copyApproval === 'Approved' ? 'bg-green-100 text-green-700 border-green-200' :
-                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                                'bg-white text-gray-700 border-gray-200'
+                                                task.copyApproval === 'Approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' :
+                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' :
+                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' :
+                                                'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'
                                               }`}
                                             >
                                               <option value="">Select...</option>
@@ -1368,14 +1372,14 @@ const ScheduledTasks = () => {
                                           
                                           {/* Expandable Additional Info */}
                                           {expandedCards[task.id] && (
-                                            <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                                            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
                                               {/* Assigned To */}
                                               <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-600 w-24">Assigned To:</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 w-24">Assigned To:</span>
                                                 <select
                                                   value={task.assignedTo || ''}
                                                   onChange={(e) => updateScheduledTask(task.id, { assignedTo: parseInt(e.target.value) })}
-                                                  className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                  className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500"
                                                 >
                                                   <option value="">Select user...</option>
                                                   {users.filter(u => {
@@ -1389,13 +1393,13 @@ const ScheduledTasks = () => {
                                               
                                               {/* Campaign Name */}
                                               <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-600 w-24">Campaign:</span>
-                                                <span className="text-gray-800">{campaign?.name || 'Unknown'}</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 w-24">Campaign:</span>
+                                                <span className="text-gray-800 dark:text-gray-200">{campaign?.name || 'Unknown'}</span>
                                               </div>
                                               
                                               {/* Viewer Link */}
                                               <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Viewer Links:</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 block">Viewer Links:</span>
                                                 {task.viewerLink && task.viewerLink.length > 0 ? (
                                                   task.viewerLink.map((link, idx) => (
                                                     <div key={idx} className="flex items-center gap-2">
@@ -1407,11 +1411,11 @@ const ScheduledTasks = () => {
                                                           newLinks[idx] = e.target.value;
                                                           updateScheduledTask(task.id, { viewerLink: newLinks });
                                                         }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Viewer link ${idx + 1}`}
                                                       />
                                                       {link && (
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300">
                                                           <ExternalLink className="w-3 h-3" />
                                                         </a>
                                                       )}
@@ -1442,7 +1446,7 @@ const ScheduledTasks = () => {
                                               
                                               {/* Cali Variation */}
                                               <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Cali Variation:</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 block">Cali Variation:</span>
                                                 {task.caliVariation && task.caliVariation.length > 0 ? (
                                                   task.caliVariation.map((variation, idx) => (
                                                     <div key={idx} className="flex items-center gap-2">
@@ -1454,7 +1458,7 @@ const ScheduledTasks = () => {
                                                           newVariations[idx] = e.target.value;
                                                           updateScheduledTask(task.id, { caliVariation: newVariations });
                                                         }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Variation ${idx + 1}`}
                                                       />
                                                       <button
@@ -1484,7 +1488,7 @@ const ScheduledTasks = () => {
                                               
                                               {/* Slack Permalink */}
                                               <div className="space-y-1">
-                                                <span className="font-semibold text-gray-600 block">Slack Links:</span>
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400 block">Slack Links:</span>
                                                 {task.slackPermalink && task.slackPermalink.length > 0 ? (
                                                   task.slackPermalink.map((link, idx) => (
                                                     <div key={idx} className="flex items-center gap-2">
@@ -1496,11 +1500,11 @@ const ScheduledTasks = () => {
                                                           newLinks[idx] = e.target.value;
                                                           updateScheduledTask(task.id, { slackPermalink: newLinks });
                                                         }}
-                                                        className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded focus:ring-2 focus:ring-blue-500"
                                                         placeholder={`Slack link ${idx + 1}`}
                                                       />
                                                       {link && (
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300">
                                                           <ExternalLink className="w-3 h-3" />
                                                         </a>
                                                       )}
@@ -1555,7 +1559,7 @@ const ScheduledTasks = () => {
 
             return (
               <div key={department} className="mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">{department}</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {departmentUsers.map(user => {
@@ -1579,25 +1583,29 @@ const ScheduledTasks = () => {
                     }, {});
 
                     return (
-                      <div key={user.id} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow">
+                      <div key={user.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-shadow">
                         {/* User Header */}
                         <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 border-b border-purple-700">
                           <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3 border-2 border-white/30">
-                              {user.name.charAt(0)}
-                            </div>
+                            {user.profile_picture ? (
+                              <img src={user.profile_picture} alt={user.name} className="w-20 h-20 rounded-full object-cover shadow-lg mb-3 border-2 border-white/30" />
+                            ) : (
+                              <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-3 border-2 border-white/30">
+                                {user.name.charAt(0)}
+                              </div>
+                            )}
                             <h3 className="text-lg font-bold text-white text-center">{user.name}</h3>
                             <p className="text-xs text-purple-100 mt-1">{userTasks.length} task{userTasks.length !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
 
                         {/* Campaign Filter */}
-                        <div className="px-4 pt-4 pb-3 bg-gray-50 border-b border-gray-200">
-                          <label className="block text-xs font-semibold text-gray-600 mb-2">Filter by Campaign</label>
+                        <div className="px-4 pt-4 pb-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Filter by Campaign</label>
                           <select
                             value={cardCampaignFilter}
                             onChange={(e) => setCardCampaignFilters({ ...cardCampaignFilters, [user.id]: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                           >
                             <option value="">All Campaigns</option>
                             {campaigns.map((campaign) => (
@@ -1617,13 +1625,13 @@ const ScheduledTasks = () => {
                               const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                               
                               return (
-                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 to-white rounded-lg border border-gray-200 overflow-hidden">
+                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 dark:from-gray-800 to-white rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                                   {/* Campaign Header */}
-                                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 px-3 py-2 border-b border-purple-200">
-                                    <h4 className="text-sm font-bold text-purple-900">
+                                  <div className="bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-purple-100 dark:to-purple-900/30 px-3 py-2 border-b border-purple-200 dark:border-purple-800">
+                                    <h4 className="text-sm font-bold text-purple-900 dark:text-purple-200">
                                       {campaign?.name || 'Uncategorized'}
                                     </h4>
-                                    <p className="text-xs text-purple-600 mt-0.5">
+                                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
                                       {tasks.length} task{tasks.length !== 1 ? 's' : ''}
                                     </p>
                                   </div>
@@ -1633,27 +1641,27 @@ const ScheduledTasks = () => {
                                     {scheduledTasks.map(task => {
                                       const getPriorityColor = (priority) => {
                                         switch(priority?.toLowerCase()) {
-                                          case 'critical': return 'bg-red-100 text-red-700';
-                                          case 'high': return 'bg-orange-100 text-orange-700';
-                                          case 'normal': return 'bg-blue-100 text-blue-700';
-                                          case 'low': return 'bg-gray-100 text-gray-700';
-                                          case 'paused': return 'bg-purple-100 text-purple-700';
-                                          default: return 'bg-gray-100 text-gray-700';
+                                          case 'critical': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+                                          case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
+                                          case 'normal': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+                                          case 'low': return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                                          case 'paused': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+                                          default: return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
                                         }
                                       };
 
                                       const assignedUser = users.find(u => u.id === parseInt(task.assignedTo));
 
                                       return (
-                                        <div key={task.id} className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-md transition-shadow">
+                                        <div key={task.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 hover:shadow-md transition-shadow">
                                           <div className="space-y-1.5">
                                             {/* Assigned To */}
                                             <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-gray-700 text-xs w-24">Assigned To:</span>
+                                              <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Assigned To:</span>
                                               <select
                                                 value={task.assignedTo || ''}
                                                 onChange={(e) => updateScheduledTask(task.id, { assignedTo: parseInt(e.target.value) })}
-                                                className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                               >
                                                 <option value="">Select user...</option>
                                                 {users.filter(u => {
@@ -1667,13 +1675,13 @@ const ScheduledTasks = () => {
                                             
                                             {/* Campaign Name */}
                                             <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-gray-700 text-xs w-24">Campaign:</span>
-                                              <span className="text-gray-900 text-xs truncate">{campaign?.name || 'Unknown'}</span>
+                                              <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Campaign:</span>
+                                              <span className="text-gray-900 dark:text-gray-100 text-xs truncate">{campaign?.name || 'Unknown'}</span>
                                             </div>
                                             
                                             {/* Viewer Links */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Viewer Links:</span>
+                                              <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs block">Viewer Links:</span>
                                               {task.viewerLink && task.viewerLink.length > 0 ? (
                                                 task.viewerLink.map((link, idx) => (
                                                   <div key={idx} className="flex items-center gap-1">
@@ -1685,11 +1693,11 @@ const ScheduledTasks = () => {
                                                         newLinks[idx] = e.target.value;
                                                         updateScheduledTask(task.id, { viewerLink: newLinks });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Viewer link ${idx + 1}`}
                                                     />
                                                     {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
+                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 dark:text-purple-400 hover:text-purple-800">
                                                         <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
                                                     )}
@@ -1712,7 +1720,7 @@ const ScheduledTasks = () => {
                                                   const newLinks = [...(task.viewerLink || []), ''];
                                                   updateScheduledTask(task.id, { viewerLink: newLinks });
                                                 }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                                                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Viewer Link
                                               </button>
@@ -1720,7 +1728,7 @@ const ScheduledTasks = () => {
                                             
                                             {/* Cali Variation */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Cali Variation:</span>
+                                              <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs block">Cali Variation:</span>
                                               {task.caliVariation && task.caliVariation.length > 0 ? (
                                                 task.caliVariation.map((variation, idx) => (
                                                   <div key={idx} className="flex items-center gap-1">
@@ -1732,7 +1740,7 @@ const ScheduledTasks = () => {
                                                         newVariations[idx] = e.target.value;
                                                         updateScheduledTask(task.id, { caliVariation: newVariations });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Variation ${idx + 1}`}
                                                     />
                                                     <button
@@ -1754,7 +1762,7 @@ const ScheduledTasks = () => {
                                                   const newVariations = [...(task.caliVariation || []), ''];
                                                   updateScheduledTask(task.id, { caliVariation: newVariations });
                                                 }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                                                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Variation
                                               </button>
@@ -1762,7 +1770,7 @@ const ScheduledTasks = () => {
                                             
                                             {/* Slack Links */}
                                             <div className="space-y-1">
-                                              <span className="font-semibold text-gray-700 text-xs block">Slack Links:</span>
+                                              <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs block">Slack Links:</span>
                                               {task.slackPermalink && task.slackPermalink.length > 0 ? (
                                                 task.slackPermalink.map((link, idx) => (
                                                   <div key={idx} className="flex items-center gap-1">
@@ -1774,11 +1782,11 @@ const ScheduledTasks = () => {
                                                         newLinks[idx] = e.target.value;
                                                         updateScheduledTask(task.id, { slackPermalink: newLinks });
                                                       }}
-                                                      className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                      className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                       placeholder={`Slack link ${idx + 1}`}
                                                     />
                                                     {link && (
-                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-800">
+                                                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-purple-600 dark:text-purple-400 hover:text-purple-800">
                                                         <ExternalLink className="w-3.5 h-3.5" />
                                                       </a>
                                                     )}
@@ -1801,7 +1809,7 @@ const ScheduledTasks = () => {
                                                   const newLinks = [...(task.slackPermalink || []), ''];
                                                   updateScheduledTask(task.id, { slackPermalink: newLinks });
                                                 }}
-                                                className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                                                className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 font-medium"
                                               >
                                                 + Add Slack Link
                                               </button>
@@ -1810,7 +1818,7 @@ const ScheduledTasks = () => {
                                             {/* Show More Button */}
                                             <button
                                               onClick={() => setExpandedCards(prev => ({ ...prev, [task.id]: !prev[task.id] }))}
-                                              className="mt-1 text-xs text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1"
+                                              className="mt-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 font-semibold flex items-center gap-1"
                                             >
                                               {expandedCards[task.id] ? (
                                                 <>
@@ -1827,10 +1835,10 @@ const ScheduledTasks = () => {
                                             
                                             {/* Expandable Additional Info */}
                                             {expandedCards[task.id] && (
-                                              <div className="mt-2 pt-2 border-t border-gray-200 space-y-1.5">
+                                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
                                                 {/* Priority */}
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Priority:</span>
+                                                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Priority:</span>
                                                   <select
                                                     value={task.priority || 'Normal'}
                                                     onChange={(e) => updateScheduledTask(task.id, { priority: e.target.value })}
@@ -1846,11 +1854,11 @@ const ScheduledTasks = () => {
 
                                                 {/* Media Type */}
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Media Type:</span>
+                                                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Media Type:</span>
                                                   <select
                                                     value={task.mediaType || task.type || ''}
                                                     onChange={(e) => updateScheduledTask(task.id, { mediaType: e.target.value })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                    className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                   >
                                                     <option value="">Select...</option>
                                                     <option value="IMAGE">Image</option>
@@ -1860,27 +1868,27 @@ const ScheduledTasks = () => {
 
                                                 {/* Copy Link */}
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Link:</span>
+                                                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Copy Link:</span>
                                                   <input
                                                     type="text"
                                                     value={task.copyLink || ''}
                                                     onChange={(e) => updateScheduledTask(task.id, { copyLink: e.target.value })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                    className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                     placeholder="Enter copy link..."
                                                   />
                                                 </div>
 
                                                 {/* Copy Status */}
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Copy Status:</span>
+                                                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Copy Status:</span>
                                                   <select
                                                     value={task.copyApproval || ''}
                                                     onChange={(e) => updateScheduledTask(task.id, { copyApproval: e.target.value })}
-                                                    className={`flex-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 ${
-                                                      task.copyApproval === 'Approved' ? 'text-green-700' :
-                                                      task.copyApproval === 'Needs Review' ? 'text-orange-700' :
-                                                      task.copyApproval === 'Left feedback' ? 'text-blue-700' :
-                                                      'text-gray-700'
+                                                    className={`flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500 ${
+                                                      task.copyApproval === 'Approved' ? 'text-green-700 dark:text-green-400' :
+                                                      task.copyApproval === 'Needs Review' ? 'text-orange-700 dark:text-orange-400' :
+                                                      task.copyApproval === 'Left feedback' ? 'text-blue-700 dark:text-blue-400' :
+                                                      'text-gray-700 dark:text-gray-300'
                                                     }`}
                                                   >
                                                     <option value="">Select...</option>
@@ -1894,11 +1902,11 @@ const ScheduledTasks = () => {
                                                 
                                                 {/* Script Writer */}
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-semibold text-gray-700 text-xs w-24">Script Writer:</span>
+                                                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-xs w-24">Script Writer:</span>
                                                   <select
                                                     value={task.scriptAssigned || ''}
                                                     onChange={(e) => updateScheduledTask(task.id, { scriptAssigned: parseInt(e.target.value) })}
-                                                    className="flex-1 px-2 py-1 text-xs bg-white text-gray-900 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                                                    className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-purple-500"
                                                   >
                                                     <option value="">Select user...</option>
                                                     {users.filter(u => {
@@ -1957,7 +1965,7 @@ const ScheduledTasks = () => {
                   readOnly={feedbackModal.readOnly}
                   placeholder="Enter feedback details here..."
                   rows={8}
-                  className="w-full px-4 py-3 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600 resize-none"
+                  className="w-full px-4 py-3 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600 resize-none"
                 />
               </div>
 

@@ -1,684 +1,104 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AuthContext';
-import { Save, User, Bell, Lock, Globe, Palette, Database, Shield, Key } from 'lucide-react';
-import { isAdmin } from '../constants/roles';
+import { Users, Palette } from 'lucide-react';
 
-// Hash function to generate code
-const hashThreeInputs = async (input1, input2, input3) => {
-  const combined = input1.toString() + input2.toString() + input3.toString();
-  const encoder = new TextEncoder();
-  const data = encoder.encode(combined);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-};
+// Color options for media buyers
+const BUYER_COLOR_OPTIONS = [
+  { name: 'red', label: 'Red', swatch: 'bg-red-500', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-900 dark:text-red-200', border: 'border-red-200 dark:border-red-800', hover: 'hover:bg-red-100 dark:hover:bg-red-900/30', hoverBorder: 'hover:border-red-300 dark:hover:border-red-700' },
+  { name: 'orange', label: 'Orange', swatch: 'bg-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-900 dark:text-orange-200', border: 'border-orange-200 dark:border-orange-800', hover: 'hover:bg-orange-100 dark:hover:bg-orange-900/30', hoverBorder: 'hover:border-orange-300 dark:hover:border-orange-700' },
+  { name: 'amber', label: 'Amber', swatch: 'bg-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-900 dark:text-amber-200', border: 'border-amber-200 dark:border-amber-800', hover: 'hover:bg-amber-100 dark:hover:bg-amber-900/30', hoverBorder: 'hover:border-amber-300 dark:hover:border-amber-700' },
+  { name: 'lime', label: 'Lime', swatch: 'bg-lime-500', bg: 'bg-lime-50 dark:bg-lime-900/20', text: 'text-lime-900 dark:text-lime-200', border: 'border-lime-200 dark:border-lime-800', hover: 'hover:bg-lime-100 dark:hover:bg-lime-900/30', hoverBorder: 'hover:border-lime-300 dark:hover:border-lime-700' },
+  { name: 'green', label: 'Green', swatch: 'bg-green-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-900 dark:text-green-200', border: 'border-green-200 dark:border-green-800', hover: 'hover:bg-green-100 dark:hover:bg-green-900/30', hoverBorder: 'hover:border-green-300 dark:hover:border-green-700' },
+  { name: 'emerald', label: 'Emerald', swatch: 'bg-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-900 dark:text-emerald-200', border: 'border-emerald-200 dark:border-emerald-800', hover: 'hover:bg-emerald-100 dark:hover:bg-emerald-900/30', hoverBorder: 'hover:border-emerald-300 dark:hover:border-emerald-700' },
+  { name: 'cyan', label: 'Cyan', swatch: 'bg-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-900/20', text: 'text-cyan-900 dark:text-cyan-200', border: 'border-cyan-200 dark:border-cyan-800', hover: 'hover:bg-cyan-100 dark:hover:bg-cyan-900/30', hoverBorder: 'hover:border-cyan-300 dark:hover:border-cyan-700' },
+  { name: 'sky', label: 'Sky Blue', swatch: 'bg-sky-500', bg: 'bg-sky-50 dark:bg-sky-900/20', text: 'text-sky-900 dark:text-sky-200', border: 'border-sky-200 dark:border-sky-800', hover: 'hover:bg-sky-100 dark:hover:bg-sky-900/30', hoverBorder: 'hover:border-sky-300 dark:hover:border-sky-700' },
+  { name: 'blue', label: 'Blue', swatch: 'bg-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-900 dark:text-blue-200', border: 'border-blue-200 dark:border-blue-800', hover: 'hover:bg-blue-100 dark:hover:bg-blue-900/30', hoverBorder: 'hover:border-blue-300 dark:hover:border-blue-700' },
+  { name: 'indigo', label: 'Indigo', swatch: 'bg-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-900 dark:text-indigo-200', border: 'border-indigo-200 dark:border-indigo-800', hover: 'hover:bg-indigo-100 dark:hover:bg-indigo-900/30', hoverBorder: 'hover:border-indigo-300 dark:hover:border-indigo-700' },
+  { name: 'violet', label: 'Violet', swatch: 'bg-violet-500', bg: 'bg-violet-50 dark:bg-violet-900/20', text: 'text-violet-900 dark:text-violet-200', border: 'border-violet-200 dark:border-violet-800', hover: 'hover:bg-violet-100 dark:hover:bg-violet-900/30', hoverBorder: 'hover:border-violet-300 dark:hover:border-violet-700' },
+  { name: 'purple', label: 'Purple', swatch: 'bg-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-900 dark:text-purple-200', border: 'border-purple-200 dark:border-purple-800', hover: 'hover:bg-purple-100 dark:hover:bg-purple-900/30', hoverBorder: 'hover:border-purple-300 dark:hover:border-purple-700' },
+  { name: 'fuchsia', label: 'Fuchsia', swatch: 'bg-fuchsia-500', bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20', text: 'text-fuchsia-900 dark:text-fuchsia-200', border: 'border-fuchsia-200 dark:border-fuchsia-800', hover: 'hover:bg-fuchsia-100 dark:hover:bg-fuchsia-900/30', hoverBorder: 'hover:border-fuchsia-300 dark:hover:border-fuchsia-700' },
+  { name: 'pink', label: 'Pink', swatch: 'bg-pink-500', bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-900 dark:text-pink-200', border: 'border-pink-200 dark:border-pink-800', hover: 'hover:bg-pink-100 dark:hover:bg-pink-900/30', hoverBorder: 'hover:border-pink-300 dark:hover:border-pink-700' },
+  { name: 'rose', label: 'Rose', swatch: 'bg-rose-500', bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-900 dark:text-rose-200', border: 'border-rose-200 dark:border-rose-800', hover: 'hover:bg-rose-100 dark:hover:bg-rose-900/30', hoverBorder: 'hover:border-rose-300 dark:hover:border-rose-700' },
+  { name: 'slate', label: 'Slate', swatch: 'bg-slate-500', bg: 'bg-slate-50 dark:bg-slate-900/20', text: 'text-slate-900 dark:text-slate-200', border: 'border-slate-200 dark:border-slate-800', hover: 'hover:bg-slate-100 dark:hover:bg-slate-900/30', hoverBorder: 'hover:border-slate-300 dark:hover:border-slate-700' },
+];
 
-// Helper function to get today's date in UTC format dd/MM/yyyy
-const getTodayUTC = () => {
-  const now = new Date();
-  const day = String(now.getUTCDate()).padStart(2, '0');
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const year = now.getUTCFullYear();
-  return `${day}/${month}/${year}`;
-};
+export { BUYER_COLOR_OPTIONS };
 
 const Settings = () => {
-  const { currentUser } = useApp();
-  const isAdminUser = isAdmin(currentUser.role);
-  
-  const [activeTab, setActiveTab] = useState('profile');
-  const [formData, setFormData] = useState({
-    name: currentUser.name,
-    email: currentUser.email,
-    avatar: currentUser.avatar,
-    notifications: {
-      email: true,
-      push: true,
-      taskAssigned: true,
-      taskCompleted: false,
-      campaignUpdates: true,
-    },
-    appearance: {
-      theme: 'light',
-      compactMode: false,
-      showAvatars: true,
-    },
-    privacy: {
-      profileVisible: true,
-      activityVisible: false,
-    },
-  });
-
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  const handleSave = () => {
-    alert('Settings saved successfully!');
-  };
-
-  const handlePasswordReset = async () => {
-    // Clear previous messages
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    // Validation
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-      setPasswordError('Please fill in all password fields');
-      return;
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long');
-      return;
-    }
-
-    if (passwordData.currentPassword === passwordData.newPassword) {
-      setPasswordError('New password must be different from current password');
-      return;
-    }
-
-    setPasswordLoading(true);
-
-    try {
-      // Generate hash code using current credentials
-      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
-      const userEmail = currentUser.email;
-      const currentPasswordHash = await hashThreeInputs(userEmail, passwordData.currentPassword, loginDate);
-
-      // Build query parameters for PATCH request
-      const queryParams = new URLSearchParams({
-        id: currentUser.id.toString(),
-        email: userEmail,
-        name: currentUser.name,
-        role: currentUser.role,
-        department: currentUser.department || '',
-        password: passwordData.newPassword // Send new password
-      });
-
-      // Send PATCH request to webhook
-      const webhookUrl = import.meta.env.VITE_GET_USERS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/users-webhook';
-      const response = await fetch(`${webhookUrl}?${queryParams}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          code: currentPasswordHash,
-          modified_by: userEmail
-        })
-      });
-
-      if (response.ok) {
-        console.log('Password updated successfully via webhook');
-        setPasswordSuccess('Password updated successfully! You will be logged out in 3 seconds...');
-        
-        // Update localStorage with new password
-        localStorage.setItem('admin_password', passwordData.newPassword);
-        
-        // Clear form
-        setPasswordData({
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        });
-
-        // Log out user after 3 seconds to re-authenticate
-        setTimeout(() => {
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('current_user');
-          localStorage.removeItem('login_date');
-          window.location.reload();
-        }, 3000);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || 'Failed to update password. Please check your current password and try again.';
-        console.error('Failed to update password via webhook, status:', response.status);
-        setPasswordError(errorMessage);
-      }
-    } catch (error) {
-      console.error('Error updating password:', error);
-      setPasswordError('Error updating password. Please check your connection and try again.');
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'privacy', label: 'Privacy', icon: Lock },
-    ...(isAdmin ? [
-      { id: 'workspace', label: 'Workspace', icon: Globe },
-      { id: 'security', label: 'Security', icon: Shield },
-      { id: 'data', label: 'Data', icon: Database },
-    ] : []),
-  ];
+  const { users, buyerColors, updateBuyerColor } = useApp();
+  const mediaBuyers = users.filter(u => u.department === 'MEDIA BUYING');
 
   return (
-    <div className="min-h-screen bg-black">
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="page-title">
-            Settings
-          </h1>
-          <p className="text-white mt-2">Manage your account and preferences</p>
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-1">
+          <Palette className="w-6 h-6 text-primary-600" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Media Buyer Colors</h1>
         </div>
-
-        <div className="flex gap-6">
-          {/* Sidebar */}
-          <div className="w-64 flex-shrink-0">
-            <div className="bg-gray-900 border border-red-600/30 rounded-xl shadow-lg p-2" style={{ boxShadow: '0 0 20px rgba(220, 38, 38, 0.2)' }}>
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-150 ${
-                      activeTab === tab.id
-                        ? 'bg-red-600 text-white shadow-md shadow-red-600/50'
-                        : 'text-white hover:bg-gray-800'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            <div className="bg-black border border-red-600 rounded-xl shadow-2xl p-8" style={{ boxShadow: '0 0 40px rgba(220, 38, 38, 0.4)' }}>
-              
-              {/* Profile Tab */}
-              {activeTab === 'profile' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Profile Information</h2>
-                    <p className="text-white">Update your personal information and avatar</p>
-                  </div>
-
-                  <div className="flex items-center space-x-6">
-                    <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-red-600/50">
-                      {formData.avatar}
-                    </div>
-                    <div>
-                      <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-lg shadow-red-600/50">
-                        Change Avatar
-                      </button>
-                      <p className="text-sm text-gray-400 mt-2">Click to update your avatar emoji</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">Email Address</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Role</label>
-                    <input
-                      type="text"
-                      value={currentUser.role.replace(/_/g, ' ').toUpperCase()}
-                      disabled
-                      className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-400"
-                    />
-                  </div>
-
-                  {/* Password Reset Section */}
-                  <div className="pt-6 mt-6 border-t border-red-600/30">
-                    <div className="mb-4">
-                      <h3 className="text-xl font-bold text-red-600 mb-2 flex items-center">
-                        <Key className="w-5 h-5 mr-2" />
-                        Change Password
-                      </h3>
-                      <p className="text-white text-sm">Update your password to keep your account secure</p>
-                    </div>
-
-                    {passwordError && (
-                      <div className="mb-4 p-4 bg-red-900/50 border border-red-600 rounded-lg">
-                        <p className="text-red-200 text-sm">{passwordError}</p>
-                      </div>
-                    )}
-
-                    {passwordSuccess && (
-                      <div className="mb-4 p-4 bg-green-900/50 border border-green-600 rounded-lg">
-                        <p className="text-green-200 text-sm">{passwordSuccess}</p>
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-white mb-2">Current Password</label>
-                        <input
-                          type="password"
-                          value={passwordData.currentPassword}
-                          onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                          placeholder="Enter current password"
-                          disabled={passwordLoading}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-white mb-2">New Password</label>
-                          <input
-                            type="password"
-                            value={passwordData.newPassword}
-                            onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                            className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                            placeholder="Enter new password"
-                            disabled={passwordLoading}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-white mb-2">Confirm New Password</label>
-                          <input
-                            type="password"
-                            value={passwordData.confirmPassword}
-                            onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                            className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                            placeholder="Confirm new password"
-                            disabled={passwordLoading}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handlePasswordReset}
-                        disabled={passwordLoading}
-                        className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg shadow-lg shadow-red-600/50 transition-all duration-200 flex items-center space-x-2"
-                      >
-                        {passwordLoading ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            <span>Updating Password...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-5 h-5" />
-                            <span>Update Password</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notifications Tab */}
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Notification Preferences</h2>
-                    <p className="text-white">Choose how you want to be notified</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Email Notifications</p>
-                        <p className="text-sm text-gray-400">Receive notifications via email</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.notifications.email}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            notifications: { ...formData.notifications, email: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Push Notifications</p>
-                        <p className="text-sm text-gray-400">Receive push notifications in browser</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.notifications.push}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            notifications: { ...formData.notifications, push: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Task Assigned</p>
-                        <p className="text-sm text-gray-400">When a task is assigned to you</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.notifications.taskAssigned}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            notifications: { ...formData.notifications, taskAssigned: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Campaign Updates</p>
-                        <p className="text-sm text-gray-400">Updates about campaigns you're part of</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.notifications.campaignUpdates}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            notifications: { ...formData.notifications, campaignUpdates: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Appearance Tab */}
-              {activeTab === 'appearance' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Appearance Settings</h2>
-                    <p className="text-white">Customize how the app looks</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-3">Theme</label>
-                    <div className="grid grid-cols-3 gap-4">
-                      {['light', 'dark', 'auto'].map((theme) => (
-                        <button
-                          key={theme}
-                          onClick={() => setFormData({ ...formData, appearance: { ...formData.appearance, theme } })}
-                          className={`p-4 rounded-lg border-2 transition-all ${
-                            formData.appearance.theme === theme
-                              ? 'border-red-600 bg-gray-900 shadow-lg shadow-red-600/30'
-                              : 'border-gray-700 bg-gray-900 hover:border-red-600/50'
-                          }`}
-                        >
-                          <div className="text-center">
-                            <p className="font-medium text-white capitalize">{theme}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Compact Mode</p>
-                        <p className="text-sm text-gray-400">Use smaller spacing and elements</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.appearance.compactMode}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            appearance: { ...formData.appearance, compactMode: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Show Avatars</p>
-                        <p className="text-sm text-gray-400">Display user avatars in lists and tables</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.appearance.showAvatars}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            appearance: { ...formData.appearance, showAvatars: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Privacy Tab */}
-              {activeTab === 'privacy' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Privacy Settings</h2>
-                    <p className="text-white">Control your privacy and visibility</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Profile Visible</p>
-                        <p className="text-sm text-gray-400">Allow others to view your profile</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.privacy.profileVisible}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            privacy: { ...formData.privacy, profileVisible: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-900 border border-red-600/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-white">Activity Visible</p>
-                        <p className="text-sm text-gray-400">Show your recent activity to team members</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.privacy.activityVisible}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            privacy: { ...formData.privacy, activityVisible: e.target.checked }
-                          })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-600/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Workspace Tab (Admin Only) */}
-              {activeTab === 'workspace' && isAdmin && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-600 mb-2">Workspace Settings</h2>
-                    <p className="text-white">Manage workspace-wide settings</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Workspace Name</label>
-                    <input
-                      type="text"
-                      defaultValue="Hyrax Task Management"
-                      className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Default Role for New Users</label>
-                    <select className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white focus:ring-2 focus:ring-red-600 focus:border-red-600">
-                      <option value="team_member">Team Member</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Time Zone</label>
-                    <select className="w-full px-4 py-2.5 bg-gray-900 border border-red-600/50 rounded-lg text-white focus:ring-2 focus:ring-red-600 focus:border-red-600">
-                      <option value="UTC">UTC</option>
-                      <option value="America/New_York">Eastern Time</option>
-                      <option value="America/Chicago">Central Time</option>
-                      <option value="America/Los_Angeles">Pacific Time</option>
-                      <option value="Europe/London">London</option>
-                      <option value="Europe/Paris">Paris</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Security Tab (Admin Only) */}
-              {activeTab === 'security' && isAdmin && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Security Settings</h2>
-                    <p className="text-gray-500">Configure security and access controls</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="font-medium text-gray-900 mb-2">Two-Factor Authentication</p>
-                      <p className="text-sm text-gray-500 mb-3">Add an extra layer of security to your account</p>
-                      <button className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">
-                        Enable 2FA
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="font-medium text-gray-900 mb-2">Active Sessions</p>
-                      <p className="text-sm text-gray-500 mb-3">Manage your active login sessions</p>
-                      <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                        Sign Out All Devices
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <p className="font-medium text-gray-900 mb-2">Password</p>
-                      <p className="text-sm text-gray-500 mb-3">Change your password regularly to keep your account secure</p>
-                      <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
-                        Change Password
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Data Tab (Admin Only) */}
-              {activeTab === 'data' && isAdmin && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Management</h2>
-                    <p className="text-gray-500">Export, import, and manage your data</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="font-medium text-blue-900 mb-2">Export Data</p>
-                      <p className="text-sm text-blue-700 mb-3">Download all your workspace data as JSON or CSV</p>
-                      <div className="flex space-x-3">
-                        <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                          Export as JSON
-                        </button>
-                        <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                          Export as CSV
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className="font-medium text-amber-900 mb-2">Import Data</p>
-                      <p className="text-sm text-amber-700 mb-3">Import tasks and campaigns from a file</p>
-                      <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors">
-                        Import Data
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="font-medium text-red-900 mb-2">Danger Zone</p>
-                      <p className="text-sm text-red-700 mb-3">Permanently delete all workspace data. This action cannot be undone.</p>
-                      <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
-                        Delete All Data
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Save Button */}
-              <div className="pt-6 border-t border-red-600/30 mt-8">
-                <button
-                  onClick={handleSave}
-                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-lg shadow-red-600/50 transition-all duration-200 flex items-center space-x-2 hover:scale-105"
-                >
-                  <Save className="w-5 h-5" />
-                  <span>Save Changes</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <p className="text-gray-500 dark:text-gray-400 ml-9">Assign unique colors to each media buyer for easy identification on the Card Overview</p>
       </div>
+
+      {/* Content */}
+      {mediaBuyers.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 dark:text-gray-400 font-medium">No media buyers found</p>
+          <p className="text-gray-400 text-sm mt-1">Users with department "MEDIA BUYING" will appear here</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {mediaBuyers.map((buyer) => {
+            const assignedColorName = buyerColors[buyer.id];
+            const assignedColor = BUYER_COLOR_OPTIONS.find(c => c.name === assignedColorName);
+            return (
+              <div key={buyer.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    {buyer.profile_picture ? (
+                      <img src={buyer.profile_picture} alt={buyer.name} className={`w-10 h-10 rounded-full object-cover ${
+                        assignedColor ? `${assignedColor.border} border-2` : ''
+                      }`} />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                        assignedColor ? `${assignedColor.bg} ${assignedColor.text} ${assignedColor.border} border-2` : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {(buyer.name || buyer.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{buyer.name || buyer.email}</p>
+                      <p className="text-sm text-gray-400">{buyer.email}</p>
+                    </div>
+                  </div>
+                  {assignedColor && (
+                    <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${assignedColor.bg} ${assignedColor.text} ${assignedColor.border} border`}>
+                      {assignedColor.label}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Select color</p>
+                  <div className="flex flex-wrap gap-2">
+                    {BUYER_COLOR_OPTIONS.map((color) => (
+                      <button
+                        key={color.name}
+                        onClick={() => updateBuyerColor(buyer.id, color.name)}
+                        className={`w-7 h-7 rounded-full ${color.swatch} transition-all duration-150 hover:scale-110 ${
+                          assignedColorName === color.name
+                            ? 'ring-2 ring-offset-2 ring-primary-600 scale-110'
+                            : 'hover:ring-2 hover:ring-offset-1 hover:ring-gray-300'
+                        }`}
+                        title={color.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

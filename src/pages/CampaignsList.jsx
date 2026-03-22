@@ -75,17 +75,17 @@ const CampaignsList = () => {
   // Show loading state while data is being fetched
   if (campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading campaigns...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading campaigns...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700">
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
@@ -94,9 +94,9 @@ const CampaignsList = () => {
               <h1 className="page-title">
                 Campaigns
               </h1>
-              <p className="text-gray-500 mt-2">All campaign information and Slack channel IDs</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-2">All campaign information and Slack channel IDs</p>
               {error && (
-                <div className="mt-2 text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-lg inline-block">
+                <div className="mt-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-lg inline-block">
                   ⚠️ {error}
                 </div>
               )}
@@ -125,24 +125,24 @@ const CampaignsList = () => {
 
         {/* Stats Bar */}
         <div className="grid grid-cols-4 gap-4 mt-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="text-sm text-gray-500 mb-1">Total Campaigns</div>
-            <div className="text-2xl font-bold text-gray-900">{campaigns.length}</div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Campaigns</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{campaigns.length}</div>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="text-sm text-gray-500 mb-1">With Slack ID</div>
-            <div className="text-2xl font-bold text-green-600">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">With Slack ID</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {campaigns.filter(c => c.slackId).length}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="text-sm text-gray-500 mb-1">Without Slack ID</div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Without Slack ID</div>
             <div className="text-2xl font-bold text-amber-600">
               {campaigns.filter(c => !c.slackId).length}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="text-sm text-gray-500 mb-1">Coverage</div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Coverage</div>
             <div className="text-2xl font-bold text-blue-600">
               {Math.round((campaigns.filter(c => c.slackId).length / campaigns.length) * 100)}%
             </div>
@@ -150,23 +150,23 @@ const CampaignsList = () => {
         </div>
 
         {/* Campaigns Table */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden backdrop-blur-sm mt-8">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden backdrop-blur-sm mt-8">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <tr className="bg-gradient-to-r from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 border-b-2 border-gray-200 dark:border-gray-700">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                     Campaign Name
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                     Slack ID
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {campaignsLoading ? (
                   <tr>
-                    <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={2} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       <div className="flex items-center justify-center space-x-2">
                         <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -177,7 +177,7 @@ const CampaignsList = () => {
                   </tr>
                 ) : campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={2} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       No campaigns found
                     </td>
                   </tr>
@@ -185,14 +185,14 @@ const CampaignsList = () => {
                   currentCampaigns.map((campaign) => (
                     <tr 
                       key={campaign.id} 
-                      className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50/30 transition-all duration-150"
+                      className="group hover:bg-gradient-to-r hover:from-gray-50 dark:hover:from-gray-700 hover:to-blue-50/30 dark:hover:to-blue-900/10 transition-all duration-150"
                     >
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
                         {campaign.name}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                         {campaign.slackId ? (
-                          <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">
+                          <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
                             {campaign.slackId}
                           </span>
                         ) : (
@@ -207,10 +207,10 @@ const CampaignsList = () => {
           </div>
           
           {/* Table Footer with Pagination */}
-          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
+          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               {/* Left side - Info */}
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">
                   Showing {campaigns.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, campaigns.length)} of {campaigns.length} campaigns
                 </span>
@@ -226,7 +226,7 @@ const CampaignsList = () => {
                   <button
                     onClick={goToPreviousPage}
                     disabled={currentPage === 1}
-                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     ← Previous
                   </button>
@@ -259,7 +259,7 @@ const CampaignsList = () => {
                           className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                             currentPage === pageNumber
                               ? 'bg-primary-600 text-white'
-                              : 'text-gray-700 hover:bg-white'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700'
                           }`}
                         >
                           {pageNumber}
@@ -271,7 +271,7 @@ const CampaignsList = () => {
                   <button
                     onClick={goToNextPage}
                     disabled={currentPage === totalPages}
-                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next →
                   </button>

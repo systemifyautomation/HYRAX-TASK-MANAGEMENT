@@ -11,9 +11,9 @@ const CopyLinkPreviewModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-7xl w-full h-[90vh] flex flex-col" style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)' }}>
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-2xl font-bold text-gray-900">Copy Link Preview</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-7xl w-full h-[90vh] flex flex-col" style={{ boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)' }}>
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Copy Link Preview</h3>
           <button onClick={() => setCopyLinkModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-6 h-6" />
           </button>
@@ -24,26 +24,26 @@ const CopyLinkPreviewModal = ({
           <div className="flex-1 p-6 overflow-hidden">
             <iframe
               src={copyLinkModal.url}
-              className="w-full h-full border border-gray-300 rounded-lg"
+              className="w-full h-full border border-gray-300 dark:border-gray-600 rounded-lg"
               title="Copy Link Preview"
               sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
             />
           </div>
 
           {/* Right Sidebar - Feedback Section */}
-          <div className="w-96 border-l border-gray-200 bg-gray-50 p-6 flex flex-col">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">Feedback & Approval</h4>
+          <div className="w-96 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-6 flex flex-col">
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Feedback & Approval</h4>
             
             <div className="flex-1 space-y-4 overflow-y-auto">
               {copyLinkModal.showFeedbackInput && canGiveFeedback && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Feedback</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Feedback</label>
                   <textarea
                     value={copyLinkModal.currentFeedback}
                     onChange={(e) => setCopyLinkModal({ ...copyLinkModal, currentFeedback: e.target.value })}
                     placeholder="Enter feedback details here..."
                     rows={8}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                     autoFocus
                   />
                 </div>
@@ -51,8 +51,8 @@ const CopyLinkPreviewModal = ({
               
               {!canGiveFeedback && copyLinkModal.currentFeedback && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Feedback (Read-only)</label>
-                  <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 whitespace-pre-wrap">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Feedback (Read-only)</label>
+                  <div className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                     {copyLinkModal.currentFeedback}
                   </div>
                 </div>

@@ -87,14 +87,14 @@ const TaskCard = ({ user }) => {
   const selectedCampaignData = campaigns?.find(c => c.id === parseInt(selectedCampaign));
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
       {/* Campaign Dropdown */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Campaign</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Campaign</label>
         <select
           value={selectedCampaign}
           onChange={(e) => setSelectedCampaign(e.target.value)}
-          className="w-full px-4 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">Select campaign...</option>
           {campaigns?.map(c => (
@@ -104,47 +104,47 @@ const TaskCard = ({ user }) => {
       </div>
 
       {/* Copy Status */}
-      <div className="mb-6 pb-6 border-b border-gray-200">
-        <p className="text-sm text-gray-700">
+      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
           <span className="font-medium">Copy:</span>{' '}
           <span className={
-            copyStatus.status === 'Approved' ? 'text-green-600' :
+            copyStatus.status === 'Approved' ? 'text-green-600 dark:text-green-400' :
             copyStatus.status === 'In Progress' ? 'text-blue-600' :
-            'text-gray-600'
+            'text-gray-600 dark:text-gray-400'
           }>
             {copyStatus.status}
           </span>
           {copyStatus.assignee && (
-            <span className="text-gray-600"> ({copyStatus.assignee.name})</span>
+            <span className="text-gray-600 dark:text-gray-400"> ({copyStatus.assignee.name})</span>
           )}
         </p>
       </div>
 
       {/* Weekly Progress */}
-      <div className="mb-6 pb-6 border-b border-gray-200">
-        <p className="text-sm font-medium text-gray-900 mb-1">
+      <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
           Weekly Progress: {progress.completed}/{progress.total}
         </p>
-        <p className="text-xs text-gray-600">{progress.total - progress.completed} ads remaining</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">{progress.total - progress.completed} ads remaining</p>
       </div>
 
       {/* Today's Ad Progress */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-700 uppercase mb-3 tracking-wide">
+        <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3 tracking-wide">
           TODAY'S AD PROGRESS
         </h4>
         <div className="space-y-2">
           {adStatuses.length > 0 ? (
             adStatuses.map((ad) => (
               <div key={ad.id} className="text-sm">
-                <a href="#" className="text-blue-600 hover:text-blue-800 underline">
+                <a href="#" className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 underline">
                   Ad {ad.number}
                 </a>
                 <span>: </span>
                 <span className={
-                  ad.status === 'Approved' ? 'text-green-600' :
+                  ad.status === 'Approved' ? 'text-green-600 dark:text-green-400' :
                   ad.status === 'In Progress' ? 'text-blue-600' :
-                  'text-gray-600'
+                  'text-gray-600 dark:text-gray-400'
                 }>
                   {ad.status}
                 </span>

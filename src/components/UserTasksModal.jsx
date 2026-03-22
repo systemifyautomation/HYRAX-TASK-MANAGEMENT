@@ -53,6 +53,7 @@ const UserTasksModal = ({
   const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
   const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { taskId, slotIndex, adNumber, actualTaskIndex, task }
+  const [dragOverSlot, setDragOverSlot] = useState(null); // Track which slot (taskId-slotIndex) is being dragged over
   const campaignRefs = useRef({}); // Refs to campaign elements for scrolling
   
   const slugify = (value) => {
@@ -587,6 +588,12 @@ const UserTasksModal = ({
     const deletedCreativeUrl2 = isVideoEditor ? (task.viewerLink?.[slotIndex + 1] || '') : '';
     const deletedSlackPermalink2 = isVideoEditor ? (task.slackPermalink?.[slotIndex + 1] || '') : '';
     
+    // Calculate the required number of slots based on task quantity
+    const quantity = parseInt(task.quantity?.replace('x', '') || '1');
+    const requiredSlots = isVideoEditor ? quantity * 2 : quantity;
+    const slotsToRemove = isVideoEditor ? 2 : 1;
+    const currentSlotCount = task.viewerLink ? task.viewerLink.length : 0;
+    
     // Remove the creative from all arrays at the specific index
     const updatedViewerLink = [...task.viewerLink];
     const updatedViewerLinkApproval = [...task.viewerLinkApproval];
@@ -595,23 +602,67 @@ const UserTasksModal = ({
     const updatedViewerLinkApprovalAt = Array.isArray(task.viewerLinkApprovalAt) ? [...task.viewerLinkApprovalAt] : [];
     const updatedViewerLinkAt = Array.isArray(task.viewerLinkAt) ? [...task.viewerLinkAt] : [];
 
-    // For video editors, delete both slots (Facebook format + Reel)
-    if (isVideoEditor) {
-      // Delete both slots starting from slotIndex (Facebook format and Reel)
-      updatedViewerLink.splice(slotIndex, 2);
-      updatedViewerLinkApproval.splice(slotIndex, 2);
-      updatedViewerLinkFeedback.splice(slotIndex, 2);
-      updatedSlackPermalink.splice(slotIndex, 2);
-      updatedViewerLinkApprovalAt.splice(slotIndex, 2);
-      updatedViewerLinkAt.splice(slotIndex, 2);
+    // If removing would go below the required slot count, reset to empty instead of splicing
+    if (currentSlotCount <= requiredSlots) {
+      // Reset slots to empty "Not Done" state instead of removing them
+      if (isVideoEditor) {
+        updatedViewerLink[slotIndex] = '';
+        updatedViewerLink[slotIndex + 1] = '';
+        updatedViewerLinkApproval[slotIndex] = 'Not Done';
+        updatedViewerLinkApproval[slotIndex + 1] = 'Not Done';
+        updatedViewerLinkFeedback[slotIndex] = '';
+        updatedViewerLinkFeedback[slotIndex + 1] = '';
+        updatedSlackPermalink[slotIndex] = '';
+        if (slotIndex + 1 < updatedSlackPermalink.length) updatedSlackPermalink[slotIndex + 1] = '';
+        if (slotIndex < updatedViewerLinkApprovalAt.length) updatedViewerLinkApprovalAt[slotIndex] = null;
+        if (slotIndex + 1 < updatedViewerLinkApprovalAt.length) updatedViewerLinkApprovalAt[slotIndex + 1] = null;
+        if (slotIndex < updatedViewerLinkAt.length) updatedViewerLinkAt[slotIndex] = null;
+        if (slotIndex + 1 < updatedViewerLinkAt.length) updatedViewerLinkAt[slotIndex + 1] = null;
+      } else {
+        updatedViewerLink[slotIndex] = '';
+        updatedViewerLinkApproval[slotIndex] = 'Not Done';
+        updatedViewerLinkFeedback[slotIndex] = '';
+        updatedSlackPermalink[slotIndex] = '';
+        if (slotIndex < updatedViewerLinkApprovalAt.length) updatedViewerLinkApprovalAt[slotIndex] = null;
+        if (slotIndex < updatedViewerLinkAt.length) updatedViewerLinkAt[slotIndex] = null;
+      }
     } else {
-      // For non-video editors, delete single slot
-      updatedViewerLink.splice(slotIndex, 1);
-      updatedViewerLinkApproval.splice(slotIndex, 1);
-      updatedViewerLinkFeedback.splice(slotIndex, 1);
-      updatedSlackPermalink.splice(slotIndex, 1);
-      updatedViewerLinkApprovalAt.splice(slotIndex, 1);
-      updatedViewerLinkAt.splice(slotIndex, 1);
+      // Extra creative beyond required count — remove the slots entirely
+      // For video editors, delete both slots (Facebook format + Reel)
+      if (isVideoEditor) {
+        updatedViewerLink.splice(slotIndex, 2);
+        updatedViewerLinkApproval.splice(slotIndex, 2);
+        updatedViewerLinkFeedback.splice(slotIndex, 2);
+        updatedSlackPermalink.splice(slotIndex, 2);
+        updatedViewerLinkApprovalAt.splice(slotIndex, 2);
+        updatedViewerLinkAt.splice(slotIndex, 2);
+      } else {
+        updatedViewerLink.splice(slotIndex, 1);
+        updatedViewerLinkApproval.splice(slotIndex, 1);
+        updatedViewerLinkFeedback.splice(slotIndex, 1);
+        updatedSlackPermalink.splice(slotIndex, 1);
+        updatedViewerLinkApprovalAt.splice(slotIndex, 1);
+        updatedViewerLinkAt.splice(slotIndex, 1);
+      }
+    }
+
+    // Recalculate task status based on remaining creatives' approval statuses
+    const filledCreatives = updatedViewerLink.filter(link => link && link.trim() !== '');
+    const filledApprovals = updatedViewerLinkApproval.filter((approval, idx) => updatedViewerLink[idx] && updatedViewerLink[idx].trim() !== '');
+    
+    let newTaskStatus;
+    if (filledCreatives.length === 0) {
+      // No creatives left — reset to "Not done"
+      newTaskStatus = 'Not done';
+    } else if (filledApprovals.length > 0 && filledApprovals.every(a => a === 'Approved')) {
+      // All remaining creatives are approved
+      newTaskStatus = 'Approved';
+    } else if (filledApprovals.some(a => a === 'Left Feedback' || a === 'Left feedback')) {
+      newTaskStatus = 'Left Feedback';
+    } else if (filledApprovals.some(a => a === 'Needs Review')) {
+      newTaskStatus = 'Needs Review';
+    } else {
+      newTaskStatus = undefined; // Don't change status
     }
 
     // Update local modal state
@@ -624,18 +675,23 @@ const UserTasksModal = ({
       slackPermalink: updatedSlackPermalink,
       viewerLinkApprovalAt: updatedViewerLinkApprovalAt,
       viewerLinkAt: updatedViewerLinkAt,
+      ...(newTaskStatus ? { status: newTaskStatus } : {}),
     };
     setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
 
     // Update the task in the database
-    updateTask(task.id, {
+    const updatePayload = {
       viewerLink: updatedViewerLink,
       viewerLinkApproval: updatedViewerLinkApproval,
       viewerLinkFeedback: updatedViewerLinkFeedback,
       slackPermalink: updatedSlackPermalink,
       viewerLinkApprovalAt: updatedViewerLinkApprovalAt,
       viewerLinkAt: updatedViewerLinkAt,
-    });
+    };
+    if (newTaskStatus) {
+      updatePayload.status = newTaskStatus;
+    }
+    updateTask(task.id, updatePayload);
 
     // Send deletion notification to webhook
     if (deletedCreativeUrl) {
@@ -775,12 +831,12 @@ const UserTasksModal = ({
                       <span 
                         className={`px-3 py-1 rounded-full text-sm font-semibold ${
                           currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded'
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                             : currentAd?.approval === 'Left Feedback'
-                            ? 'bg-orange-100 text-orange-700'
+                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
                             : currentAd?.approval === 'Needs Review'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-gray-100 text-gray-700'
+                            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                         }`}
                       >
                         {(currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded')
@@ -910,13 +966,13 @@ const UserTasksModal = ({
       </div>
 
       {/* Right Side - Task Details (35%) */}
-      <div className="w-[35%] bg-white overflow-y-auto">
+      <div className="w-[35%] bg-white dark:bg-gray-800 overflow-y-auto">
         <div className="p-8">
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">{userTasksModal.user.name}</h1>
-              <p className="text-sm text-gray-500">{userTasksModal.user.department}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">{userTasksModal.user.name}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{userTasksModal.user.department}</p>
             </div>
             <button onClick={(e) => {
               e.stopPropagation();
@@ -949,18 +1005,38 @@ const UserTasksModal = ({
               
               const isExpanded = expandedCampaigns.has(campaignName);
               
+              // Compute aggregate task status for the campaign tab
+              const getTaskStatusLabel = (status) => {
+                if (!status || status === 'Not Done' || status === 'In Progress') return 'Not done';
+                if (status === 'Left feedback') return 'Left Feedback';
+                return status;
+              };
+              const campaignStatuses = sortedCampaignTasks.map(t => getTaskStatusLabel(t.status));
+              // Priority: Not done > Left Feedback > Needs Review > Approved
+              const campaignStatus = campaignStatuses.includes('Not done') ? 'Not done'
+                : campaignStatuses.includes('Left Feedback') ? 'Left Feedback'
+                : campaignStatuses.includes('Needs Review') ? 'Needs Review'
+                : 'Approved';
+              
+              const statusColors = {
+                'Approved': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
+                'Needs Review': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+                'Left Feedback': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+                'Not done': 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700',
+              };
+
               return (
                 <div 
                   key={campaignName} 
                   ref={(el) => { campaignRefs.current[campaignName] = el; }}
-                  className="border border-gray-200 rounded-lg overflow-hidden bg-white"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800"
                 >
                   {/* Collapsible Campaign Header */}
                   <div 
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 ${
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 dark:border-gray-700 ${
                       isExpanded 
-                        ? 'bg-green-50 hover:bg-green-100' 
-                        : 'bg-gray-50 hover:bg-gray-100'
+                        ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30' 
+                        : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => {
                       if (isExpanded) {
@@ -993,10 +1069,15 @@ const UserTasksModal = ({
                       }
                     }}
                   >
-                    <h2 className="text-lg font-bold text-gray-800">
-                      {campaignName}
-                    </h2>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate">
+                        {campaignName}
+                      </h2>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap flex-shrink-0 ${statusColors[campaignStatus]}`}>
+                        {campaignStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {canManageTasks && (
                         <button
                           onClick={(e) => {
@@ -1013,9 +1094,9 @@ const UserTasksModal = ({
                         </button>
                       )}
                       {isExpanded ? (
-                        <ChevronDown className="w-5 h-5 text-green-600" />
+                        <ChevronDown className="w-5 h-5 text-green-600 dark:text-green-400" />
                       ) : (
-                        <ChevronRight className="w-5 h-5 text-gray-600" />
+                        <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                       )}
                     </div>
                   </div>
@@ -1036,11 +1117,11 @@ const UserTasksModal = ({
                   const actualSlotsCount = Math.max(totalSlots, viewerLinkCount);
 
                   return (
-                    <div key={task.id} className="mb-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div key={task.id} className="mb-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                       {/* Task Set Header - Only show if multiple tasks in campaign */}
                       {sortedCampaignTasks.length > 1 && (
                       <div 
-                        className="flex items-center justify-between cursor-pointer hover:bg-gray-100 p-2 rounded-lg transition-colors"
+                        className="flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
                         onClick={() => {
                           const isCurrentlyExpanded = expandedTaskSets.has(task.id);
                           
@@ -1068,12 +1149,12 @@ const UserTasksModal = ({
                           }
                         }}
                       >
-                        <h4 className="text-base font-bold text-gray-900">Task Set #{taskIndex + 1}</h4>
+                        <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Task Set #{taskIndex + 1}</h4>
                         <div className="flex items-center gap-2">
                           {expandedTaskSets.has(task.id) ? (
                             <ChevronDown className="w-5 h-5 text-blue-600" />
                           ) : (
-                            <ChevronRight className="w-5 h-5 text-gray-600" />
+                            <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                           )}
                         </div>
                       </div>
@@ -1119,7 +1200,7 @@ const UserTasksModal = ({
                         const scriptAssignedId = Array.isArray(task.scriptAssigned) ? task.scriptAssigned[0] : task.scriptAssigned;
                         
                         return (
-                          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
+                          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-sm">
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1130,16 +1211,16 @@ const UserTasksModal = ({
                             </div>
                             
                             {/* Copy Link & Script Assigned */}
-                            <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 shadow-sm">
                               {/* Header Row */}
                               <div className="grid gap-4 mb-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
-                                <label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
+                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                   </svg>
                                   Copy Link
                                 </label>
-                                <label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
+                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                   </svg>
@@ -1161,7 +1242,7 @@ const UserTasksModal = ({
                                     }}
                                     placeholder="Paste copy link here..."
                                     rows={3}
-                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
+                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-100 border border-blue-200 dark:border-blue-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
                                   />
                                   {copyLink && (
                                     <a
@@ -1169,7 +1250,7 @@ const UserTasksModal = ({
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors flex-shrink-0"
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors flex-shrink-0"
                                       title="Open copy link"
                                     >
                                       <ExternalLink className="w-4 h-4" />
@@ -1182,7 +1263,7 @@ const UserTasksModal = ({
                                   <select
                                     value={scriptAssignedId || ''}
                                     onChange={(e) => handleScriptAssignedChange(e.target.value)}
-                                    className="px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+                                    className="px-2.5 py-1.5 text-xs border border-blue-200 dark:border-blue-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                   >
                                     <option value="">-- Select User --</option>
                                     {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
@@ -1195,13 +1276,17 @@ const UserTasksModal = ({
                                   <div className="flex items-center px-2.5 py-1.5">
                                     {scriptUser ? (
                                       <div className="flex items-center gap-1.5">
-                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
-                                          {scriptUser.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <span className="text-xs font-medium text-gray-900 truncate">{scriptUser.name}</span>
+                                        {scriptUser.profile_picture ? (
+                                          <img src={scriptUser.profile_picture} alt={scriptUser.name} className="w-5 h-5 rounded-full object-cover" />
+                                        ) : (
+                                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                            {scriptUser.name.charAt(0).toUpperCase()}
+                                          </div>
+                                        )}
+                                        <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{scriptUser.name}</span>
                                       </div>
                                     ) : scriptAssignedId ? (
-                                      <span className="text-xs text-gray-500">User ID: {scriptAssignedId}</span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">User ID: {scriptAssignedId}</span>
                                     ) : (
                                       <span className="text-xs text-gray-400 italic">Not assigned</span>
                                     )}
@@ -1234,7 +1319,7 @@ const UserTasksModal = ({
                           return (
                             <div key={i}>
                             <div 
-                              className={`rounded-xl p-6 bg-white transition-all shadow-sm hover:shadow-md border border-gray-100 ${
+                              className={`rounded-xl p-6 bg-white dark:bg-gray-800 transition-all shadow-sm hover:shadow-md border border-gray-100 dark:border-gray-700 ${
                                 isUploadedToFacebook
                                   ? 'bg-green-50/20'
                                   : task.viewerLinkApproval?.[slotIndex] === 'Left Feedback'
@@ -1258,7 +1343,7 @@ const UserTasksModal = ({
                             >
                               <div className="flex items-center justify-between mb-5">
                                 <div className="flex items-center gap-2.5">
-                                  <span className="text-lg font-semibold text-gray-900">
+                                  <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                     Ad {adNumber}
                                   </span>
                                   {formatLabel && (
@@ -1290,24 +1375,24 @@ const UserTasksModal = ({
                               </div>
                               
                               {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
-                                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+                                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 dark:bg-blue-900/20">
                                   <div className="text-blue-600 mb-2">
-                                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 rounded-full animate-spin"></div>
                                   </div>
-                                  <p className="text-sm font-medium text-blue-700 mb-1">
+                                  <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
                                     {hasUpload ? 'Replacing' : 'Uploading'}... {uploadingCreatives[`${task.id}-${slotIndex}`]}%
                                   </p>
                                   <button
                                     onClick={() => handleCancelUpload(`${task.id}-${slotIndex}`)}
-                                    className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-300 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
+                                    className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center gap-1"
                                   >
                                     <XCircle className="w-3 h-3" />
                                     Cancel Upload
                                   </button>
                                 </div>
                               ) : isUploadedToFacebook ? (
-                                <div className="flex flex-col items-center justify-center gap-3 py-8 border border-green-200 rounded-lg bg-green-50">
-                                  <p className="text-base font-semibold text-green-700">Uploaded to Facebook</p>
+                                <div className="flex flex-col items-center justify-center gap-3 py-8 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20">
+                                  <p className="text-base font-semibold text-green-700 dark:text-green-400">Uploaded to Facebook</p>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1319,7 +1404,7 @@ const UserTasksModal = ({
                                         setCurrentPreviewIndex(previewIndex);
                                       }
                                     }}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-white hover:bg-green-100 border border-green-300 rounded-lg transition-colors shadow-sm"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 dark:text-green-400 bg-white dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-300 rounded-lg transition-colors shadow-sm"
                                   >
                                     <Eye className="w-4 h-4" />
                                     Preview
@@ -1328,7 +1413,7 @@ const UserTasksModal = ({
                               ) : hasUpload ? (
                                 <div className="space-y-5">
                                   {/* Link Display with Download Button */}
-                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 rounded-lg border border-gray-100">  
+                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 rounded-lg border border-gray-100 dark:border-gray-700">  
                                     <a 
                                       href={task.viewerLink[slotIndex]} 
                                       target="_blank" 
@@ -1391,7 +1476,7 @@ const UserTasksModal = ({
                                           alert('Error downloading creative');
                                         }
                                       }}
-                                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                                      className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
                                       title="Download Creative"
                                     >
                                       <Download className="w-4 h-4" />
@@ -1411,7 +1496,7 @@ const UserTasksModal = ({
                                           setCurrentPreviewIndex(previewIndex);
                                         }
                                       }}
-                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"
+                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 transition-all"
                                       title="Preview"
                                     >
                                       <Eye className="w-4 h-4" />
@@ -1451,7 +1536,7 @@ const UserTasksModal = ({
                                         e.stopPropagation();
                                         document.getElementById(`replace-${task.id}-${slotIndex}`).click();
                                       }}
-                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"
+                                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 transition-all"
                                       title="Replace"
                                     >
                                       <RefreshCw className="w-4 h-4" />
@@ -1479,7 +1564,7 @@ const UserTasksModal = ({
                                             userId: userTasksModal.user.id
                                           });
                                         }}
-                                        className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all"
+                                        className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 transition-all"
                                         title="Leave Feedback"
                                       >
                                         <MessageSquare className="w-4 h-4" />
@@ -1577,7 +1662,7 @@ const UserTasksModal = ({
                                         const basePath = getBasePath();
                                         navigate(`${basePath}/${userSlug}/${campaignSlug}/ad_${adNumber}/versions`, { replace: true });
                                       }}
-                                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all"
                                       title="View History"
                                     >
                                       <History className="w-4 h-4" />
@@ -1587,41 +1672,100 @@ const UserTasksModal = ({
                                   
                                   {/* Manager Feedback */}
                                   {task.viewerLinkFeedback && task.viewerLinkFeedback[slotIndex] && (
-                                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
                                       <div className="flex items-center gap-2 mb-2">
                                         <MessageSquare className="w-4 h-4 text-red-600" />
                                         <p className="text-sm font-bold text-red-900">Manager Feedback</p>
                                       </div>
-                                      <p className="text-sm text-red-800 leading-relaxed whitespace-pre-wrap pl-6">{task.viewerLinkFeedback[slotIndex]}</p>
+                                      <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed whitespace-pre-wrap pl-6">{task.viewerLinkFeedback[slotIndex]}</p>
                                     </div>
                                   )}
                                 </div>
                               ) : (
                                 <div>
                                   {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
-                                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+                                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 dark:bg-blue-900/20">
                                       <div className="text-blue-600 mb-2">
-                                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                                        <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 rounded-full animate-spin"></div>
                                       </div>
-                                      <p className="text-sm font-medium text-blue-700 mb-1">
+                                      <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
                                         Uploading... {uploadingCreatives[`${task.id}-${slotIndex}`]}%
                                       </p>
                                       <button
                                         onClick={() => handleCancelUpload(`${task.id}-${slotIndex}`)}
-                                        className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 border border-red-300 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
+                                        className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center gap-1"
                                       >
                                         <XCircle className="w-3 h-3" />
                                         Cancel Upload
                                       </button>
                                     </div>
                                   ) : (
-                                    <label className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
-                                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                      <span className="text-sm text-gray-600">Click to upload</span>
+                                    <div
+                                      onDragEnter={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDragOverSlot(`${task.id}-${slotIndex}`);
+                                      }}
+                                      onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                      onDragLeave={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDragOverSlot(null);
+                                      }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDragOverSlot(null);
+                                        
+                                        const files = e.dataTransfer.files;
+                                        if (files && files[0]) {
+                                          const file = files[0];
+                                          // Validate file type
+                                          const validTypes = isVideoEditor 
+                                            ? ['video/mp4']
+                                            : ['image/jpeg', 'image/jpg', 'image/png'];
+                                          
+                                          if (!validTypes.includes(file.type)) {
+                                            alert(`Invalid file type. Please upload ${isVideoEditor ? 'an MP4 video' : 'a JPG or PNG image'}.`);
+                                            return;
+                                          }
+                                          
+                                          handleCreativeUpload(
+                                            task.id, 
+                                            slotIndex, 
+                                            file, 
+                                            task, 
+                                            userTasksModal.user, 
+                                            campaignForTask
+                                          );
+                                        }
+                                      }}
+                                      className={`flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
+                                        dragOverSlot === `${task.id}-${slotIndex}`
+                                          ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/30 scale-105'
+                                          : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                      }`}
+                                      onClick={() => {
+                                        // Trigger file input when clicking
+                                        document.getElementById(`file-input-${task.id}-${slotIndex}`).click();
+                                      }}
+                                    >
+                                      <Upload className={`w-8 h-8 mb-2 transition-colors ${
+                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-600' : 'text-gray-400'
+                                      }`} />
+                                      <span className={`text-sm font-medium transition-colors ${
+                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                                      }`}>
+                                        {dragOverSlot === `${task.id}-${slotIndex}` ? 'Drop to upload' : 'Click or drag to upload'}
+                                      </span>
                                       <span className="text-xs text-gray-400 mt-1">
                                         {isVideoEditor ? 'MP4 video' : 'JPG or PNG image'}
                                       </span>
                                       <input
+                                        id={`file-input-${task.id}-${slotIndex}`}
                                         type="file"
                                         accept={isVideoEditor ? ".mp4,video/mp4" : ".jpg,.jpeg,.png,image/jpeg,image/png"}
                                         className="hidden"
@@ -1639,14 +1783,14 @@ const UserTasksModal = ({
                                           }
                                         }}
                                       />
-                                    </label>
+                                    </div>
                                   )}
                                 </div>
                               )}
                             </div>
                             {/* Separator for video editors: show after every 2 slots (after each ad pair) */}
                             {isVideoEditor && formatIndex === 1 && i < actualSlotsCount - 1 && (
-                              <div className="my-4 border-t-2 border-gray-200"></div>
+                              <div className="my-4 border-t-2 border-gray-200 dark:border-gray-700"></div>
                             )}
                           </div>
                           );
@@ -1713,12 +1857,12 @@ const UserTasksModal = ({
                             );
                             setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
                           }}
-                          className="w-full rounded-xl p-4 bg-white border-2 border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer"
+                          className="w-full rounded-xl p-4 bg-white dark:bg-gray-800 border-2 border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
                         >
                           <div className="flex flex-col items-center justify-center py-4">
                             <Plus className="w-8 h-8 text-blue-500 mb-2" />
                             <span className="text-sm font-medium text-blue-600">New Creative</span>
-                            <span className="text-xs text-gray-500 mt-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {isVideoEditor ? 'Add new variation (2 slots: Facebook + Reel)' : 'Add new variation'}
                             </span>
                           </div>
@@ -1761,13 +1905,13 @@ const UserTasksModal = ({
           <div 
             className="fixed inset-0 bg-black/20 z-[55] pointer-events-none"
           />
-          <div className="fixed inset-y-0 right-0 w-[35%] bg-white shadow-2xl z-[60] flex flex-col border-l-2 border-red-500" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-y-0 right-0 w-[35%] bg-white dark:bg-gray-800 shadow-2xl z-[60] flex flex-col border-l-2 border-red-500" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
-          <div className="border-b border-gray-200 px-6 py-4">
+          <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Ad Details</h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Ad Details</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Ad {adDetailsOpen.adNumber} • {adDetailsOpen.taskData.title}
                 </p>
               </div>
@@ -1780,25 +1924,25 @@ const UserTasksModal = ({
                     navigate(previewPath, { replace: true });
                   }
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-50">
+            <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-50 dark:bg-red-900/20">
               <History className="w-4 h-4" />
               Timeline (Versions & Comments)
             </div>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto bg-white">
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
             {loadingVersions ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <div className="w-12 h-12 border-4 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-3"></div>
-                  <p className="text-gray-500 text-sm">Loading...</p>
+                  <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-red-500 rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">Loading...</p>
                 </div>
               </div>
             ) : (
@@ -1840,8 +1984,8 @@ const UserTasksModal = ({
                               item.isCurrent
                                 ? 'border-red-300 bg-red-50/50 hover:bg-red-50'
                                 : isSelected
-                                ? 'border-blue-400 bg-blue-50 shadow-sm'
-                                : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm'
                             }`}
                             onClick={() => setSelectedVersionPreview(item)}
                           >
@@ -1852,17 +1996,17 @@ const UserTasksModal = ({
                                     ? 'bg-red-500 text-white'
                                     : isSelected
                                     ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 group-hover:bg-gray-200'
                                 }`}>
                                   v{versionNumber}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-sm font-medium ${
-                                    item.isCurrent ? 'text-red-700' : isSelected ? 'text-blue-700' : 'text-gray-900'
+                                    item.isCurrent ? 'text-red-700 dark:text-red-400' : isSelected ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
                                   }`}>
                                     {item.isCurrent ? 'Current Version' : `Version ${versionNumber}`}
                                   </p>
-                                  <p className="text-xs text-gray-500 mt-0.5">{timeAgo}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{timeAgo}</p>
                                   <p className="text-[11px] text-gray-400 mt-0.5">Source: {item.dateSource || 'unknown'}</p>
                                 </div>
                               </div>
@@ -1871,7 +2015,7 @@ const UserTasksModal = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                                className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-all"
                                 title="Open in new tab"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -1888,13 +2032,13 @@ const UserTasksModal = ({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-semibold text-gray-900">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                 {item.feedbackBy || 'Manager'}
                               </p>
                               <span className="text-xs text-gray-400">•</span>
-                              <p className="text-xs text-gray-500">{timeAgo}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{timeAgo}</p>
                             </div>
-                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                               {item.feedback}
                             </p>
                             <p className="text-[11px] text-gray-400 mt-1">Source: {item.dateSource || 'unknown'}</p>
@@ -1914,20 +2058,20 @@ const UserTasksModal = ({
       {/* Delete Confirmation Modal */}
       {deleteConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={() => setDeleteConfirmModal(null)}>
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Creative</h3>
-                <p className="text-sm text-gray-600 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Delete Creative</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
                   Are you sure you want to delete Ad {deleteConfirmModal.adNumber}{deleteConfirmModal.isVideoEditor ? ' (both Facebook Format and Reel)' : ''}? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={() => setDeleteConfirmModal(null)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   >
                     Cancel
                   </button>

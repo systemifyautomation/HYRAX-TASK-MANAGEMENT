@@ -134,6 +134,7 @@ const Login = () => {
         role: normalizedRole,
         department: webhookData.department || null,
         avatar: (webhookData.name || email).split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 3),
+        profile_picture: webhookData.profile_picture || null,
         permissions: normalizedRole === 'super_admin' || normalizedRole === 'admin' ? ['all'] : ['read', 'write']
       };
 

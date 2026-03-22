@@ -303,9 +303,9 @@ const AdAccounts = () => {
   if (!isAdminUser) {
     return (
       <div className="p-8">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Access Denied</h2>
-          <p className="text-yellow-700">You don't have permission to view ad accounts.</p>
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Access Denied</h2>
+          <p className="text-yellow-700 dark:text-yellow-300">You don't have permission to view ad accounts.</p>
         </div>
       </div>
     );
@@ -315,8 +315,8 @@ const AdAccounts = () => {
     <div className="p-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Ad Accounts</h1>
-        <p className="text-gray-600 mt-2">Manage and view all advertising accounts</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Ad Accounts</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">Manage and view all advertising accounts</p>
       </div>
 
       {/* Action Buttons */}
@@ -339,21 +339,21 @@ const AdAccounts = () => {
 
       {/* Filters */}
       {!loading && !error && adAccounts.length > 0 && (
-        <div className="mb-4 bg-white rounded-lg shadow p-4">
+        <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
+            <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filters</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Status Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Status
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900 dark:text-gray-100"
               >
                 <option value="all">All Statuses</option>
                 <option value="Active">Active</option>
@@ -363,13 +363,13 @@ const AdAccounts = () => {
 
             {/* Campaign Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Campaign
               </label>
               <select
                 value={campaignFilter}
                 onChange={(e) => setCampaignFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900 dark:text-gray-100"
               >
                 <option value="all">All Campaigns</option>
                 {uniqueCampaigns.map((campaign) => (
@@ -382,13 +382,13 @@ const AdAccounts = () => {
 
             {/* Pixel ID Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Pixel ID
               </label>
               <select
                 value={pixelIdFilter}
                 onChange={(e) => setPixelIdFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm text-gray-900 dark:text-gray-100"
               >
                 <option value="all">All Pixel IDs</option>
                 {uniquePixelIds.map((pixelId) => (
@@ -403,19 +403,19 @@ const AdAccounts = () => {
           {/* Active Filters Summary */}
           {(statusFilter !== 'all' || campaignFilter !== 'all' || pixelIdFilter !== 'all') && (
             <div className="mt-3 flex items-center gap-2 text-sm">
-              <span className="text-gray-600">Active filters:</span>
+              <span className="text-gray-600 dark:text-gray-400">Active filters:</span>
               {statusFilter !== 'all' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300">
                   Status: {statusFilter}
                 </span>
               )}
               {campaignFilter !== 'all' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300">
                   Campaign: {campaignFilter}
                 </span>
               )}
               {pixelIdFilter !== 'all' && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300">
                   Pixel: {pixelIdFilter}
                 </span>
               )}
@@ -437,8 +437,8 @@ const AdAccounts = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800">{error}</p>
+        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-red-800 dark:text-red-200">{error}</p>
         </div>
       )}
 
@@ -447,22 +447,22 @@ const AdAccounts = () => {
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading ad accounts...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading ad accounts...</p>
           </div>
         </div>
       )}
 
       {/* Ad Accounts Table */}
       {!loading && !error && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Ad Account ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     <button
                       onClick={() => handleSort('Campaign')}
                       className="flex items-center gap-1 hover:text-gray-700 transition-colors"
@@ -471,16 +471,16 @@ const AdAccounts = () => {
                       {getSortIcon('Campaign')}
                     </button>
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     V
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     BM ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     ADSPOWER
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     <button
                       onClick={() => handleSort('Pixel_ID')}
                       className="flex items-center gap-1 hover:text-gray-700 transition-colors"
@@ -489,18 +489,18 @@ const AdAccounts = () => {
                       {getSortIcon('Pixel_ID')}
                     </button>
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredAndSortedAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       {adAccounts.length === 0 ? 'No ad accounts found' : 'No ad accounts match the selected filters'}
                     </td>
                   </tr>
@@ -508,25 +508,25 @@ const AdAccounts = () => {
                   filteredAndSortedAccounts.map((account, index) => {
                     const isEditing = editingId === account.id;
                     return (
-                      <tr key={account.id || index} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <tr key={account.id || index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editForm.Ad_Account_ID || ''}
                               onChange={(e) => setEditForm({ ...editForm, Ad_Account_ID: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           ) : (
                             account.Ad_Account_ID || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <select
                               value={editForm.Campaign || ''}
                               onChange={(e) => setEditForm({ ...editForm, Campaign: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             >
                               <option value="">Select Campaign</option>
                               {campaigns.map((campaign) => (
@@ -539,60 +539,60 @@ const AdAccounts = () => {
                             account.Campaign || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editForm.V || ''}
                               onChange={(e) => setEditForm({ ...editForm, V: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           ) : (
                             account.V || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editForm.BM_ID || ''}
                               onChange={(e) => setEditForm({ ...editForm, BM_ID: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           ) : (
                             account.BM_ID || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editForm.ADSPOWER || ''}
                               onChange={(e) => setEditForm({ ...editForm, ADSPOWER: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           ) : (
                             account.ADSPOWER || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editForm.Pixel_ID || ''}
                               onChange={(e) => setEditForm({ ...editForm, Pixel_ID: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
                           ) : (
                             account.Pixel_ID || '-'
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <select
                               value={editForm.Status || 'Active'}
                               onChange={(e) => setEditForm({ ...editForm, Status: e.target.value })}
-                              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
                             >
                               <option value="Active">Active</option>
                               <option value="Inactive">Inactive</option>
@@ -600,26 +600,26 @@ const AdAccounts = () => {
                           ) : (
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                               account.Status === 'Active' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' 
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                             }`}>
                               {account.Status || 'Active'}
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                           {isEditing ? (
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleSaveEdit(account.id)}
-                                className="p-1.5 text-green-600 hover:bg-green-100 rounded transition-colors"
+                                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
                                 title="Save"
                               >
                                 <Save className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={handleCancelEdit}
-                                className="p-1.5 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                                 title="Cancel"
                               >
                                 <X className="w-4 h-4" />
@@ -629,14 +629,14 @@ const AdAccounts = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleEdit(account)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
                                 title="Edit"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({ show: true, accountId: account.id })}
-                                className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors"
+                                className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -656,7 +656,7 @@ const AdAccounts = () => {
 
       {/* Summary */}
       {!loading && !error && adAccounts.length > 0 && (
-        <div className="mt-4 text-sm text-gray-600">
+        <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
           Showing <span className="font-semibold">{filteredAndSortedAccounts.length}</span> of <span className="font-semibold">{adAccounts.length}</span> ad accounts
         </div>
       )}
@@ -664,18 +664,18 @@ const AdAccounts = () => {
       {/* Delete Confirmation Modal */}
       {deleteConfirm.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Delete Ad Account</h2>
-                <p className="text-sm text-gray-500">This action cannot be undone</p>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Delete Ad Account</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone</p>
               </div>
             </div>
 
-            <p className="text-gray-700 mb-6">
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
               Are you sure you want to delete this ad account? All associated data will be permanently removed.
             </p>
 
@@ -688,7 +688,7 @@ const AdAccounts = () => {
               </button>
               <button
                 onClick={() => setDeleteConfirm({ show: false, accountId: null })}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
               >
                 Cancel
               </button>
@@ -700,9 +700,9 @@ const AdAccounts = () => {
       {/* Add Account Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Add New Ad Account</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add New Ad Account</h2>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -713,26 +713,26 @@ const AdAccounts = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Ad Account ID
                 </label>
                 <input
                   type="text"
                   value={addForm.Ad_Account_ID}
                   onChange={(e) => setAddForm({ ...addForm, Ad_Account_ID: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                   placeholder="Enter Ad Account ID"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Campaign
                 </label>
                 <select
                   value={addForm.Campaign}
                   onChange={(e) => setAddForm({ ...addForm, Campaign: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                 >
                   <option value="">Select Campaign</option>
                   {campaigns.map((campaign) => (
@@ -744,65 +744,65 @@ const AdAccounts = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   V
                 </label>
                 <input
                   type="text"
                   value={addForm.V}
                   onChange={(e) => setAddForm({ ...addForm, V: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                   placeholder="Enter V"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   BM ID
                 </label>
                 <input
                   type="text"
                   value={addForm.BM_ID}
                   onChange={(e) => setAddForm({ ...addForm, BM_ID: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                   placeholder="Enter BM ID"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   ADSPOWER
                 </label>
                 <input
                   type="text"
                   value={addForm.ADSPOWER}
                   onChange={(e) => setAddForm({ ...addForm, ADSPOWER: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                   placeholder="Enter ADSPOWER"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Pixel ID
                 </label>
                 <input
                   type="text"
                   value={addForm.Pixel_ID}
                   onChange={(e) => setAddForm({ ...addForm, Pixel_ID: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                   placeholder="Enter Pixel ID"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Status
                 </label>
                 <select
                   value={addForm.Status}
                   onChange={(e) => setAddForm({ ...addForm, Status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -819,7 +819,7 @@ const AdAccounts = () => {
               </button>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
               >
                 Cancel
               </button>

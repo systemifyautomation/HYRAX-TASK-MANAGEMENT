@@ -23,6 +23,41 @@ export const AppProvider = ({ children }) => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [users, setUsers] = useState([]);
   
+  // Dark mode (persisted to localStorage)
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hyrax_dark_mode');
+      return saved ? JSON.parse(saved) : true; // Default to dark
+    } catch { return true; }
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('hyrax_dark_mode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
+
+  // Buyer color assignments (persisted to localStorage)
+  const [buyerColors, setBuyerColors] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hyrax_buyer_colors');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  
+  const updateBuyerColor = (buyerId, colorName) => {
+    setBuyerColors(prev => {
+      const updated = { ...prev, [buyerId]: colorName };
+      localStorage.setItem('hyrax_buyer_colors', JSON.stringify(updated));
+      return updated;
+    });
+  };
+  
   // Track optimistically added tasks (not yet in database)
   const [optimisticTaskIds, setOptimisticTaskIds] = useState(new Set());
   const [optimisticScheduledTaskIds, setOptimisticScheduledTaskIds] = useState(new Set());
@@ -552,6 +587,7 @@ export const AppProvider = ({ children }) => {
         role: data.user.role,
         department: data.user.department,
         avatar: data.user.avatar,
+        profile_picture: data.user.profile_picture || null,
         permissions: data.user.permissions
       };
       
@@ -2087,6 +2123,14 @@ export const AppProvider = ({ children }) => {
     tasksLoading,
     scheduledTasksLoading,
     usersLoading,
+    
+    // Dark mode
+    darkMode,
+    toggleDarkMode,
+    
+    // Buyer colors
+    buyerColors,
+    updateBuyerColor,
     
     // Operations
     loadCampaigns,

@@ -48,7 +48,7 @@ const WeeklyView = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="page-title">Weekly View</h1>
-        <p className="text-gray-600">View and manage tasks by week</p>
+        <p className="text-gray-600 dark:text-gray-400">View and manage tasks by week</p>
       </div>
 
       {/* Week Selector */}
@@ -59,8 +59,8 @@ const WeeklyView = () => {
               <Calendar className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Week {currentWeek}</h2>
-              <p className="text-sm text-gray-600">{tasksThisWeek.length} tasks this week</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Week {currentWeek}</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{tasksThisWeek.length} tasks this week</p>
             </div>
           </div>
 
@@ -68,26 +68,26 @@ const WeeklyView = () => {
             <button
               onClick={goToPreviousWeek}
               disabled={uniqueWeeks.indexOf(currentWeek) === 0}
-              className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </button>
             <button
               onClick={goToNextWeek}
               disabled={uniqueWeeks.indexOf(currentWeek) === uniqueWeeks.length - 1}
-              className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
+              <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </button>
           </div>
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-5 gap-4 mt-6 pt-6 border-t border-gray-200">
+        <div className="grid grid-cols-5 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           {Object.entries(tasksByStatus).map(([status, statusTasks]) => (
             <div key={status} className="text-center">
-              <p className="text-2xl font-bold text-gray-900">{statusTasks.length}</p>
-              <p className="text-xs text-gray-600 mt-1">{statusLabels[status]}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{statusTasks.length}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{statusLabels[status]}</p>
             </div>
           ))}
         </div>
@@ -101,7 +101,7 @@ const WeeklyView = () => {
 
             return (
               <div key={status}>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
                   {statusLabels[status]} ({statusTasks.length})
                 </h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -116,7 +116,7 @@ const WeeklyView = () => {
       ) : (
         <div className="card text-center py-12">
           <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600">No tasks scheduled for week {currentWeek}</p>
+          <p className="text-gray-600 dark:text-gray-400">No tasks scheduled for week {currentWeek}</p>
         </div>
       )}
     </div>

@@ -192,7 +192,7 @@ const Performance = () => {
     : 0;
 
   return (
-    <div className="p-8 bg-white min-h-screen">
+    <div className="p-8 bg-white dark:bg-gray-800 min-h-screen">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -200,19 +200,19 @@ const Performance = () => {
             <h1 className="page-title">
               Performance Analytics
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
               Track creative team performance and productivity
             </p>
           </div>
 
           {/* Week Filter */}
           <div className="relative">
-            <div className="flex items-center gap-3 bg-white border-2 border-gray-200 rounded-lg px-4 py-2.5 shadow-sm hover:border-red-300 hover:shadow-md transition-all">
+            <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 shadow-sm hover:border-red-300 dark:hover:border-red-700 hover:shadow-md transition-all">
               <Filter className="w-4 h-4 text-red-600" />
               <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
-                className="bg-transparent text-gray-900 font-semibold focus:outline-none cursor-pointer appearance-none pr-8 text-sm min-w-[180px] pl-1"
+                className="bg-transparent text-gray-900 dark:text-gray-100 font-semibold focus:outline-none cursor-pointer appearance-none pr-8 text-sm min-w-[180px] pl-1"
                 style={{
                   colorScheme: 'light'
                 }}
@@ -246,90 +246,94 @@ const Performance = () => {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Spend</div>
-          <div className="text-2xl font-bold text-gray-900">${(totals.spend || 0).toLocaleString()}</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Spend</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">${(totals.spend || 0).toLocaleString()}</div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Avg CTR</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Avg CTR</div>
           <div className="text-2xl font-bold text-blue-600">{avgCTR || 0}%</div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Impressions</div>
-          <div className="text-2xl font-bold text-purple-600">{(totals.impressions || 0).toLocaleString()}</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Impressions</div>
+          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{(totals.impressions || 0).toLocaleString()}</div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Clicks</div>
-          <div className="text-2xl font-bold text-green-600">{(totals.clicks || 0).toLocaleString()}</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Clicks</div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{(totals.clicks || 0).toLocaleString()}</div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-500 mb-1">Total Ads</div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Ads</div>
           <div className="text-2xl font-bold text-amber-600">{totals.numberOfAds || 0}</div>
         </div>
       </div>
 
       {/* Performance Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Individual Performance</h2>
-          <p className="text-sm text-gray-600 mt-1">Detailed breakdown by team member</p>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Individual Performance</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Detailed breakdown by team member</p>
         </div>
 
         {loading ? (
           <div className="text-center py-12 px-6">
-            <div className="w-12 h-12 border-4 border-gray-200 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading performance data...</p>
+            <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-red-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading performance data...</p>
           </div>
         ) : performanceData.length === 0 ? (
           <div className="text-center py-12 px-6">
             <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No performance data available for this period</p>
+            <p className="text-gray-600 dark:text-gray-400">No performance data available for this period</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Member</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Department</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Spend</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">CTR</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Impressions</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Clicks</th>
-                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider"># of Ads</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Member</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Department</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Spend</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">CTR</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Impressions</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Clicks</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider"># of Ads</th>
                 </tr>
               </thead>
               <tbody>
                 {performanceData.map((row, index) => (
                   <tr 
                     key={row.id} 
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                    className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {row.initials}
-                        </div>
-                        <span className="font-medium text-gray-900">{row.name}</span>
+                        {row.profile_picture ? (
+                          <img src={row.profile_picture} alt={row.name} className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                            {row.initials}
+                          </div>
+                        )}
+                        <span className="font-medium text-gray-900 dark:text-gray-100">{row.name}</span>
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 dark:text-indigo-400">
                         {row.department}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="text-base font-semibold text-gray-900">
+                      <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
                         ${(row.spend || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className={`text-base font-semibold ${
-                        (row.ctr || 0) >= 2 ? 'text-green-600' :
+                        (row.ctr || 0) >= 2 ? 'text-green-600 dark:text-green-400' :
                         (row.ctr || 0) >= 1 ? 'text-amber-600' :
                         'text-red-600'
                       }`}>
@@ -337,12 +341,12 @@ const Performance = () => {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="text-base font-semibold text-purple-600">
+                      <span className="text-base font-semibold text-purple-600 dark:text-purple-400">
                         {(row.impressions || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <span className="text-base font-semibold text-green-600">
+                      <span className="text-base font-semibold text-green-600 dark:text-green-400">
                         {(row.clicks || 0).toLocaleString()}
                       </span>
                     </td>

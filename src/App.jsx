@@ -9,6 +9,7 @@ import CampaignsList from './pages/CampaignsList';
 import UserManagement from './pages/UserManagement';
 import AdAccounts from './pages/AdAccounts';
 import Performance from './pages/Performance';
+import Settings from './pages/Settings';
 import About from './pages/About';
 
 // Protected Route Component
@@ -17,10 +18,10 @@ const ProtectedRoute = ({ children }) => {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading HYRAX...</p>
+          <div className="w-16 h-16 border-4 border-red-400/30 border-t-red-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-700 dark:text-gray-300 text-lg">Loading HYRAX...</p>
         </div>
       </div>
     );
@@ -40,7 +41,7 @@ const AppLayout = ({ children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar onCollapsedChange={setIsSidebarCollapsed} />
       <main className={`overflow-auto transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
         {children}
@@ -55,10 +56,10 @@ const AppRouter = () => {
   
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading HYRAX...</p>
+          <div className="w-16 h-16 border-4 border-red-400/30 border-t-red-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-700 dark:text-gray-300 text-lg">Loading HYRAX...</p>
         </div>
       </div>
     );
@@ -88,6 +89,7 @@ const AppRouter = () => {
                 <Route path="/users" element={<ManagerRoute><UserManagement /></ManagerRoute>} />
                 <Route path="/ad-accounts" element={<ManagerRoute><AdAccounts /></ManagerRoute>} />
                 <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
+                <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

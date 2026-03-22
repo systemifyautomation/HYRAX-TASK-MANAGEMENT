@@ -160,6 +160,10 @@ const Tasks = () => {
   // Store active upload requests to prevent HMR from interrupting them
   const activeUploads = useRef({});
   
+  // Track the latest known creative arrays per task to prevent race conditions
+  // when multiple uploads (e.g. Facebook Format + Reel) complete for the same task
+  const latestCreativeArraysRef = useRef({});
+  
   // Debounce timer for background updates
   const updateTimersRef = useRef({});
   
@@ -1839,8 +1843,17 @@ const Tasks = () => {
         
         const task = tasks.find(t => t.id === taskId);
         
+        // RACE CONDITION FIX: Merge with latest known arrays from concurrent uploads
+        // When uploading Facebook Format (slot 0) and Reel (slot 1) quickly,
+        // both uploads read from the same stale `tasks` state. The second
+        // upload would overwrite the first's result. By using a ref that's
+        // updated immediately (not waiting for React re-render), each upload
+        // sees the previous upload's result.
+        const latestArrays = latestCreativeArraysRef.current[taskId];
+        const baseTask = latestArrays ? { ...task, ...latestArrays } : task;
+        
         // Use helper function to ensure all creative arrays are synchronized
-        const syncedArrays = synchronizeCreativeArrays(task, adIndex);
+        const syncedArrays = synchronizeCreativeArrays(baseTask, adIndex);
         
         // Update the specific index with new values
         syncedArrays.viewerLink[adIndex] = uploadedUrl;
@@ -1849,6 +1862,21 @@ const Tasks = () => {
         syncedArrays.slackPermalink[adIndex] = slackPermalink; // Store Slack permalink
         syncedArrays.viewerLinkApprovalAt[adIndex] = null; // Clear approval timestamp on new upload
         // Note: viewerLinkAt is set by the webhook, so we don't modify it here
+        
+        // Store the latest arrays in the ref IMMEDIATELY so concurrent uploads can see them
+        latestCreativeArraysRef.current[taskId] = {
+          viewerLink: [...syncedArrays.viewerLink],
+          viewerLinkApproval: [...syncedArrays.viewerLinkApproval],
+          viewerLinkFeedback: [...syncedArrays.viewerLinkFeedback],
+          slackPermalink: [...syncedArrays.slackPermalink],
+          viewerLinkApprovalAt: [...syncedArrays.viewerLinkApprovalAt],
+          viewerLinkAt: [...syncedArrays.viewerLinkAt]
+        };
+        
+        // Clean up the ref after a delay (once React state has caught up)
+        setTimeout(() => {
+          delete latestCreativeArraysRef.current[taskId];
+        }, 5000);
         
         // Prepare additional query parameters
         const queryParams = {
@@ -2132,33 +2160,33 @@ This usually indicates a temporary workflow issue.`;
   const getDropdownOptionColors = (columnKey, optionValue) => {
     if (columnKey === 'status') {
       const statusColors = {
-        not_started: 'bg-gray-100 text-gray-700 border-gray-200',
-        in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
-        submitted: 'bg-purple-100 text-purple-700 border-purple-200',
-        needs_revision: 'bg-amber-100 text-amber-700 border-amber-200',
-        approved: 'bg-green-100 text-green-700 border-green-200',
-        left_feedback: 'bg-orange-100 text-orange-700 border-orange-200',
+        not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+        in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+        submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+        needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+        approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
+        left_feedback: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
       };
-      return statusColors[optionValue] || 'bg-gray-100 text-gray-700 border-gray-200';
+      return statusColors[optionValue] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
     }
     if (columnKey === 'priority') {
       const priorityColors = {
-        urgent: 'bg-red-100 text-red-700 border-red-200',
-        high: 'bg-orange-100 text-orange-700 border-orange-200',
-        normal: 'bg-blue-100 text-blue-700 border-blue-200',
-        low: 'bg-gray-100 text-gray-700 border-gray-200',
+        urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
+        high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+        normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+        low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
       };
-      return priorityColors[optionValue] || 'bg-blue-100 text-blue-700 border-blue-200';
+      return priorityColors[optionValue] || 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800';
     }
     // Default colors for custom dropdowns
-    const defaultColors = ['bg-indigo-100 text-indigo-700 border-indigo-200', 'bg-emerald-100 text-emerald-700 border-emerald-200', 'bg-pink-100 text-pink-700 border-pink-200', 'bg-cyan-100 text-cyan-700 border-cyan-200', 'bg-violet-100 text-violet-700 border-violet-200'];
+    const defaultColors = ['bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800', 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800', 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800', 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800'];
     const hash = optionValue.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
     return defaultColors[Math.abs(hash) % defaultColors.length];
   };
 
   // Helper function to get current value colors for dropdowns
   const getCurrentValueColors = (columnKey, value) => {
-    if (!value) return 'bg-gray-50 text-gray-500 border-gray-200';
+    if (!value) return 'bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700';
     return getDropdownOptionColors(columnKey, value);
   };
 
@@ -2278,7 +2306,7 @@ This usually indicates a temporary workflow issue.`;
                     newArray[index] = e.target.value;
                     handleChange(newArray);
                   }}
-                  className="flex-1 px-2 py-1 text-xs bg-white text-black border border-gray-200 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                   placeholder={`${column.name} ${index + 1}`}
                 />
                 {!isNewTask && (
@@ -2287,13 +2315,13 @@ This usually indicates a temporary workflow issue.`;
                       type="checkbox"
                       checked={approvalArray[index] || false}
                       onChange={(e) => handleApprovalChange(index, e.target.checked)}
-                      className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-500 cursor-pointer"
+                      className="w-4 h-4 text-green-600 dark:text-green-400 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 cursor-pointer"
                       title="Manager approval"
                     />
                     <div className="relative">
                       <div 
-                        className={`peer w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
-                          isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : feedbackArray[index] ? 'cursor-help' : 'opacity-30 cursor-not-allowed'
+                        className={`peer w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-700 ${
+                          isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300 dark:hover:border-red-700' : feedbackArray[index] ? 'cursor-help' : 'opacity-30 cursor-not-allowed'
                         }`}
                         onClick={() => isAdminUser && handleArrayFeedback(index)}
                       >
@@ -2347,7 +2375,7 @@ This usually indicates a temporary workflow issue.`;
               defaultValue={value || (column.key === 'quantity' ? 'x1' : '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isCopyField && !canEditCopy}
-              className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm ${isCopyField && !canEditCopy ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300`}
+              className={`${column.key === 'quantity' ? 'max-w-[60px]' : 'w-full'} px-3 py-2 text-sm ${isCopyField && !canEditCopy ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'} text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500`}
               placeholder={column.key === 'quantity' ? 'x1' : column.name}
             />
             {column.key === 'copyLink' && value && !isNewTask && (
@@ -2359,7 +2387,7 @@ This usually indicates a temporary workflow issue.`;
                   currentApproval: task.copyApproval || '',
                   showFeedbackInput: true
                 })}
-                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors flex-shrink-0"
                 title="Open and review"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -2374,7 +2402,7 @@ This usually indicates a temporary workflow issue.`;
             type="number"
             value={value || ''}
             onChange={(e) => handleChange(parseFloat(e.target.value) || 0)}
-            className="w-full px-3 py-2 text-sm bg-white text-black border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300"
+            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 text-black dark:text-white border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500"
             placeholder={column.name}
           />
         );
@@ -2388,7 +2416,7 @@ This usually indicates a temporary workflow issue.`;
           <div className="space-y-1">
             {checkboxArrayValue.map((checked, index) => (
               <div key={index} className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 w-6">#{index + 1}</span>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 w-6">#{index + 1}</span>
                 <input
                   type="checkbox"
                   checked={checked || false}
@@ -2398,7 +2426,7 @@ This usually indicates a temporary workflow issue.`;
                     handleChange(newArray);
                   }}
                   disabled={!canEditCheckboxArray}
-                  className={`w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-2 focus:ring-green-500 transition-all ${!canEditCheckboxArray ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                  className={`w-4 h-4 text-green-600 dark:text-green-400 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-green-500 transition-all ${!canEditCheckboxArray ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                 />
                 {canEditCheckboxArray && checkboxArrayValue.length > 1 && (
                   <button
@@ -2459,7 +2487,7 @@ This usually indicates a temporary workflow issue.`;
               checked={value || false}
               onChange={(e) => handleChange(e.target.checked)}
               disabled={isCopyWrittenField && !canEditCopyWritten}
-              className={`w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-2 focus:ring-primary-500 transition-all ${isCopyWrittenField && !canEditCopyWritten ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+              className={`w-5 h-5 text-primary-600 rounded border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-primary-500 transition-all ${isCopyWrittenField && !canEditCopyWritten ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             />
           </div>
         );
@@ -2482,16 +2510,16 @@ This usually indicates a temporary workflow issue.`;
                 getCurrentValueColors(column.key, value)
               }`}
             >
-              <option value="" className="bg-white text-gray-500">Select...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select...</option>
               {column.options?.map((option) => (
-                <option key={option} value={option} className="bg-white text-gray-800">{option}</option>
+                <option key={option} value={option} className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">{option}</option>
               ))}
             </select>
             {hasFeedback && (
               <div className="relative">
                 <div 
-                  className={`peer w-6 h-6 bg-white rounded-full flex items-center justify-center border border-gray-200 ${
-                    isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300' : 'cursor-help'
+                  className={`peer w-6 h-6 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-700 ${
+                    isAdminUser ? 'cursor-pointer hover:bg-red-50 hover:border-red-300 dark:hover:border-red-700' : 'cursor-help'
                   }`}
                   onClick={() => isAdminUser && handleShowFeedback(task, column.key)}
                 >
@@ -2517,7 +2545,7 @@ This usually indicates a temporary workflow issue.`;
             type="date"
             value={value || ''}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 cursor-pointer"
+            className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-gray-300 dark:hover:border-gray-500 cursor-pointer"
           />
         );
       
@@ -2558,14 +2586,14 @@ This usually indicates a temporary workflow issue.`;
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 cursor-pointer font-medium text-blue-800 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer font-medium text-blue-800 dark:text-blue-200 shadow-sm"
             >
-              <option value="" className="bg-white text-gray-500">Select user...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select user...</option>
               {filteredUsers.map((user) => (
                 <option 
                   key={user.id} 
                   value={user.id}
-                  className="bg-white text-gray-800 hover:bg-blue-50 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-2 px-3 font-medium"
                 >
                   {user.name}
                 </option>
@@ -2580,14 +2608,14 @@ This usually indicates a temporary workflow issue.`;
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 cursor-pointer font-medium text-emerald-800 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 dark:from-emerald-900/30 to-teal-50 dark:to-teal-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 cursor-pointer font-medium text-emerald-800 dark:text-emerald-200 shadow-sm"
             >
-              <option value="" className="bg-white text-gray-500">Select campaign...</option>
+              <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select campaign...</option>
               {campaigns.map((campaign) => (
                 <option 
                   key={campaign.id} 
                   value={campaign.id}
-                  className="bg-white text-gray-800 hover:bg-emerald-50 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 py-2 px-3 font-medium"
                 >
                   {campaign.name}
                 </option>
@@ -2602,10 +2630,10 @@ This usually indicates a temporary workflow issue.`;
           <select
             value={weekValue}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 cursor-pointer font-medium text-purple-800 shadow-sm"
+            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-pink-50 dark:to-pink-900/30 border border-purple-200 dark:border-purple-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer font-medium text-purple-800 dark:text-purple-200 shadow-sm"
           >
             {weekOptions.map(option => (
-              <option key={option.value} value={option.value} className="bg-white text-gray-800">
+              <option key={option.value} value={option.value} className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
                 {option.label}
               </option>
             ))}
@@ -2613,14 +2641,14 @@ This usually indicates a temporary workflow issue.`;
         );
       
       default:
-        return <span className="text-sm text-gray-700">{value || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300">{value || '-'}</span>;
     }
   };
 
   const formatCellValue = (value, column) => {
     // Special handling for quantity field - default to "x1" if no value
     if (!value && column.key === 'quantity') {
-      return <span className="text-sm text-gray-700">x1</span>;
+      return <span className="text-sm text-gray-700 dark:text-gray-300">x1</span>;
     }
     
     if (!value) return <span className="text-gray-400">-</span>;
@@ -2638,7 +2666,7 @@ This usually indicates a temporary workflow issue.`;
                 href={item}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 text-black hover:bg-gray-200 rounded-md font-medium hover:underline"
+                className="inline-flex items-center px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-black dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md font-medium hover:underline"
                 title={item}
               >
                 Link {index + 1} →
@@ -2650,19 +2678,19 @@ This usually indicates a temporary workflow issue.`;
       case 'user':
         const user = users.find(u => u.id === value);
         return user ? (
-          <span className="text-sm font-medium text-gray-900">{user.name}</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</span>
         ) : <span className="text-gray-400">-</span>;
       
       case 'campaign':
         const campaign = campaigns.find(c => c.id === value);
         return campaign ? (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-medium">
             {campaign.name}
           </span>
         ) : <span className="text-gray-400">-</span>;
       
       case 'date':
-        return <span className="text-sm text-gray-900">{format(new Date(value), 'MMM d, yyyy')}</span>;
+        return <span className="text-sm text-gray-900 dark:text-gray-100">{format(new Date(value), 'MMM d, yyyy')}</span>;
       
       case 'array-checkbox':
         // Handle array of checkboxes
@@ -2671,11 +2699,11 @@ This usually indicates a temporary workflow issue.`;
           <div className="flex flex-wrap gap-1">
             {checkboxArray.map((checked, index) => (
               <div key={index} className="flex items-center gap-1">
-                <span className="text-xs text-gray-500">#{index + 1}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">#{index + 1}</span>
                 {checked ? (
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-green-100 text-green-600 text-xs">✓</span>
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs">✓</span>
                 ) : (
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 text-gray-400 text-xs">✗</span>
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 dark:bg-gray-700 text-gray-400 text-xs">✗</span>
                 )}
               </div>
             ))}
@@ -2684,9 +2712,9 @@ This usually indicates a temporary workflow issue.`;
       
       case 'checkbox':
         return value ? (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 text-green-600">✓</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">✓</span>
         ) : (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 text-gray-400">✗</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 text-gray-400">✗</span>
         );
       
       case 'url':
@@ -2699,53 +2727,53 @@ This usually indicates a temporary workflow issue.`;
       case 'dropdown':
         if (column.key === 'status') {
           const statusColors = {
-            not_started: 'bg-gray-100 text-gray-700',
-            in_progress: 'bg-blue-100 text-blue-700',
-            submitted: 'bg-purple-100 text-purple-700',
-            needs_revision: 'bg-amber-100 text-amber-700',
-            approved: 'bg-green-100 text-green-700',
-            left_feedback: 'bg-orange-100 text-orange-700',
+            not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+            in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+            submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+            needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+            approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+            left_feedback: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
           };
           return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 text-gray-700'}`}>
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
               {value?.replace(/_/g, ' ').toUpperCase() || '-'}
             </span>
           );
         }
         if (column.key === 'priority') {
           const priorityColors = {
-            urgent: 'bg-red-100 text-red-700 border-red-200',
-            high: 'bg-orange-100 text-orange-700 border-orange-200',
-            normal: 'bg-blue-100 text-blue-700 border-blue-200',
-            low: 'bg-gray-100 text-gray-700 border-gray-200',
+            urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
+            high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
+            normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+            low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
           };
           return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${priorityColors[value] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${priorityColors[value] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
               {value?.toUpperCase() || '-'}
             </span>
           );
         }
-        return <span className="text-sm text-gray-700 capitalize">{value?.replace(/_/g, ' ') || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{value?.replace(/_/g, ' ') || '-'}</span>;
       
       default:
-        return <span className="text-sm text-gray-700">{value || '-'}</span>;
+        return <span className="text-sm text-gray-700 dark:text-gray-300">{value || '-'}</span>;
     }
   };
 
   // Show loading state while data is being fetched
   if (tasksLoading || campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading tasks...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading tasks...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex flex-col">
       <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">
@@ -2754,18 +2782,18 @@ This usually indicates a temporary workflow issue.`;
               <h1 className="page-title">
                 Tasks
               </h1>
-              <p className="text-gray-600 mt-2">Manage all tasks in a powerful spreadsheet view</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">Manage all tasks in a powerful spreadsheet view</p>
             </div>
           </div>
           
           {/* Stats Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Total Tasks</div>
-              <div className="text-2xl font-bold text-gray-900">{filteredTasks.length}</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Tasks</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{filteredTasks.length}</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Not Done</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Not Done</div>
               <div className="text-2xl font-bold text-blue-600">
                 {filteredTasks.filter(t => {
                   const status = t.status || 'Not done';
@@ -2773,14 +2801,14 @@ This usually indicates a temporary workflow issue.`;
                 }).length}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Approved</div>
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Approved</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {filteredTasks.filter(t => t.status === 'Approved').length}
               </div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="text-sm text-gray-500 mb-1">Needs Review</div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Needs Review</div>
               <div className="text-2xl font-bold text-amber-600">
                 {filteredTasks.filter(t => t.status === 'Needs Review').length}
               </div>
@@ -2804,11 +2832,11 @@ This usually indicates a temporary workflow issue.`;
         {/* Left side - View Toggles */}
         <div className="flex items-center space-x-3">
           {/* Week View Toggle - This Week / Next Week */}
-          <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+          <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-1 shadow-sm">
             <button
               onClick={() => navigate('/this-week', { replace: true })}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                weekView === 'this-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                weekView === 'this-week' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -2817,7 +2845,7 @@ This usually indicates a temporary workflow issue.`;
             <button
               onClick={() => navigate('/next-week', { replace: true })}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
-                weekView === 'next-week' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                weekView === 'next-week' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -2832,14 +2860,14 @@ This usually indicates a temporary workflow issue.`;
             <>
               <button
                 onClick={handleDuplicateSelectedTasks}
-                className="px-4 py-2 bg-white border border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+                className="px-4 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
               >
                 <Copy className="w-4 h-4" />
                 <span>Duplicate ({selectedTasks.size})</span>
               </button>
               <button
                 onClick={handleDeleteSelectedTasks}
-                className="px-4 py-2 bg-white border border-red-200 hover:border-red-300 text-red-700 hover:text-red-800 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+                className="px-4 py-2 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700 text-red-700 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Delete ({selectedTasks.size})</span>
@@ -2849,7 +2877,7 @@ This usually indicates a temporary workflow issue.`;
           {false && isAdminUser && (
             <button
               onClick={() => setShowColumnManager(!showColumnManager)}
-              className="px-4 py-2 bg-white border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm"
             >
               <Settings className="w-4 h-4" />
               <span>Manage Columns</span>
@@ -2917,7 +2945,7 @@ This usually indicates a temporary workflow issue.`;
 
               return (
                 <div key={department} className="mb-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">{department}</h2>
+                  <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">{department}</h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                     {departmentUsers.map(user => {

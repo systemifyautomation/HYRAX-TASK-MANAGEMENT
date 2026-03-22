@@ -137,8 +137,8 @@ const UserManagement = () => {
       <div className="p-8">
         <div className="card text-center py-12">
           <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have permission to access this page.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Access Denied</h2>
+          <p className="text-gray-600 dark:text-gray-400">You don't have permission to access this page.</p>
         </div>
       </div>
     );
@@ -235,17 +235,17 @@ const UserManagement = () => {
     const normalized = normalizeRole(role);
     switch (normalized) {
       case 'super_admin':
-        return 'bg-purple-100 text-purple-700';
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
       case 'admin':
-        return 'bg-red-100 text-red-700';
+        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
       case 'manager':
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
       case 'user':
-        return 'bg-green-100 text-green-700';
+        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
       case 'team_member':
-        return 'bg-gray-100 text-gray-700';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
       default:
-        return 'bg-gray-100 text-gray-700';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
     }
   };
 
@@ -432,11 +432,11 @@ const UserManagement = () => {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="page-title">User Management</h1>
-          <p className="text-gray-600 mt-2">Manage team members and their roles</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage team members and their roles</p>
           {loading && (
             <div className="flex items-center space-x-2 mt-2">
               <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-sm text-gray-500">Loading users...</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Loading users...</span>
             </div>
           )}
         </div>
@@ -463,19 +463,19 @@ const UserManagement = () => {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">User</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Initials</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Email</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Role</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
-              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">User</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Initials</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Email</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Role</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Department</th>
+              <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center">
@@ -485,7 +485,7 @@ const UserManagement = () => {
                       alt="Loading..." 
                       className="w-48 h-48 object-contain mb-4 rounded-lg"
                     />
-                    <p className="text-gray-500 font-medium">Loading users from server...</p>
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">Loading users from server...</p>
                   </div>
                 </td>
               </tr>
@@ -493,25 +493,25 @@ const UserManagement = () => {
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center">
                   <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No users found</p>
+                  <p className="text-gray-500 dark:text-gray-400">No users found</p>
                 </td>
               </tr>
             ) : (
               displayUsers.map((user) => (
-                <tr key={user.id || user.email} className="hover:bg-gray-50">
+                <tr key={user.id || user.email} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
                       <div>
-                        <p className="font-medium text-gray-900">{user.name}</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{user.name}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                       {user.initials || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                     {user.email}
                   </td>
                   <td className="px-6 py-4">
@@ -521,7 +521,7 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">
                       {user.department || 'Not Assigned'}
                     </span>
                   </td>
@@ -531,7 +531,7 @@ const UserManagement = () => {
                         <>
                           <button
                             onClick={() => handleEdit(user)}
-                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                            className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                             title="Edit user"
                           >
                             <Edit2 className="w-4 h-4" />
@@ -539,7 +539,7 @@ const UserManagement = () => {
                           {user.id !== currentUser.id && (
                             <button
                               onClick={() => handleDelete(user)}
-                              className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+                              className="text-red-600 hover:text-red-800 dark:hover:text-red-300 transition-colors disabled:opacity-50"
                               disabled={submitting}
                               title="Delete user"
                             >
@@ -577,7 +577,7 @@ const UserManagement = () => {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                   placeholder="e.g., John Doe"
                 />
               </div>
@@ -588,7 +588,7 @@ const UserManagement = () => {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                   placeholder="e.g., john@hyrax.com"
                 />
               </div>
@@ -599,7 +599,7 @@ const UserManagement = () => {
                   type="text"
                   value={formData.initials}
                   onChange={(e) => setFormData({ ...formData, initials: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                  className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                   placeholder="e.g., JD"
                   maxLength="5"
                 />
@@ -647,7 +647,7 @@ const UserManagement = () => {
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-red-600 focus:border-red-600"
+                    className="w-full px-4 py-2 bg-gray-900 border border-red-600/50 rounded-lg text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-red-600 focus:border-red-600"
                     placeholder="Leave blank to keep current password"
                   />
                   <p className="text-xs text-gray-400 mt-1">
