@@ -17,7 +17,7 @@ const CampaignDetail = () => {
     return (
       <div className="p-8">
         <div className="card text-center py-12">
-          <p className="text-gray-600">Campaign not found</p>
+          <p className="text-gray-600 dark:text-gray-400">Campaign not found</p>
           <button onClick={() => navigate('/campaigns')} className="btn-primary mt-4">
             Back to Campaigns
           </button>
@@ -28,11 +28,11 @@ const CampaignDetail = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      active: 'bg-green-100 text-green-700',
-      completed: 'bg-blue-100 text-blue-700',
-      planning: 'bg-amber-100 text-amber-700',
+      active: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+      completed: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+      planning: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
   };
 
   const tasksByType = {
@@ -47,7 +47,7 @@ const CampaignDetail = () => {
       {/* Back Button */}
       <button
         onClick={() => navigate('/campaigns')}
-        className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+        className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6 transition-colors"
       >
         <ArrowLeft className="w-5 h-5" />
         <span>Back to Campaigns</span>
@@ -57,12 +57,12 @@ const CampaignDetail = () => {
       <div className="card mb-8">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600">
+            <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/30 rounded-xl flex items-center justify-center text-primary-600 dark:text-primary-400">
               <FolderOpen className="w-8 h-8" />
             </div>
             <div>
               <h1 className="page-title">{campaign.name}</h1>
-              <p className="text-gray-600">{campaign.client}</p>
+              <p className="text-gray-600 dark:text-gray-400">{campaign.client}</p>
             </div>
           </div>
           <span className={`px-4 py-2 rounded-full text-sm font-medium capitalize ${getStatusColor(campaign.status)}`}>
@@ -72,34 +72,34 @@ const CampaignDetail = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Duration</p>
-              <p className="font-medium text-gray-900">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Duration</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">
                 {format(new Date(campaign.startDate), 'MMM d')} - {format(new Date(campaign.endDate), 'MMM d, yyyy')}
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
+            <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600 dark:text-green-400">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Budget</p>
-              <p className="font-medium text-gray-900">{campaign.budget}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Budget</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{campaign.budget}</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600">
+            <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400">
               <FolderOpen className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Platform</p>
-              <p className="font-medium text-gray-900">{campaign.platform}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Platform</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{campaign.platform}</p>
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ const CampaignDetail = () => {
           
           return (
             <div key={type}>
-              <h2 className="text-xl font-bold text-gray-900 mb-4 capitalize">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 capitalize">
                 {type} Tasks ({typeTasks.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -126,7 +126,7 @@ const CampaignDetail = () => {
 
         {tasks.length === 0 && (
           <div className="card text-center py-12">
-            <p className="text-gray-600">No tasks found for this campaign</p>
+            <p className="text-gray-600 dark:text-gray-400">No tasks found for this campaign</p>
           </div>
         )}
       </div>

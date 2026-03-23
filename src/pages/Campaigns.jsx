@@ -16,11 +16,11 @@ const Campaigns = () => {
 
   const getStatusColor = (taskCount) => {
     if (taskCount === 0) {
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
     } else if (taskCount < 5) {
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400';
     } else {
-      return 'bg-green-100 text-green-700';
+      return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
     }
   };
 
@@ -29,7 +29,7 @@ const Campaigns = () => {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="page-title">Campaigns</h1>
-          <p className="text-gray-600 mt-2">Manage all Facebook ad campaigns and their tasks</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage all Facebook ad campaigns and their tasks</p>
         </div>
         <button
           onClick={() => setIsChatModalOpen(true)}
@@ -59,12 +59,12 @@ const Campaigns = () => {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-primary-50 rounded-lg flex items-center justify-center text-primary-600">
+                  <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/30 rounded-lg flex items-center justify-center text-primary-600 dark:text-primary-400">
                     <FolderOpen className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg">{campaign.name}</h3>
-                    <p className="text-sm text-gray-600">ID: {campaign.id}</p>
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100 text-lg">{campaign.name}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">ID: {campaign.id}</p>
                   </div>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(campaignTasks.length)}`}>
@@ -74,12 +74,12 @@ const Campaigns = () => {
 
               <div className="space-y-3 mb-4">
                 {campaign.slackId && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                     <MessageSquare className="w-4 h-4" />
                     <span>Slack: {campaign.slackId}</span>
                   </div>
                 )}
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                   <BarChart3 className="w-4 h-4" />
                   <span>{campaignTasks.length} total tasks</span>
                 </div>
@@ -88,21 +88,21 @@ const Campaigns = () => {
               {campaignTasks.length > 0 && (
                 <div className="mb-2">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600">Progress</span>
-                    <span className="font-medium text-gray-900">{completedTasks}/{campaignTasks.length} completed</span>
+                    <span className="text-gray-600 dark:text-gray-400">Progress</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{completedTasks}/{campaignTasks.length} completed</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <div
-                      className="bg-primary-600 h-2 rounded-full transition-all"
+                      className="bg-primary-600 dark:bg-primary-500 h-2 rounded-full transition-all"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between text-sm pt-4 border-t border-gray-100">
-                <span className="text-gray-600">{campaignTasks.length} tasks</span>
-                <span className="text-primary-600 font-medium hover:text-primary-700">View Details →</span>
+              <div className="flex items-center justify-between text-sm pt-4 border-t border-gray-100 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-400">{campaignTasks.length} tasks</span>
+                <span className="text-primary-600 dark:text-primary-400 font-medium hover:text-primary-700 dark:hover:text-primary-300">View Details →</span>
               </div>
             </div>
           );

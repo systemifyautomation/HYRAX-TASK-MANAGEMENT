@@ -2763,7 +2763,7 @@ This usually indicates a temporary workflow issue.`;
   // Show loading state while data is being fetched
   if (tasksLoading || campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400 text-lg">Loading tasks...</p>
@@ -2773,7 +2773,7 @@ This usually indicates a temporary workflow issue.`;
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 flex flex-col">
       <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">

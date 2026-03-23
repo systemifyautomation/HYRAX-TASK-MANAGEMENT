@@ -929,6 +929,54 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  const sendNewCopyWebhook = async (taskData = null) => {
+    const webhookUrl = import.meta.env.VITE_NEW_COPY_WEBHOOK_URL;
+    
+    if (!webhookUrl) {
+      console.error('VITE_NEW_COPY_WEBHOOK_URL not configured');
+      return;
+    }
+
+    if (!taskData) {
+      return;
+    }
+
+    const taskId = taskData.id;
+    const campaignId = taskData?.campaignId ?? null;
+    const userId = taskData?.assignedTo ?? null;
+    const copyLinkArray = Array.isArray(taskData?.copyLink) ? taskData.copyLink : [];
+    const copyLink = copyLinkArray.find(link => link && link.trim()) || '';
+    
+    // Find user and campaign for path construction
+    const user = users.find(u => String(u.id) === String(userId));
+    const campaign = campaigns.find(c => String(c.id) === String(campaignId));
+    const userSlug = user ? slugify(user.slug || user.name || user.email || user.username || user.id) : '';
+    const campaignSlug = campaign ? slugify(campaign.slug || campaign.name || campaign.id) : '';
+    
+    // Construct campaign link: /userSlug/campaignSlug
+    const campaignLink = `/${userSlug}/${campaignSlug}`;
+    
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          task_id: taskId,
+          campaign_link: campaignLink,
+          copy_link: copyLink
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send new copy webhook:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to send new copy webhook:', error);
+    }
+  };
+
   const applyCreativeApprovalGuardsAndCleanup = (existingTask, incomingUpdates = {}) => {
     const sanitizedUpdates = { ...incomingUpdates };
     const newlyApprovedCreativeUrls = [];
@@ -1351,6 +1399,21 @@ export const AppProvider = ({ children }) => {
     }
 
     await sendCreativeApprovedWebhook(newlyApprovedCreativeData, completeUpdatedTask);
+    
+    // Check if copy link changed from empty to non-empty (notify video editors and graphic designers)
+    if (existingTask && 'copyLink' in sanitizedUpdates) {
+      const oldCopyLinkArray = Array.isArray(existingTask.copyLink) ? existingTask.copyLink : [];
+      const newCopyLinkArray = Array.isArray(sanitizedUpdates.copyLink) ? sanitizedUpdates.copyLink : [];
+      
+      // Check if any copyLink changed from empty to non-empty
+      const hasOldCopyLink = oldCopyLinkArray.some(link => link && link.trim());
+      const hasNewCopyLink = newCopyLinkArray.some(link => link && link.trim());
+      
+      // Trigger webhook if copyLink was empty and now has a value
+      if (!hasOldCopyLink && hasNewCopyLink) {
+        await sendNewCopyWebhook(completeUpdatedTask);
+      }
+    }
     
     // Persist to JSON file via API
     try {
@@ -1871,6 +1934,21 @@ export const AppProvider = ({ children }) => {
     }
 
     await sendCreativeApprovedWebhook(newlyApprovedCreativeData, completeUpdatedTask);
+    
+    // Check if copy link changed from empty to non-empty (notify video editors and graphic designers)
+    if (existingTask && 'copyLink' in sanitizedUpdates) {
+      const oldCopyLinkArray = Array.isArray(existingTask.copyLink) ? existingTask.copyLink : [];
+      const newCopyLinkArray = Array.isArray(sanitizedUpdates.copyLink) ? sanitizedUpdates.copyLink : [];
+      
+      // Check if any copyLink changed from empty to non-empty
+      const hasOldCopyLink = oldCopyLinkArray.some(link => link && link.trim());
+      const hasNewCopyLink = newCopyLinkArray.some(link => link && link.trim());
+      
+      // Trigger webhook if copyLink was empty and now has a value
+      if (!hasOldCopyLink && hasNewCopyLink) {
+        await sendNewCopyWebhook(completeUpdatedTask);
+      }
+    }
   };
 
   const deleteScheduledTask = async (taskId) => {
