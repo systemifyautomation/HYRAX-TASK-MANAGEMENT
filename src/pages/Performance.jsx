@@ -192,7 +192,7 @@ const Performance = () => {
     : 0;
 
   return (
-    <div className="p-8 bg-white dark:bg-gray-800 min-h-screen">
+    <div className="p-8 bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 min-h-screen">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between">

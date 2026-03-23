@@ -4,7 +4,7 @@ import { useApp } from '../context/AuthContext';
 import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
 const CampaignsList = () => {
-  const { campaigns, tasks, campaignsLoading, loadCampaignsData, currentUser } = useApp();
+  const { campaigns, tasks, campaignsLoading, loadCampaignsData, currentUser, users, loadUsers } = useApp();
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
@@ -75,7 +75,7 @@ const CampaignsList = () => {
   // Show loading state while data is being fetched
   if (campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400 text-lg">Loading campaigns...</p>
@@ -85,7 +85,7 @@ const CampaignsList = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950">
       <div className="p-8">
         {/* Header */}
         <div className="mb-8">
@@ -154,7 +154,7 @@ const CampaignsList = () => {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 border-b-2 border-gray-200 dark:border-gray-700">
+                <tr className="bg-gradient-to-r from-gray-50 dark:from-gray-900 via-gray-100 dark:via-gray-850 to-gray-50 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-700">
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                     Campaign Name
                   </th>
@@ -207,7 +207,7 @@ const CampaignsList = () => {
           </div>
           
           {/* Table Footer with Pagination */}
-          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 border-t border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 dark:from-gray-900 via-gray-100 dark:via-gray-850 to-gray-50 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               {/* Left side - Info */}
               <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
@@ -286,6 +286,8 @@ const CampaignsList = () => {
         isOpen={isChatModalOpen}
         onClose={() => setIsChatModalOpen(false)}
         currentUser={currentUser}
+        users={users}
+        loadUsers={loadUsers}
       />
     </div>
   );

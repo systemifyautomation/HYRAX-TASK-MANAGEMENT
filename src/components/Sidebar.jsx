@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook, BarChart3, Settings, Moon, Sun } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook, BarChart3, Settings } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isManager, isAdmin } from '../constants/roles';
 
 const Sidebar = ({ onCollapsedChange }) => {
-  const { currentUser, logout, darkMode, toggleDarkMode } = useApp();
+  const { currentUser, logout } = useApp();
   const navigate = useNavigate();
   const isManagerUser = currentUser ? isManager(currentUser.role) : false;
   const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
@@ -78,18 +78,6 @@ const Sidebar = ({ onCollapsedChange }) => {
 
       {/* Dark Mode Toggle & User Info at Bottom */}
       <div className="border-t border-gray-200 dark:border-gray-700">
-        {/* Dark Mode Toggle */}
-        <div className={`px-4 py-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
-          <button
-            onClick={toggleDarkMode}
-            className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 w-full'} px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors`}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {!isCollapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
-          </button>
-        </div>
-
         {/* Sign Out Button (appears when user menu is open) */}
         {showUserMenu && !isCollapsed && (
           <div className="px-3 pb-1 border-t border-gray-200 dark:border-gray-700 pt-2">

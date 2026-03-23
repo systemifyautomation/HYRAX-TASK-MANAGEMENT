@@ -5,7 +5,7 @@ import { useApp } from '../context/AuthContext';
 import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
 const Campaigns = () => {
-  const { campaigns, tasks, currentUser } = useApp();
+  const { campaigns, tasks, currentUser, users, loadUsers } = useApp();
   const navigate = useNavigate();
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
@@ -113,6 +113,8 @@ const Campaigns = () => {
         isOpen={isChatModalOpen}
         onClose={() => setIsChatModalOpen(false)}
         currentUser={currentUser}
+        users={users}
+        loadUsers={loadUsers}
       />
     </div>
   );

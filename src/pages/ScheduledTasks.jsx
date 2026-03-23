@@ -787,7 +787,7 @@ const ScheduledTasks = () => {
   // Show loading state while data is being fetched
   if (scheduledTasksLoading || campaignsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400 text-lg">Loading scheduled tasks...</p>
@@ -797,7 +797,7 @@ const ScheduledTasks = () => {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-800 to-gray-100 dark:to-gray-700 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-gray-50 dark:from-gray-950 via-gray-100 dark:via-gray-900 to-gray-50 dark:to-gray-950 flex flex-col">
       <div className="p-8 flex-shrink-0">
         {/* Header */}
         <div className="mb-8">
@@ -1625,7 +1625,7 @@ const ScheduledTasks = () => {
                               const campaign = campaigns.find(c => c.id === parseInt(campaignId));
                               
                               return (
-                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 dark:from-gray-800 to-white rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div key={campaignId} className="bg-gradient-to-br from-gray-50 dark:from-gray-900 via-white dark:via-gray-850 to-gray-50 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                                   {/* Campaign Header */}
                                   <div className="bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-purple-100 dark:to-purple-900/30 px-3 py-2 border-b border-purple-200 dark:border-purple-800">
                                     <h4 className="text-sm font-bold text-purple-900 dark:text-purple-200">
