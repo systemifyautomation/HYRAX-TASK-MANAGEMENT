@@ -28,9 +28,9 @@ const CampaignDetail = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      active: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-      completed: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-      planning: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+      active: 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white',
+      completed: 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white',
+      planning: 'bg-amber-100 dark:bg-amber-600 text-amber-700 dark:text-white',
     };
     return colors[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
   };
@@ -57,7 +57,7 @@ const CampaignDetail = () => {
       <div className="card mb-8">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-primary-50 dark:bg-primary-900/30 rounded-xl flex items-center justify-center text-primary-600 dark:text-primary-400">
+            <div className="w-16 h-16 bg-primary-50 dark:bg-primary-600 rounded-xl flex items-center justify-center text-primary-600 dark:text-white">
               <FolderOpen className="w-8 h-8" />
             </div>
             <div>
@@ -72,7 +72,7 @@ const CampaignDetail = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400">
+            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-600 rounded-lg flex items-center justify-center text-blue-600 dark:text-white">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
@@ -84,7 +84,7 @@ const CampaignDetail = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-center justify-center text-green-600 dark:text-green-400">
+            <div className="w-10 h-10 bg-green-50 dark:bg-green-600 rounded-lg flex items-center justify-center text-green-600 dark:text-white">
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
@@ -94,7 +94,7 @@ const CampaignDetail = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/30 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-400">
+            <div className="w-10 h-10 bg-purple-50 dark:bg-purple-600 rounded-lg flex items-center justify-center text-purple-600 dark:text-white">
               <FolderOpen className="w-5 h-5" />
             </div>
             <div>

@@ -335,25 +335,25 @@ const ScheduledTasks = () => {
   const getDropdownOptionColors = (columnKey, optionValue) => {
     if (columnKey === 'status') {
       const statusColors = {
-        not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
-        in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-        submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-        needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-        approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
+        not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white border-gray-200 dark:border-gray-600',
+        in_progress: 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white border-blue-200 dark:border-blue-500',
+        submitted: 'bg-purple-100 dark:bg-purple-600 text-purple-700 dark:text-white border-purple-200 dark:border-purple-500',
+        needs_revision: 'bg-amber-100 dark:bg-amber-600 text-amber-700 dark:text-white border-amber-200 dark:border-amber-500',
+        approved: 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white border-green-200 dark:border-green-500',
       };
-      return statusColors[optionValue] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+      return statusColors[optionValue] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white border-gray-200 dark:border-gray-600';
     }
     if (columnKey === 'priority') {
       const priorityColors = {
-        urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
-        high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
-        normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-        low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+        urgent: 'bg-red-100 dark:bg-red-600 text-red-700 dark:text-white border-red-200 dark:border-red-500',
+        high: 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white border-orange-200 dark:border-orange-500',
+        normal: 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white border-blue-200 dark:border-blue-500',
+        low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white border-gray-200 dark:border-gray-600',
       };
-      return priorityColors[optionValue] || 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+      return priorityColors[optionValue] || 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white border-blue-200 dark:border-blue-500';
     }
     // Default colors for custom dropdowns
-    const defaultColors = ['bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800', 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-800', 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800', 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800'];
+    const defaultColors = ['bg-indigo-100 dark:bg-indigo-600 text-indigo-700 dark:text-white border-indigo-200 dark:border-indigo-500', 'bg-emerald-100 dark:bg-emerald-600 text-emerald-700 dark:text-white border-emerald-200 dark:border-emerald-500', 'bg-pink-100 dark:bg-pink-600 text-pink-700 dark:text-white border-pink-200 dark:border-pink-500', 'bg-cyan-100 dark:bg-cyan-600 text-cyan-700 dark:text-white border-cyan-200 dark:border-cyan-500', 'bg-violet-100 dark:bg-violet-600 text-violet-700 dark:text-white border-violet-200 dark:border-violet-500'];
     const hash = optionValue.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
     return defaultColors[Math.abs(hash) % defaultColors.length];
   };
@@ -629,14 +629,14 @@ const ScheduledTasks = () => {
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer font-medium text-blue-800 dark:text-blue-200 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-50 dark:from-blue-600 to-indigo-50 dark:to-indigo-700 border border-blue-200 dark:border-blue-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-blue-300 dark:hover:border-blue-400 cursor-pointer font-medium text-blue-800 dark:text-white shadow-sm"
             >
               <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select user...</option>
               {filteredUsers.map((user) => (
                 <option 
                   key={user.id} 
                   value={user.id}
-                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-700 py-2 px-3 font-medium"
                 >
                   {user.name}
                 </option>
@@ -651,14 +651,14 @@ const ScheduledTasks = () => {
             <select
               value={value || ''}
               onChange={(e) => handleChange(parseInt(e.target.value))}
-              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 dark:from-emerald-900/30 to-teal-50 dark:to-teal-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 dark:hover:border-emerald-700 cursor-pointer font-medium text-emerald-800 dark:text-emerald-200 shadow-sm"
+              className="w-full px-3 py-2 text-sm bg-gradient-to-r from-emerald-50 dark:from-emerald-600 to-teal-50 dark:to-teal-700 border border-emerald-200 dark:border-emerald-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-emerald-300 dark:hover:border-emerald-400 cursor-pointer font-medium text-emerald-800 dark:text-white shadow-sm"
             >
               <option value="" className="bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Select campaign...</option>
               {campaigns.map((campaign) => (
                 <option 
                   key={campaign.id} 
                   value={campaign.id}
-                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 py-2 px-3 font-medium"
+                  className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-700 py-2 px-3 font-medium"
                 >
                   {campaign.name}
                 </option>
@@ -673,7 +673,7 @@ const ScheduledTasks = () => {
           <select
             value={weekValue}
             onChange={(e) => handleChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-pink-50 dark:to-pink-900/30 border border-purple-200 dark:border-purple-800 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer font-medium text-purple-800 dark:text-purple-200 shadow-sm"
+            className="w-full px-3 py-2 text-sm bg-gradient-to-r from-purple-50 dark:from-purple-600 to-pink-50 dark:to-pink-700 border border-purple-200 dark:border-purple-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-purple-300 dark:hover:border-purple-400 cursor-pointer font-medium text-purple-800 dark:text-white shadow-sm"
           >
             {weekOptions.map(option => (
               <option key={option.value} value={option.value} className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200">
@@ -727,7 +727,7 @@ const ScheduledTasks = () => {
       case 'campaign':
         const campaign = campaigns.find(c => c.id === value);
         return campaign ? (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-medium">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-600 text-blue-700 dark:text-white text-xs font-medium">
             {campaign.name}
           </span>
         ) : <span className="text-gray-400">-</span>;
@@ -737,7 +737,7 @@ const ScheduledTasks = () => {
       
       case 'checkbox':
         return value ? (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">✓</span>
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-100 dark:bg-green-600 text-green-600 dark:text-white">✓</span>
         ) : (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 text-gray-400">✗</span>
         );
@@ -753,10 +753,10 @@ const ScheduledTasks = () => {
         if (column.key === 'status') {
           const statusColors = {
             not_started: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
-            in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-            submitted: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-            needs_revision: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-            approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+            in_progress: 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white',
+            submitted: 'bg-purple-100 dark:bg-purple-600 text-purple-700 dark:text-white',
+            needs_revision: 'bg-amber-100 dark:bg-amber-600 text-amber-700 dark:text-white',
+            approved: 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white',
           };
           return (
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
@@ -766,9 +766,9 @@ const ScheduledTasks = () => {
         }
         if (column.key === 'priority') {
           const priorityColors = {
-            urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800',
-            high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
-            normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+            urgent: 'bg-red-100 dark:bg-red-600 text-red-700 dark:text-white border-red-200 dark:border-red-500',
+            high: 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white border-orange-200 dark:border-orange-500',
+            normal: 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white border-blue-200 dark:border-blue-500',
             low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
           };
           return (
@@ -1217,7 +1217,7 @@ const ScheduledTasks = () => {
                   return (
                     <div key={user.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-shadow">
                       {/* User Header */}
-                      <div className="bg-gradient-to-br from-blue-50 dark:from-blue-900/30 to-indigo-100 dark:to-indigo-900/30 p-6 border-b border-gray-200 dark:border-gray-700">
+                      <div className="bg-gradient-to-br from-blue-50 dark:from-blue-600 to-indigo-100 dark:to-indigo-700 p-6 border-b border-gray-200 dark:border-gray-600">
                         <div className="flex flex-col items-center">
                           {user.profile_picture ? (
                             <img src={user.profile_picture} alt={user.name} className="w-20 h-20 rounded-full object-cover shadow-lg mb-3" />
@@ -1264,11 +1264,11 @@ const ScheduledTasks = () => {
                                   {scheduledTasks.map(task => {
                                     const getPriorityColor = (priority) => {
                                       switch(priority?.toLowerCase()) {
-                                        case 'critical': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
-                                        case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
-                                        case 'normal': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+                                        case 'critical': return 'bg-red-100 dark:bg-red-600 text-red-700 dark:text-white';
+                                        case 'high': return 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white';
+                                        case 'normal': return 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white';
                                         case 'low': return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-                                        case 'paused': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+                                        case 'paused': return 'bg-purple-100 dark:bg-purple-600 text-purple-700 dark:text-white';
                                         default: return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
                                       }
                                     };
@@ -1337,9 +1337,9 @@ const ScheduledTasks = () => {
                                               value={task.copyApproval || ''}
                                               onChange={(e) => updateScheduledTask(task.id, { copyApproval: e.target.value })}
                                               className={`flex-1 px-2 py-1 text-xs border rounded cursor-pointer ${
-                                                task.copyApproval === 'Approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' :
-                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' :
-                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800' :
+                                                task.copyApproval === 'Approved' ? 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white border-green-200 dark:border-green-500' :
+                                                task.copyApproval === 'Needs Review' ? 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white border-orange-200 dark:border-orange-500' :
+                                                task.copyApproval === 'Left feedback' ? 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white border-blue-200 dark:border-blue-500' :
                                                 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'
                                               }`}
                                             >
@@ -1627,7 +1627,7 @@ const ScheduledTasks = () => {
                               return (
                                 <div key={campaignId} className="bg-gradient-to-br from-gray-50 dark:from-gray-900 via-white dark:via-gray-850 to-gray-50 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                                   {/* Campaign Header */}
-                                  <div className="bg-gradient-to-r from-purple-50 dark:from-purple-900/30 to-purple-100 dark:to-purple-900/30 px-3 py-2 border-b border-purple-200 dark:border-purple-800">
+                                  <div className="bg-gradient-to-r from-purple-50 dark:from-purple-600 to-purple-100 dark:to-purple-700 px-3 py-2 border-b border-purple-200 dark:border-purple-500">
                                     <h4 className="text-sm font-bold text-purple-900 dark:text-purple-200">
                                       {campaign?.name || 'Uncategorized'}
                                     </h4>
@@ -1641,11 +1641,11 @@ const ScheduledTasks = () => {
                                     {scheduledTasks.map(task => {
                                       const getPriorityColor = (priority) => {
                                         switch(priority?.toLowerCase()) {
-                                          case 'critical': return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
-                                          case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400';
-                                          case 'normal': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+                                          case 'critical': return 'bg-red-100 dark:bg-red-600 text-red-700 dark:text-white';
+                                          case 'high': return 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white';
+                                          case 'normal': return 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white';
                                           case 'low': return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-                                          case 'paused': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+                                          case 'paused': return 'bg-purple-100 dark:bg-purple-600 text-purple-700 dark:text-white';
                                           default: return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
                                         }
                                       };

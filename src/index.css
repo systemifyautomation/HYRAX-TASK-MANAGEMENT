@@ -205,8 +205,8 @@ body {
   @apply bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors;
 }
 
-/* Global dark mode for form elements */
-.dark select,
+/* Global dark mode for form elements - exclude color-coded selects */
+.dark select:not([data-colored]),
 .dark input,
 .dark textarea {
   background-color: #1f2937; /* gray-800 */

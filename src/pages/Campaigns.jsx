@@ -18,9 +18,9 @@ const Campaigns = () => {
     if (taskCount === 0) {
       return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
     } else if (taskCount < 5) {
-      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400';
+      return 'bg-amber-100 dark:bg-amber-600 text-amber-700 dark:text-white';
     } else {
-      return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
+      return 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white';
     }
   };
 
@@ -59,7 +59,7 @@ const Campaigns = () => {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/30 rounded-lg flex items-center justify-center text-primary-600 dark:text-primary-400">
+                  <div className="w-12 h-12 bg-primary-50 dark:bg-primary-600 rounded-lg flex items-center justify-center text-primary-600 dark:text-white">
                     <FolderOpen className="w-6 h-6" />
                   </div>
                   <div>

@@ -235,13 +235,13 @@ const UserManagement = () => {
     const normalized = normalizeRole(role);
     switch (normalized) {
       case 'super_admin':
-        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+        return 'bg-purple-100 dark:bg-purple-600 text-purple-700 dark:text-white';
       case 'admin':
-        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+        return 'bg-red-100 dark:bg-red-600 text-red-700 dark:text-white';
       case 'manager':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+        return 'bg-blue-100 dark:bg-blue-600 text-blue-700 dark:text-white';
       case 'user':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
+        return 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white';
       case 'team_member':
         return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
       default:
@@ -521,7 +521,7 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-600 text-indigo-700 dark:text-white">
                       {user.department || 'Not Assigned'}
                     </span>
                   </td>

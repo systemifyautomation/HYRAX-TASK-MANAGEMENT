@@ -105,7 +105,7 @@ const UserTaskCard = ({
                 <div key={campaignId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
                   {/* Campaign Header */}
                   <div 
-                    className="bg-gradient-to-r from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:from-blue-100 dark:hover:from-blue-900/40 hover:to-indigo-100 dark:hover:to-indigo-900/40 transition-colors"
+                    className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-gray-200 dark:border-gray-600 cursor-pointer hover:from-blue-100 hover:to-indigo-100 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       const userSlug = getUserSlug(user.id) || 'user';
@@ -226,6 +226,7 @@ const UserTaskCard = ({
                                         return (
                                           <>
                                             <select
+                                              data-colored
                                               value={scriptAssignedId || ''}
                                               onChange={(e) => {
                                                 e.stopPropagation();
@@ -309,6 +310,7 @@ const UserTaskCard = ({
                                   {canEditStatus ? (
                                     <div className="relative">
                                       <select
+                                        data-colored
                                         value={taskStatus}
                                         onChange={(e) => {
                                           e.stopPropagation();
@@ -318,12 +320,12 @@ const UserTaskCard = ({
                                         onClick={(e) => e.stopPropagation()}
                                         className={`appearance-none text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 pr-4 lg:pr-5 rounded-full cursor-pointer transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent shadow-sm hover:shadow-md text-center ${
                                           taskStatus === 'Approved' 
-                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50' :
+                                            ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-100 border-green-200 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-800' :
                                           taskStatus === 'Needs Review' 
-                                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-900/50' :
+                                            ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-100 border-orange-200 dark:border-orange-600 hover:bg-orange-200 dark:hover:bg-orange-800' :
                                           taskStatus === 'Left Feedback' 
-                                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-900/50' :
-                                          'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-100 border-purple-200 dark:border-purple-600 hover:bg-purple-200 dark:hover:bg-purple-800' :
+                                          'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                                         }`}
                                       >
                                         <option value="Not done" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">Not done</option>
@@ -333,12 +335,12 @@ const UserTaskCard = ({
                                       </select>
                                       <div className={`absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none ${
                                         taskStatus === 'Approved' 
-                                          ? 'text-green-700 dark:text-green-400' :
+                                          ? 'text-green-700 dark:text-green-100' :
                                         taskStatus === 'Needs Review' 
-                                          ? 'text-orange-700 dark:text-orange-400' :
+                                          ? 'text-orange-700 dark:text-orange-100' :
                                         taskStatus === 'Left Feedback' 
-                                          ? 'text-purple-700 dark:text-purple-400' :
-                                        'text-gray-600 dark:text-gray-400'
+                                          ? 'text-purple-700 dark:text-purple-100' :
+                                        'text-gray-600 dark:text-gray-300'
                                       }`}>
                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -348,12 +350,12 @@ const UserTaskCard = ({
                                   ) : (
                                     <span className={`inline-block text-[10px] lg:text-xs font-semibold px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full ${
                                       taskStatus === 'Approved' 
-                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                        ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-100' :
                                       taskStatus === 'Needs Review' 
-                                        ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' :
+                                        ? 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-100' :
                                       taskStatus === 'Left Feedback' 
-                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                                      'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                        ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-100' :
+                                      'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                                     }`}>
                                       {taskStatus}
                                     </span>
@@ -383,7 +385,7 @@ const UserTaskCard = ({
               e.stopPropagation();
               onAddTaskClick && onAddTaskClick();
             }}
-            className="flex items-center gap-1.5 lg:gap-2 text-red-600 hover:text-red-700 transition-colors font-medium text-sm lg:text-base"
+            className="flex items-center gap-1.5 lg:gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors font-medium text-sm lg:text-base"
           >
             <Plus className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
             Add Task

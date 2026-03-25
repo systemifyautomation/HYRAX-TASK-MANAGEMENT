@@ -1,6 +1,14 @@
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  safelist: [
+    // Buyer colors - backgrounds (light + dark)
+    { pattern: /^bg-(red|orange|amber|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate)-(50|100|200|600|700|800|900)$/, variants: ['dark', 'hover', 'dark:hover'] },
+    // Buyer colors - text
+    { pattern: /^text-(red|orange|amber|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate)-(100|200|700|900)$/, variants: ['dark'] },
+    // Buyer colors - borders
+    { pattern: /^border-(red|orange|amber|lime|green|emerald|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate)-(200|300|500|600)$/, variants: ['dark', 'hover', 'dark:hover'] },
+  ],
   theme: {
     extend: {
       colors: {

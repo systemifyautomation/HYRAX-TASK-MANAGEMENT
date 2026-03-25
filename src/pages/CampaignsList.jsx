@@ -96,7 +96,7 @@ const CampaignsList = () => {
               </h1>
               <p className="text-gray-500 dark:text-gray-400 mt-2">All campaign information and Slack channel IDs</p>
               {error && (
-                <div className="mt-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-lg inline-block">
+                <div className="mt-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-600 dark:text-white px-3 py-1 rounded-lg inline-block">
                   ⚠️ {error}
                 </div>
               )}

@@ -64,7 +64,7 @@ const Sidebar = ({ onCollapsedChange }) => {
             className={({ isActive }) =>
               `flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 font-medium'
+                  ? 'bg-primary-50 text-primary-700 dark:bg-primary-600 dark:text-white font-medium'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`
             }

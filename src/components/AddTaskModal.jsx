@@ -122,7 +122,7 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
         </div>
 
         {/* User Info */}
-        <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-600 rounded-lg border border-blue-200 dark:border-blue-500">
           <p className="text-sm text-gray-600 dark:text-gray-400">Assigning to:</p>
           <p className="font-semibold text-gray-900 dark:text-gray-100">{user.name}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">{user.department}</p>
@@ -130,8 +130,8 @@ const AddTaskModal = ({ isOpen, onClose, user, campaigns, users, weekView, onAdd
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-600 border border-red-200 dark:border-red-500 rounded-lg">
+            <p className="text-sm text-red-800 dark:text-white">{error}</p>
           </div>
         )}
 

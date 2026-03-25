@@ -831,12 +831,12 @@ const UserTasksModal = ({
                       <span 
                         className={`px-3 py-1 rounded-full text-sm font-semibold ${
                           currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            ? 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white'
                             : currentAd?.approval === 'Left Feedback'
-                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+                            ? 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white'
                             : currentAd?.approval === 'Needs Review'
-                            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            ? 'bg-yellow-100 dark:bg-yellow-600 text-yellow-700 dark:text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white'
                         }`}
                       >
                         {(currentAd?.approval === 'Approved' || currentAd?.approval === 'Uploaded')
@@ -1019,10 +1019,10 @@ const UserTasksModal = ({
                 : 'Approved';
               
               const statusColors = {
-                'Approved': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
-                'Needs Review': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
-                'Left Feedback': 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-                'Not done': 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700',
+                'Approved': 'bg-green-100 dark:bg-green-600 text-green-700 dark:text-white border-green-200 dark:border-green-500',
+                'Needs Review': 'bg-orange-100 dark:bg-orange-600 text-orange-700 dark:text-white border-orange-200 dark:border-orange-500',
+                'Left Feedback': 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500',
+                'Not done': 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-white border-gray-200 dark:border-gray-700',
               };
 
               return (
@@ -1035,7 +1035,7 @@ const UserTasksModal = ({
                   <div 
                     className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 dark:border-gray-700 ${
                       isExpanded 
-                        ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30' 
+                        ? 'bg-green-50 hover:bg-green-100 dark:bg-green-600 dark:shadow-lg dark:shadow-green-500/30 dark:hover:bg-green-500' 
                         : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => {
@@ -1070,7 +1070,11 @@ const UserTasksModal = ({
                     }}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate">
+                      <h2 className={`text-lg font-bold truncate ${
+                        isExpanded 
+                          ? 'text-gray-800 dark:text-white' 
+                          : 'text-gray-800 dark:text-gray-200'
+                      }`}>
                         {campaignName}
                       </h2>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap flex-shrink-0 ${statusColors[campaignStatus]}`}>
@@ -1094,9 +1098,9 @@ const UserTasksModal = ({
                         </button>
                       )}
                       {isExpanded ? (
-                        <ChevronDown className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        <ChevronDown className="w-5 h-5 text-green-600 dark:text-white" />
                       ) : (
-                        <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        <ChevronRight className="w-5 h-5 text-gray-600 dark:text-white" />
                       )}
                     </div>
                   </div>
@@ -1200,7 +1204,7 @@ const UserTasksModal = ({
                         const scriptAssignedId = Array.isArray(task.scriptAssigned) ? task.scriptAssigned[0] : task.scriptAssigned;
                         
                         return (
-                          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 dark:from-blue-900/30 to-indigo-50 dark:to-indigo-900/30 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-sm">
+                          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1210,17 +1214,17 @@ const UserTasksModal = ({
                               </h3>
                             </div>
                             
-                            {/* Copy Link & Script Assigned */}
-                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 shadow-sm">
+                            {/*  Copy Link & Script Assigned */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 dark:border-blue-800 shadow-sm">
                               {/* Header Row */}
                               <div className="grid gap-4 mb-2" style={{ gridTemplateColumns: '2fr 1fr' }}>
-                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-1">
+                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.102m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                   </svg>
                                   Copy Link
                                 </label>
-                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-1">
+                                <label className="text-xs font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1">
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                   </svg>
@@ -1242,7 +1246,7 @@ const UserTasksModal = ({
                                     }}
                                     placeholder="Paste copy link here..."
                                     rows={3}
-                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-100 border border-blue-200 dark:border-blue-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
+                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-100 border border-blue-200 dark:border-blue-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
                                   />
                                   {copyLink && (
                                     <a
@@ -1250,7 +1254,7 @@ const UserTasksModal = ({
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={(e) => e.stopPropagation()}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors flex-shrink-0"
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"
                                       title="Open copy link"
                                     >
                                       <ExternalLink className="w-4 h-4" />
@@ -1263,7 +1267,7 @@ const UserTasksModal = ({
                                   <select
                                     value={scriptAssignedId || ''}
                                     onChange={(e) => handleScriptAssignedChange(e.target.value)}
-                                    className="px-2.5 py-1.5 text-xs border border-blue-200 dark:border-blue-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                                    className="px-2.5 py-1.5 text-xs border border-blue-200 dark:border-blue-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                   >
                                     <option value="">-- Select User --</option>
                                     {users?.filter(user => user.department === 'MEDIA BUYING').map(user => (
@@ -1366,7 +1370,7 @@ const UserTasksModal = ({
                                         isVideoEditor: isVideoEditor
                                       });
                                     }}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                                     title={isVideoEditor ? "Delete Both Formats" : "Delete Creative"}
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1375,24 +1379,24 @@ const UserTasksModal = ({
                               </div>
                               
                               {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
-                                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 dark:bg-blue-600">
                                   <div className="text-blue-600 mb-2">
-                                    <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-500 border-t-blue-600 rounded-full animate-spin"></div>
                                   </div>
-                                  <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+                                  <p className="text-sm font-medium text-blue-700 dark:text-white mb-1">
                                     {hasUpload ? 'Replacing' : 'Uploading'}... {uploadingCreatives[`${task.id}-${slotIndex}`]}%
                                   </p>
                                   <button
                                     onClick={() => handleCancelUpload(`${task.id}-${slotIndex}`)}
-                                    className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center gap-1"
+                                    className="mt-2 px-3 py-1 text-xs font-medium text-red-600 dark:text-white bg-red-50 dark:bg-red-600 border border-red-300 dark:border-red-500 rounded hover:bg-red-100 dark:hover:bg-red-700 transition-colors flex items-center gap-1"
                                   >
                                     <XCircle className="w-3 h-3" />
                                     Cancel Upload
                                   </button>
                                 </div>
                               ) : isUploadedToFacebook ? (
-                                <div className="flex flex-col items-center justify-center gap-3 py-8 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20">
-                                  <p className="text-base font-semibold text-green-700 dark:text-green-400">Uploaded to Facebook</p>
+                                <div className="flex flex-col items-center justify-center gap-3 py-8 border border-green-200 dark:border-green-500 rounded-lg bg-green-50 dark:bg-green-600">
+                                  <p className="text-base font-semibold text-green-700 dark:text-white">Uploaded to Facebook</p>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1404,7 +1408,7 @@ const UserTasksModal = ({
                                         setCurrentPreviewIndex(previewIndex);
                                       }
                                     }}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 dark:text-green-400 bg-white dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-300 rounded-lg transition-colors shadow-sm"
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 dark:text-white bg-white dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-600 border border-green-300 rounded-lg transition-colors shadow-sm"
                                   >
                                     <Eye className="w-4 h-4" />
                                     Preview
@@ -1413,12 +1417,12 @@ const UserTasksModal = ({
                               ) : hasUpload ? (
                                 <div className="space-y-5">
                                   {/* Link Display with Download Button */}
-                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 dark:bg-gray-900/80 rounded-lg border border-gray-100 dark:border-gray-700">  
+                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-100 dark:border-gray-600">  
                                     <a 
                                       href={task.viewerLink[slotIndex]} 
                                       target="_blank" 
                                       rel="noopener noreferrer"
-                                      className="text-sm text-blue-600 hover:underline truncate flex-1 min-w-0"
+                                      className="text-sm text-blue-600 dark:text-blue-300 hover:underline truncate flex-1 min-w-0"
                                       title={task.viewerLink[slotIndex]}
                                       onClick={(e) => e.stopPropagation()}
                                     >
@@ -1672,10 +1676,10 @@ const UserTasksModal = ({
                                   
                                   {/* Manager Feedback */}
                                   {task.viewerLinkFeedback && task.viewerLinkFeedback[slotIndex] && (
-                                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                                    <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl">
                                       <div className="flex items-center gap-2 mb-2">
-                                        <MessageSquare className="w-4 h-4 text-red-600" />
-                                        <p className="text-sm font-bold text-red-900">Manager Feedback</p>
+                                        <MessageSquare className="w-4 h-4 text-red-600 dark:text-red-400" />
+                                        <p className="text-sm font-bold text-red-900 dark:text-red-300">Manager Feedback</p>
                                       </div>
                                       <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed whitespace-pre-wrap pl-6">{task.viewerLinkFeedback[slotIndex]}</p>
                                     </div>
@@ -1684,7 +1688,7 @@ const UserTasksModal = ({
                               ) : (
                                 <div>
                                   {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
-                                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 dark:border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-600">
                                       <div className="text-blue-600 mb-2">
                                         <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 rounded-full animate-spin"></div>
                                       </div>
@@ -1693,7 +1697,7 @@ const UserTasksModal = ({
                                       </p>
                                       <button
                                         onClick={() => handleCancelUpload(`${task.id}-${slotIndex}`)}
-                                        className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center gap-1"
+                                        className="mt-2 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-600 dark:text-white border border-red-300 dark:border-red-500 rounded hover:bg-red-100 dark:hover:bg-red-700 transition-colors flex items-center gap-1"
                                       >
                                         <XCircle className="w-3 h-3" />
                                         Cancel Upload
@@ -1745,8 +1749,8 @@ const UserTasksModal = ({
                                       }}
                                       className={`flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
                                         dragOverSlot === `${task.id}-${slotIndex}`
-                                          ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/30 scale-105'
-                                          : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                          ? 'border-blue-500 bg-blue-100 dark:bg-blue-600 scale-105'
+                                          : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 dark:bg-gray-800'
                                       }`}
                                       onClick={() => {
                                         // Trigger file input when clicking
@@ -1754,14 +1758,14 @@ const UserTasksModal = ({
                                       }}
                                     >
                                       <Upload className={`w-8 h-8 mb-2 transition-colors ${
-                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-600' : 'text-gray-400'
+                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-600 dark:text-blue-300' : 'text-gray-400 dark:text-gray-500'
                                       }`} />
                                       <span className={`text-sm font-medium transition-colors ${
-                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-700 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                                        dragOverSlot === `${task.id}-${slotIndex}` ? 'text-blue-700 dark:text-white' : 'text-gray-600 dark:text-gray-300'
                                       }`}>
                                         {dragOverSlot === `${task.id}-${slotIndex}` ? 'Drop to upload' : 'Click or drag to upload'}
                                       </span>
-                                      <span className="text-xs text-gray-400 mt-1">
+                                      <span className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                         {isVideoEditor ? 'MP4 video' : 'JPG or PNG image'}
                                       </span>
                                       <input
@@ -1857,10 +1861,10 @@ const UserTasksModal = ({
                             );
                             setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
                           }}
-                          className="w-full rounded-xl p-4 bg-white dark:bg-gray-800 border-2 border-dashed border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
+                          className="w-full rounded-xl p-4 bg-white dark:bg-gray-800 border-2 border-dashed border-blue-300 dark:border-blue-500 hover:border-blue-400 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 transition-all cursor-pointer"
                         >
                           <div className="flex flex-col items-center justify-center py-4">
-                            <Plus className="w-8 h-8 text-blue-500 mb-2" />
+                            <Plus className="w-8 h-8 text-blue-500 dark:text-blue-400 mb-2" />
                             <span className="text-sm font-medium text-blue-600">New Creative</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {isVideoEditor ? 'Add new variation (2 slots: Facebook + Reel)' : 'Add new variation'}
@@ -1888,7 +1892,7 @@ const UserTasksModal = ({
                   e.stopPropagation();
                   onAddTaskClick && onAddTaskClick();
                 }}
-                className="flex items-center gap-2 text-red-600 hover:text-red-700 transition-colors font-medium"
+                className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors font-medium"
               >
                 <Plus className="w-4 h-4" />
                 Add Task
@@ -1930,7 +1934,7 @@ const UserTasksModal = ({
               </button>
             </div>
 
-            <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-600 bg-red-50 dark:bg-red-900/20">
+            <div className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-600 dark:text-white bg-red-50 dark:bg-red-600">
               <History className="w-4 h-4" />
               Timeline (Versions & Comments)
             </div>
@@ -1984,7 +1988,7 @@ const UserTasksModal = ({
                               item.isCurrent
                                 ? 'border-red-300 bg-red-50/50 hover:bg-red-50'
                                 : isSelected
-                                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                                ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-600 shadow-sm'
                                 : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-sm'
                             }`}
                             onClick={() => setSelectedVersionPreview(item)}
@@ -2060,7 +2064,7 @@ const UserTasksModal = ({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={() => setDeleteConfirmModal(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-600 rounded-full flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">

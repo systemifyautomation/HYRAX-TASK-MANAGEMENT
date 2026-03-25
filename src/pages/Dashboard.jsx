@@ -16,15 +16,15 @@ const Dashboard = () => {
   const approvedTasks = tasks.filter(t => t.status === taskStatus.APPROVED).length;
 
   const stats = isManager ? [
-    { label: 'Active Campaigns', value: activeCampaigns, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'Pending Reviews', value: tasksNeedingReview.length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-    { label: 'Approved Tasks', value: approvedTasks, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-    { label: 'Total Tasks', value: tasks.length, icon: Clock, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+    { label: 'Active Campaigns', value: activeCampaigns, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-600' },
+    { label: 'Pending Reviews', value: tasksNeedingReview.length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-600' },
+    { label: 'Approved Tasks', value: approvedTasks, icon: CheckCircle, color: 'text-green-600 dark:text-white', bg: 'bg-green-50 dark:bg-green-600' },
+    { label: 'Total Tasks', value: tasks.length, icon: Clock, color: 'text-purple-600 dark:text-white', bg: 'bg-purple-50 dark:bg-purple-600' },
   ] : [
-    { label: 'My Tasks', value: myTasks.length, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'In Progress', value: myTasks.filter(t => t.status === taskStatus.IN_PROGRESS).length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-    { label: 'Completed', value: myTasks.filter(t => t.status === taskStatus.APPROVED).length, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-    { label: 'Need Revision', value: myTasks.filter(t => t.status === taskStatus.NEEDS_REVISION).length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
+    { label: 'My Tasks', value: myTasks.length, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-600' },
+    { label: 'In Progress', value: myTasks.filter(t => t.status === taskStatus.IN_PROGRESS).length, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-600' },
+    { label: 'Completed', value: myTasks.filter(t => t.status === taskStatus.APPROVED).length, icon: CheckCircle, color: 'text-green-600 dark:text-white', bg: 'bg-green-50 dark:bg-green-600' },
+    { label: 'Need Revision', value: myTasks.filter(t => t.status === taskStatus.NEEDS_REVISION).length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-600' },
   ];
 
   return (
@@ -100,7 +100,7 @@ const Dashboard = () => {
               <div key={campaign.id} className="card hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 dark:text-gray-100">{campaign.name}</h3>
-                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-full capitalize">
+                  <span className="px-2 py-1 bg-green-100 dark:bg-green-600 text-green-700 dark:text-white text-xs font-medium rounded-full capitalize">
                     {campaign.status}
                   </span>
                 </div>

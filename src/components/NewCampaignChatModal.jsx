@@ -684,7 +684,7 @@ const NewCampaignChatModal = ({ isOpen, onClose, currentUser, users = [], loadUs
             <div className="flex items-center space-x-2">
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">New Campaign</h2>
               {messages.length > 1 && (
-                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium rounded-full">
+                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-600 text-amber-700 dark:text-white text-xs font-medium rounded-full">
                   In Progress
                 </span>
               )}
