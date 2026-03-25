@@ -150,20 +150,20 @@ const CampaignsList = () => {
         </div>
 
         {/* Campaigns Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden backdrop-blur-sm mt-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mt-8">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gradient-to-r from-gray-50 dark:from-gray-900 via-gray-100 dark:via-gray-850 to-gray-50 dark:to-gray-900 border-b-2 border-gray-200 dark:border-gray-700">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Campaign Name
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Slack ID
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {campaignsLoading ? (
                   <tr>
                     <td colSpan={2} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
@@ -185,12 +185,12 @@ const CampaignsList = () => {
                   currentCampaigns.map((campaign) => (
                     <tr 
                       key={campaign.id} 
-                      className="group hover:bg-gradient-to-r hover:from-gray-50 dark:hover:from-gray-700 hover:to-blue-50/30 dark:hover:to-blue-900/10 transition-all duration-150"
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                         {campaign.name}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         {campaign.slackId ? (
                           <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
                             {campaign.slackId}
@@ -207,7 +207,7 @@ const CampaignsList = () => {
           </div>
           
           {/* Table Footer with Pagination */}
-          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 dark:from-gray-900 via-gray-100 dark:via-gray-850 to-gray-50 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               {/* Left side - Info */}
               <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">

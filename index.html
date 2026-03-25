@@ -6,9 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HYRAX TASKS</title>
     <script>
-      // Force light mode - dark mode removed
-      document.documentElement.classList.remove('dark');
-      localStorage.removeItem('hyrax_dark_mode');
+      // Prevent flash of wrong theme by applying dark class immediately
+      try {
+        const dm = JSON.parse(localStorage.getItem('hyrax_dark_mode'));
+        if (dm === true || dm === null) {
+          document.documentElement.classList.add('dark');
+        } else if (dm === false) {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch(e) {
+        // Default to dark on error
+        document.documentElement.classList.add('dark');
+      }
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>

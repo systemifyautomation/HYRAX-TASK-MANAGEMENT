@@ -322,7 +322,7 @@ const Performance = () => {
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 dark:text-indigo-400">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400">
                         {row.department}
                       </span>
                     </td>

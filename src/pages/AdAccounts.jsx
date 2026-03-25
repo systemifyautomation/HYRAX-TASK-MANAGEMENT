@@ -48,7 +48,7 @@ const AdAccounts = () => {
   const [pixelIdFilter, setPixelIdFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  const isAdminUser = currentUser ? isAdmin(currentUser.role) : false;
+  const isAdminUser = currentUser ? (isAdmin(currentUser.role) || currentUser.department === 'MEDIA BUYING') : false;
 
   // Get unique values for filters
   const uniqueCampaigns = useMemo(() => {

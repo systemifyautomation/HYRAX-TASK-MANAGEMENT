@@ -23,12 +23,39 @@ export const AppProvider = ({ children }) => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [users, setUsers] = useState([]);
   
-  // Dark mode removed - always use light mode
+  // Dark mode (persisted to localStorage)
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hyrax_dark_mode');
+      // If saved value exists, use it; otherwise default to true (dark mode)
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+      return true; // Default to dark
+    } catch (error) {
+      console.error('Error reading dark mode from localStorage:', error);
+      return true;
+    }
+  });
+
   useEffect(() => {
-    // Force light mode
-    document.documentElement.classList.remove('dark');
-    localStorage.removeItem('hyrax_dark_mode');
-  }, []);
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('hyrax_dark_mode', JSON.stringify(darkMode));
+      console.log('Dark mode toggled:', darkMode);
+    } catch (error) {
+      console.error('Error saving dark mode to localStorage:', error);
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    console.log('Toggle dark mode called, current:', darkMode);
+    setDarkMode(prev => !prev);
+  };
 
   // Buyer color assignments (persisted to localStorage)
   const [buyerColors, setBuyerColors] = useState(() => {
@@ -2189,6 +2216,10 @@ export const AppProvider = ({ children }) => {
     tasksLoading,
     scheduledTasksLoading,
     usersLoading,
+    
+    // Dark mode
+    darkMode,
+    toggleDarkMode,
     
     // Buyer colors
     buyerColors,

@@ -982,7 +982,7 @@ const UserTasksModal = ({
               } else {
                 setUserTasksModal(null);
               }
-            }} className="text-gray-400 hover:text-gray-600 transition-colors">
+            }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -1413,7 +1413,7 @@ const UserTasksModal = ({
                               ) : hasUpload ? (
                                 <div className="space-y-5">
                                   {/* Link Display with Download Button */}
-                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 rounded-lg border border-gray-100 dark:border-gray-700">  
+                                  <div className="flex items-center gap-2.5 p-3.5 bg-gray-50/80 dark:bg-gray-900/80 rounded-lg border border-gray-100 dark:border-gray-700">  
                                     <a 
                                       href={task.viewerLink[slotIndex]} 
                                       target="_blank" 
@@ -1662,7 +1662,7 @@ const UserTasksModal = ({
                                         const basePath = getBasePath();
                                         navigate(`${basePath}/${userSlug}/${campaignSlug}/ad_${adNumber}/versions`, { replace: true });
                                       }}
-                                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all"
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all"
                                       title="View History"
                                     >
                                       <History className="w-4 h-4" />
@@ -1924,7 +1924,7 @@ const UserTasksModal = ({
                     navigate(previewPath, { replace: true });
                   }
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1996,7 +1996,7 @@ const UserTasksModal = ({
                                     ? 'bg-red-500 text-white'
                                     : isSelected
                                     ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 group-hover:bg-gray-200'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 group-hover:bg-gray-200 dark:group-hover:bg-gray-600'
                                 }`}>
                                   v{versionNumber}
                                 </div>
@@ -2015,7 +2015,7 @@ const UserTasksModal = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-all"
+                                className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all"
                                 title="Open in new tab"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
