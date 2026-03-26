@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { logUserActivity } from '../utils/activityLogger';
 
 const AppContext = createContext(null);
 
@@ -504,7 +505,8 @@ export const AppProvider = ({ children }) => {
         const mappedCampaigns = data.map(campaign => ({
           id: campaign.id,
           name: campaign.campaign_name,
-          slackId: campaign.slack_channel_ID
+          slackId: campaign.slack_channel_ID,
+          tasksCount: typeof campaign.tasks === 'number' ? campaign.tasks : 0
         }));
         setCampaigns(mappedCampaigns);
         localStorage.setItem('hyrax_campaigns', JSON.stringify(mappedCampaigns));
@@ -1102,6 +1104,10 @@ export const AppProvider = ({ children }) => {
     // Track this task as optimistically added
     setOptimisticTaskIds(prev => new Set(prev).add(newTask.id));
     
+    // Log activity
+    const campaignName = campaigns.find(c => String(c.id) === String(newTask.campaignId))?.name || '';
+    logUserActivity({ action: 'ADD', entityType: 'TASK', entityId: newTask.id, entityName: campaignName, details: { campaignId: newTask.campaignId, assignedTo: newTask.assignedTo, mediaType: newTask.mediaType, week: newTask.week }, currentUser });
+
     // Send to webhook
     try {
       const adminEmail = currentUser?.email || '';
@@ -1202,6 +1208,12 @@ export const AppProvider = ({ children }) => {
       return updated;
     });
     
+    // Log activity for batch add
+    newTasks.forEach(t => {
+      const campaignName = campaigns.find(c => String(c.id) === String(t.campaignId))?.name || '';
+      logUserActivity({ action: 'ADD', entityType: 'TASK', entityId: t.id, entityName: campaignName, details: { campaignId: t.campaignId, assignedTo: t.assignedTo, mediaType: t.mediaType, week: t.week, batch: true, batchSize: newTasks.length }, currentUser });
+    });
+
     // Send all tasks to webhook in a single request
     try {
       const adminEmail = currentUser?.email || '';
@@ -1362,6 +1374,21 @@ export const AppProvider = ({ children }) => {
     const updatedTask = tasks.find(t => t.id === taskId);
     const completeUpdatedTask = { ...updatedTask, ...taskUpdates };
     
+    // Log activity — detect approval changes
+    const approvalChanged = existingTask && 'viewerLinkApproval' in sanitizedUpdates;
+    const newApprovals = approvalChanged ? sanitizedUpdates.viewerLinkApproval : [];
+    const oldApprovals = approvalChanged && Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+    const hasNewApproval = approvalChanged && Array.isArray(newApprovals) && newApprovals.some((v, i) => v === 'Approved' && oldApprovals[i] !== 'Approved');
+    if (hasNewApproval) {
+      const cName = campaigns.find(c => String(c.id) === String(existingTask?.campaignId))?.name || '';
+      logUserActivity({ action: 'APPROVE', entityType: 'CREATIVE', entityId: taskId, entityName: cName, details: { approvals: newApprovals, previousApprovals: oldApprovals, campaignId: existingTask?.campaignId }, currentUser });
+    }
+    {
+      const cName = campaigns.find(c => String(c.id) === String(existingTask?.campaignId))?.name || '';
+      const changedFields = Object.keys(sanitizedUpdates);
+      logUserActivity({ action: 'EDIT', entityType: 'TASK', entityId: taskId, entityName: cName, details: { changedFields, campaignId: existingTask?.campaignId }, currentUser });
+    }
+
     console.log('🔵 updateTask - sending PATCH request to webhook (NOT updating local state)');
     
     // Send to webhook - database is source of truth
@@ -1445,6 +1472,12 @@ export const AppProvider = ({ children }) => {
     // Find the task before deleting
     const taskToDelete = tasks.find(task => task.id === taskId);
     
+    // Log activity
+    if (taskToDelete) {
+      const campaignName = campaigns.find(c => String(c.id) === String(taskToDelete.campaignId))?.name || '';
+      logUserActivity({ action: 'DELETE', entityType: 'TASK', entityId: taskId, entityName: campaignName, details: { campaignId: taskToDelete.campaignId, assignedTo: taskToDelete.assignedTo, status: taskToDelete.status }, currentUser });
+    }
+
     // Update local state and localStorage immediately
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
@@ -1502,6 +1535,12 @@ export const AppProvider = ({ children }) => {
     // Find all tasks before deleting
     const tasksToDelete = tasks.filter(task => taskIds.includes(task.id));
     
+    // Log activity for batch delete
+    tasksToDelete.forEach(t => {
+      const campaignName = campaigns.find(c => String(c.id) === String(t.campaignId))?.name || '';
+      logUserActivity({ action: 'DELETE', entityType: 'TASK', entityId: t.id, entityName: campaignName, details: { campaignId: t.campaignId, batch: true, batchSize: taskIds.length }, currentUser });
+    });
+
     // Update local state and localStorage immediately
     const updatedTasks = tasks.filter(task => !taskIds.includes(task.id));
     setTasks(updatedTasks);
@@ -1682,6 +1721,10 @@ export const AppProvider = ({ children }) => {
     // Track this scheduled task as optimistically added
     setOptimisticScheduledTaskIds(prev => new Set(prev).add(newTask.id));
     
+    // Log activity
+    const campaignName = campaigns.find(c => String(c.id) === String(newTask.campaignId))?.name || '';
+    logUserActivity({ action: 'ADD', entityType: 'SCHEDULED_TASK', entityId: newTask.id, entityName: campaignName, details: { campaignId: newTask.campaignId, assignedTo: newTask.assignedTo, mediaType: newTask.mediaType, week: newTask.week }, currentUser });
+
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
@@ -1964,13 +2007,34 @@ export const AppProvider = ({ children }) => {
         await sendNewCopyWebhook(completeUpdatedTask);
       }
     }
+
+    // Log activity for scheduled task update
+    const approvalChangedST = existingTask && 'viewerLinkApproval' in sanitizedUpdates;
+    const newApprovalsST = approvalChangedST ? sanitizedUpdates.viewerLinkApproval : [];
+    const oldApprovalsST = approvalChangedST && Array.isArray(existingTask.viewerLinkApproval) ? existingTask.viewerLinkApproval : [];
+    const hasNewApprovalST = approvalChangedST && Array.isArray(newApprovalsST) && newApprovalsST.some((v, i) => v === 'Approved' && oldApprovalsST[i] !== 'Approved');
+    if (hasNewApprovalST) {
+      const cName = campaigns.find(c => String(c.id) === String(existingTask?.campaignId))?.name || '';
+      logUserActivity({ action: 'APPROVE', entityType: 'CREATIVE', entityId: taskId, entityName: cName, details: { approvals: newApprovalsST, previousApprovals: oldApprovalsST, scheduled: true }, currentUser });
+    }
+    {
+      const cName = campaigns.find(c => String(c.id) === String(existingTask?.campaignId))?.name || '';
+      logUserActivity({ action: 'EDIT', entityType: 'SCHEDULED_TASK', entityId: taskId, entityName: cName, details: { changedFields: Object.keys(sanitizedUpdates) }, currentUser });
+    }
   };
 
   const deleteScheduledTask = async (taskId) => {
+    const taskToDelete = scheduledTasks.find(task => task.id === taskId);
     const updatedTasks = scheduledTasks.filter(task => task.id !== taskId);
     setScheduledTasks(updatedTasks);
     localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
     
+    // Log activity
+    if (taskToDelete) {
+      const campaignName = campaigns.find(c => String(c.id) === String(taskToDelete.campaignId))?.name || '';
+      logUserActivity({ action: 'DELETE', entityType: 'SCHEDULED_TASK', entityId: taskId, entityName: campaignName, details: { campaignId: taskToDelete.campaignId }, currentUser });
+    }
+
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';
@@ -2009,6 +2073,13 @@ export const AppProvider = ({ children }) => {
     setScheduledTasks(updatedTasks);
     localStorage.setItem('hyrax_scheduled_tasks', JSON.stringify(updatedTasks));
     
+    // Log activity
+    taskIds.forEach(id => {
+      const t = scheduledTasks.find(task => task.id === id);
+      const campaignName = t ? campaigns.find(c => String(c.id) === String(t.campaignId))?.name || '' : '';
+      logUserActivity({ action: 'DELETE', entityType: 'SCHEDULED_TASK', entityId: id, entityName: campaignName, details: { batch: true, batchSize: taskIds.length }, currentUser });
+    });
+
     try {
       const adminEmail = currentUser?.email || '';
       const adminPassword = localStorage.getItem('admin_password') || '';

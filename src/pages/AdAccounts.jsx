@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isAdmin } from '../constants/roles';
+import { logUserActivity } from '../utils/activityLogger';
 
 // Hash function to generate code
 const hashThreeInputs = async (input1, input2, input3) => {
@@ -207,6 +208,7 @@ const AdAccounts = () => {
         setAdAccounts(adAccounts.map(acc => acc.id === accountId ? updatedAccount : acc));
         setEditingId(null);
         setEditForm({});
+        logUserActivity({ action: 'EDIT', entityType: 'AD_ACCOUNT', entityId: accountId, entityName: editForm.Campaign || '', details: { changedFields: Object.keys(editForm) }, currentUser });
       } else {
         const errorText = await response.text();
         console.error('Failed to update ad account:', errorText);
@@ -243,6 +245,8 @@ const AdAccounts = () => {
       if (response.ok) {
         setAdAccounts(adAccounts.filter(acc => acc.id !== accountId));
         setDeleteConfirm({ show: false, accountId: null });
+        const deletedAcc = adAccounts.find(acc => acc.id === accountId);
+        logUserActivity({ action: 'DELETE', entityType: 'AD_ACCOUNT', entityId: accountId, entityName: deletedAcc?.Campaign || '', details: { Ad_Account_ID: deletedAcc?.Ad_Account_ID }, currentUser });
       } else {
         const errorText = await response.text();
         console.error('Failed to delete ad account:', errorText);
@@ -279,6 +283,7 @@ const AdAccounts = () => {
       if (response.ok) {
         const newAccount = await response.json();
         setAdAccounts([...adAccounts, newAccount]);
+        logUserActivity({ action: 'ADD', entityType: 'AD_ACCOUNT', entityId: newAccount.id, entityName: addForm.Campaign || '', details: { Ad_Account_ID: addForm.Ad_Account_ID, Status: addForm.Status }, currentUser });
         setShowAddModal(false);
         setAddForm({
           Ad_Account_ID: '',

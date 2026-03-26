@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, ExternalLink, MessageSquare } from 'lucide-react';
+import { Plus, Settings, Trash2, Check, X, Calendar, FolderOpen, Copy, ChevronLeft, ChevronRight, Filter, AlertCircle, ExternalLink, MessageSquare, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { format, startOfWeek, endOfWeek, getWeek, addWeeks, subWeeks, isWithinInterval, startOfDay, endOfDay, subDays, parseISO, differenceInWeeks } from 'date-fns';
 import { isAdmin, isSuperAdmin, isManager, USER_ROLES } from '../constants/roles';
@@ -13,6 +13,7 @@ import CopyLinkPreviewModal from '../components/CopyLinkPreviewModal';
 import UserTasksModal from '../components/UserTasksModal';
 import ColumnManagerModal from '../components/ColumnManagerModal';
 import AddTaskModal from '../components/AddTaskModal';
+import { logUserActivity } from '../utils/activityLogger';
 
 // Global storage for active uploads - survives component re-renders
 if (!window.HYRAX_ACTIVE_UPLOADS) {
@@ -1841,6 +1842,9 @@ const Tasks = () => {
           console.log('✅ Received Slack permalink:', slackPermalink);
         }
         
+        // Log creative upload activity
+        logUserActivity({ action: 'ADD', entityType: 'CREATIVE', entityId: taskId, entityName: campaign?.name || '', details: { adIndex, uploadedUrl, previousUrl, fileSize: file.size, fileType: file.type, campaignId: taskData?.campaignId }, currentUser });
+
         const task = tasks.find(t => t.id === taskId);
         
         // RACE CONDITION FIX: Merge with latest known arrays from concurrent uploads
@@ -2121,6 +2125,39 @@ This usually indicates a temporary workflow issue.`;
     }));
     addTasks(duplicatedTasksData);
     setSelectedTasks(new Set());
+  };
+
+  const handleCopyLayout = async () => {
+    if (!canManageTasks) return;
+
+    const confirmed = window.confirm('Copy this week\'s layout to next week?');
+    if (!confirmed) return;
+
+    try {
+      const webhookUrl = import.meta.env.VITE_COPY_LAYOUT_WEBHOOK_URL;
+      if (!webhookUrl) {
+        alert('Copy layout webhook URL is not configured.');
+        return;
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        alert('Layout copied to next week successfully!');
+        // Reload scheduled tasks to show the new data
+        await loadScheduledTasksFromWebhook();
+      } else {
+        alert('Failed to copy layout. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error copying layout:', error);
+      alert('An error occurred while copying the layout.');
+    }
   };
 
   const handleDeleteSelectedTasks = () => {
@@ -2852,6 +2889,17 @@ This usually indicates a temporary workflow issue.`;
               <span>Next Week</span>
             </button>
           </div>
+          
+          {/* Copy Layout Button */}
+          {canManageTasks && weekView === 'this-week' && (
+            <button
+              onClick={handleCopyLayout}
+              className="px-4 py-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>Copy Layout</span>
+            </button>
+          )}
         </div>
 
         {/* Right side - Action Buttons */}

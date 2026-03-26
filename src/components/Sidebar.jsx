@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook, BarChart3, Settings, Moon, Sun } from 'lucide-react';
+import { CheckSquare, FolderOpen, Users, LogOut, ChevronLeft, ChevronRight, Facebook, BarChart3, Settings, Moon, Sun, ClipboardList } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { isManager, isAdmin } from '../constants/roles';
 
@@ -26,6 +26,7 @@ const Sidebar = ({ onCollapsedChange }) => {
     { to: '/performance', icon: BarChart3, label: 'Performance', managerOnly: true },
     { to: '/users', icon: Users, label: 'User Management', managerOnly: true },
     { to: '/ad-accounts', icon: Facebook, label: 'Ad Accounts', managerOnly: true },
+    { to: '/monitor-log', icon: ClipboardList, label: 'Monitor Log', adminOnly: true },
   ];
 
   return (
@@ -56,7 +57,11 @@ const Sidebar = ({ onCollapsedChange }) => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.filter(item => !item.managerOnly || isManagerUser).map((item) => (
+        {navItems.filter(item => {
+          if (item.adminOnly) return isAdminUser;
+          if (item.managerOnly) return isManagerUser;
+          return true;
+        }).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

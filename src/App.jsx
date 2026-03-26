@@ -11,6 +11,7 @@ import AdAccounts from './pages/AdAccounts';
 import Performance from './pages/Performance';
 import Settings from './pages/Settings';
 import About from './pages/About';
+import MonitorLog from './pages/MonitorLog';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -89,6 +90,7 @@ const AppRouter = () => {
                 <Route path="/users" element={<ManagerRoute><UserManagement /></ManagerRoute>} />
                 <Route path="/ad-accounts" element={<ManagerRoute><AdAccounts /></ManagerRoute>} />
                 <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
+                <Route path="/monitor-log" element={<ManagerRoute><MonitorLog /></ManagerRoute>} />
                 <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
               </Routes>
             </AppLayout>

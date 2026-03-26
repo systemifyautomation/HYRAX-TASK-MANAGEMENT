@@ -2,6 +2,7 @@ import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, Refres
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { USER_ROLES, isManager } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { logUserActivity } from '../utils/activityLogger';
 
 // Hash function to generate code
 const hashThreeInputs = async (input1, input2, input3) => {
@@ -703,6 +704,9 @@ const UserTasksModal = ({
 
         const webhookUrl = import.meta.env.VITE_CREATIVE_DELETED_WEBHOOK_URL;
         if (webhookUrl) {
+          // Log creative deletion activity
+          logUserActivity({ action: 'DELETE', entityType: 'CREATIVE', entityId: taskId, entityName: '', details: { adNumber, creative_url: deletedCreativeUrl, format: isVideoEditor ? 'Facebook Format' : null }, currentUser });
+
           // Send notification for first creative (Facebook format)
           await fetch(webhookUrl, {
             method: 'POST',
