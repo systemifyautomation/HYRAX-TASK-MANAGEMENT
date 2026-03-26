@@ -813,12 +813,60 @@ export const AppProvider = ({ children }) => {
   const updateCampaign = async (id, campaignData) => {
     const updatedCampaign = { ...campaignData, id };
     
-    // Update local state immediately
-    setCampaigns(prev => prev.map(campaign => 
-      campaign.id === id ? updatedCampaign : campaign
-    ));
+    console.log('🔵 updateCampaign called - id:', id);
+    console.log('🔵 updateCampaign - campaignData:', campaignData);
     
-    // Try to persist via API if available
+    // Send to webhook - database is source of truth
+    try {
+      const adminEmail = currentUser?.email || '';
+      const adminPassword = localStorage.getItem('admin_password') || '';
+      const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+      const code = await hashThreeInputs(adminEmail, adminPassword, loginDate);
+
+      const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+      console.log('🔵 updateCampaign - webhookUrl:', webhookUrl);
+      
+      if (!webhookUrl) {
+        console.error('VITE_GET_CAMPAIGNS_WEBHOOK_URL not configured');
+      } else {
+        // Prepare query parameters with updated_campaigns
+        const params = new URLSearchParams({
+          updated_campaigns: JSON.stringify([updatedCampaign])
+        });
+
+        console.log('🔵 updateCampaign - sending PATCH request to webhook');
+        console.log('🔵 updateCampaign - URL:', webhookUrl);
+        
+        const response = await fetch(`${webhookUrl}?${params}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            updated_by: adminEmail,
+            code: code
+          })
+        });
+
+        console.log('🔵 updateCampaign - webhook response status:', response.status);
+        if (!response.ok) {
+          const responseText = await response.text();
+          console.error('Failed to send campaign update to webhook:', response.status);
+          console.error('Response body:', responseText);
+        } else {
+          console.log('✅ updateCampaign - webhook PATCH request successful');
+          // Update local state after successful webhook call
+          setCampaigns(prev => prev.map(campaign => 
+            campaign.id === id ? updatedCampaign : campaign
+          ));
+        }
+      }
+    } catch (error) {
+      console.error('❌ updateCampaign - Failed to send campaign update to webhook:', error);
+      console.error('❌ updateCampaign - Error message:', error.message);
+    }
+    
+    // Try to persist via API if available (legacy support)
     if (USE_API) {
       try {
         const response = await apiCall(`/campaigns/${id}`, {

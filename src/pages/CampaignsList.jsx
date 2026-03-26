@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { Plus, ChevronUp, ChevronDown, ChevronsUpDown, Pencil, Check, X } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
 const CampaignsList = () => {
-  const { campaigns, campaignsLoading, loadCampaignsData, currentUser, users, loadUsers } = useApp();
+  const { campaigns, campaignsLoading, loadCampaignsData, currentUser, users, loadUsers, updateCampaign } = useApp();
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(15);
   const [sortField, setSortField] = useState('id'); // 'id', 'name', or 'tasks'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+  const [editingCampaignId, setEditingCampaignId] = useState(null);
+  const [editedSlackId, setEditedSlackId] = useState('');
 
   // Load campaigns when component mounts
   useEffect(() => {
@@ -126,6 +128,29 @@ const CampaignsList = () => {
   const handleRefresh = () => {
     setCurrentPage(1); // Reset to first page on refresh
     loadCampaignsData();
+  };
+
+  // Handle editing Slack ID
+  const handleStartEdit = (campaign) => {
+    setEditingCampaignId(campaign.id);
+    setEditedSlackId(campaign.slackId || '');
+  };
+
+  const handleSaveEdit = async (campaign) => {
+    const newSlackId = editedSlackId.trim();
+    
+    // Update the campaign with the new Slack ID (can be empty string)
+    if (newSlackId !== campaign.slackId) {
+      await updateCampaign(campaign.id, { ...campaign, slackId: newSlackId });
+    }
+    
+    setEditingCampaignId(null);
+    setEditedSlackId('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCampaignId(null);
+    setEditedSlackId('');
   };
 
   // Show loading state while data is being fetched
@@ -292,12 +317,48 @@ const CampaignsList = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {campaign.slackId ? (
-                          <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
-                            {campaign.slackId}
-                          </span>
+                        {editingCampaignId === campaign.id ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="text"
+                              value={editedSlackId}
+                              onChange={(e) => setEditedSlackId(e.target.value)}
+                              placeholder="Enter Slack ID"
+                              className="w-32 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveEdit(campaign)}
+                              className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900 rounded transition-colors"
+                              title="Save"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-gray-400 italic">No Slack ID</span>
+                          <div className="flex items-center space-x-2">
+                            {campaign.slackId ? (
+                              <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
+                                {campaign.slackId}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 italic">No Slack ID</span>
+                            )}
+                            <button
+                              onClick={() => handleStartEdit(campaign)}
+                              className="p-1 text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all"
+                              title="Edit Slack ID"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
