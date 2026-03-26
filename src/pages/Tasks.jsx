@@ -28,6 +28,16 @@ const getMondayOfWeek = (date) => {
   return startOfWeek(date, { weekStartsOn: 1 }); // 1 = Monday
 };
 
+// Helper function to get today's date in UTC format dd/MM/yyyy
+const getTodayUTC = () => {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+
 // Helper function to get Sunday of a given date
 const getSundayOfWeek = (date) => {
   return endOfWeek(date, { weekStartsOn: 1 }); // 1 = Monday (so end will be Sunday)
@@ -1072,6 +1082,43 @@ const Tasks = () => {
   const weekOptions = useMemo(() => generateWeekOptions(), []);
 
   const handleCellEdit = async (taskId, columnKey, value, columnType) => {
+    // If campaign is changed, notify campaigns webhook
+    if ((columnKey === 'campaignId' || columnKey === 'campaign') && isAdminUser) {
+      const task = tasks.find(t => t.id === taskId) || scheduledTasks.find(t => t.id === taskId);
+      const oldCampaignId = task?.campaignId;
+      
+      if (oldCampaignId !== value) {
+        try {
+          const adminEmail = currentUser?.email || '';
+          const adminPassword = localStorage.getItem('admin_password') || '';
+          const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+          const encoder = new TextEncoder();
+          const data = encoder.encode(adminEmail + adminPassword + loginDate);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const code = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+          const webhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+          if (webhookUrl) {
+            const params = new URLSearchParams({
+              code,
+              requested_by: adminEmail,
+              task_id: taskId,
+              old_campaign_id: oldCampaignId,
+              new_campaign_id: value
+            });
+
+            fetch(`${webhookUrl}?${params}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+            }).catch(err => console.error('Failed to notify campaigns webhook:', err));
+          }
+        } catch (err) {
+          console.error('Error notifying campaigns webhook:', err);
+        }
+      }
+    }
+
     // If week is changed to "Next week", move task to scheduled tasks
     if (columnKey === 'week' && value === getWeekDateRange(1)) {
       const task = tasks.find(t => t.id === taskId);
@@ -2640,6 +2687,15 @@ This usually indicates a temporary workflow issue.`;
         );
       
       case 'campaign':
+        // Only admins can change campaign
+        if (!isAdminUser) {
+          const campaign = campaigns.find(c => c.id === value);
+          return campaign ? (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-600 text-emerald-700 dark:text-white text-xs font-medium">
+              {campaign.name}
+            </span>
+          ) : <span className="text-gray-400">-</span>;
+        }
         return (
           <div className="relative">
             <select

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { isManager } from '../constants/roles';
+import { isManager, isAdmin } from '../constants/roles';
 import { useApp } from '../context/AuthContext';
 import { BUYER_COLOR_OPTIONS } from '../pages/Settings';
 
@@ -21,9 +21,11 @@ const UserTaskCard = ({
   const location = useLocation();
   const { buyerColors } = useApp();
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingCampaignId, setEditingCampaignId] = useState(null);
   const canEditStatus = currentUser && isManager(currentUser.role);
   const canEditBuyer = currentUser && isManager(currentUser.role);
   const canManageTasks = currentUser && isManager(currentUser.role);
+  const isAdminUser = currentUser && isAdmin(currentUser.role);
   
   const getUserSlug = (userId) => {
     const u = users.find(u => u.id === parseInt(userId));
@@ -118,7 +120,23 @@ const UserTaskCard = ({
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <h5 className="font-semibold text-gray-900 dark:text-gray-100 text-xs lg:text-sm truncate">{campaignName}</h5>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <h5 className="font-semibold text-gray-900 dark:text-gray-100 text-xs lg:text-sm truncate">{campaignName}</h5>
+                        {/* Edit Campaign Button - Admin Only */}
+                        {isAdminUser && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCampaignId(editingCampaignId === campaignId ? null : campaignId);
+                            }}
+                            className="p-1 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all flex-shrink-0"
+                            title="Edit campaign"
+                          >
+                            <Pencil className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
                       {/* Delete Button */}
                       {canManageTasks && (
                         <button
@@ -135,8 +153,71 @@ const UserTaskCard = ({
                           <Trash2 className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
                         </button>
                       )}
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* Campaign Edit Dropdown - Admin Only */}
+                  {isAdminUser && editingCampaignId === campaignId && (
+                    <div className="bg-blue-50 dark:bg-blue-900 px-3 lg:px-4 py-2 border-b border-blue-200 dark:border-blue-700">
+                      <label className="block text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1.5">Change Campaign:</label>
+                      <select
+                        value={campaignId}
+                        onChange={(e) => {
+                          const newCampaignId = e.target.value;
+                          const oldCampaignId = campaignId;
+                          
+                          // Close dropdown immediately
+                          setEditingCampaignId(null);
+                          
+                          // Update all tasks immediately (optimistic update)
+                          tasks.forEach(task => {
+                            updateTask(task.id, { campaignId: parseInt(newCampaignId) });
+                          });
+                          
+                          // Fire webhooks in background (don't await)
+                          (async () => {
+                            try {
+                              const adminEmail = currentUser?.email || '';
+                              const adminPassword = localStorage.getItem('admin_password') || '';
+                              const loginDate = localStorage.getItem('login_date') || new Date().toLocaleDateString('en-GB');
+                              const encoder = new TextEncoder();
+                              const codeData = encoder.encode(adminEmail + adminPassword + loginDate);
+                              const codeHash = await crypto.subtle.digest('SHA-256', codeData);
+                              const codeArray = Array.from(new Uint8Array(codeHash));
+                              const code = codeArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                              
+                              const campaignsWebhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+                              if (campaignsWebhookUrl) {
+                                tasks.forEach(task => {
+                                  const url = new URL(campaignsWebhookUrl);
+                                  url.searchParams.set('code', code);
+                                  url.searchParams.set('requested_by', adminEmail);
+                                  url.searchParams.set('task_id', task.id);
+                                  url.searchParams.set('old_campaign_id', oldCampaignId);
+                                  url.searchParams.set('new_campaign_id', newCampaignId);
+                                  
+                                  fetch(url.toString(), { method: 'PATCH' }).catch(err => {
+                                    console.error('Campaign webhook error:', err);
+                                  });
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Error sending campaign webhooks:', error);
+                            }
+                          })();
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full px-2 py-1.5 text-xs border border-blue-300 dark:border-blue-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      >
+                        {campaigns.map(camp => (
+                          <option key={camp.id} value={camp.id}>
+                            {camp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   
                   {/* Campaign Content */}
                   <div className="bg-white dark:bg-gray-800">

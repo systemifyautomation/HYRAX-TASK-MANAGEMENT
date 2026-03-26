@@ -1,6 +1,6 @@
-import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Download } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Download, Pencil } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { USER_ROLES, isManager } from '../constants/roles';
+import { USER_ROLES, isManager, isAdmin } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { logUserActivity } from '../utils/activityLogger';
 
@@ -50,6 +50,7 @@ const UserTasksModal = ({
   const [selectedVersionPreview, setSelectedVersionPreview] = useState(null);
   const [expandedCampaigns, setExpandedCampaigns] = useState(new Set()); // Track which campaigns are expanded
   const [expandedTaskSets, setExpandedTaskSets] = useState(new Set()); // Track which task sets are expanded
+  const [editingCampaignName, setEditingCampaignName] = useState(null); // Track which campaign is being edited
   const lastModalUserRef = useRef(null); // Track last modal user to detect when modal reopens
   const skipNextPreviewAutoCloseRef = useRef(false); // Prevent close/open race when entering history view
   const creativeHistoryCacheRef = useRef(new Map()); // Cache timeline by creative URL for instant reopen
@@ -248,6 +249,7 @@ const UserTasksModal = ({
   const isVideoEditor = safeUser.department === 'VIDEO EDITING';
   const isGraphicDesigner = safeUser.department === 'GRAPHIC DESIGN';
   const canManageTasks = isManager(currentUser?.role);
+  const isAdminUser = isAdmin(currentUser?.role);
 
   // Collect all viewer links from all tasks with proper ad numbering
   const allLinks = [];
@@ -1084,6 +1086,19 @@ const UserTasksModal = ({
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap flex-shrink-0 ${statusColors[campaignStatus]}`}>
                         {campaignStatus}
                       </span>
+                      {/* Edit Campaign Button - Admin Only */}
+                      {isAdminUser && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCampaignName(editingCampaignName === campaignName ? null : campaignName);
+                          }}
+                          className="p-1 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all flex-shrink-0"
+                          title="Edit campaign"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {canManageTasks && (
@@ -1108,6 +1123,67 @@ const UserTasksModal = ({
                       )}
                     </div>
                   </div>
+                  
+                  {/* Campaign Edit Dropdown - Admin Only */}
+                  {isAdminUser && editingCampaignName === campaignName && (
+                    <div className="bg-blue-50 dark:bg-blue-900 px-4 py-3 border-b border-blue-200 dark:border-blue-700">
+                      <label className="block text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Change Campaign:</label>
+                      <select
+                        value={sortedCampaignTasks[0]?.campaignId || ''}
+                        onChange={(e) => {
+                          const newCampaignId = e.target.value;
+                          const oldCampaignId = sortedCampaignTasks[0]?.campaignId;
+                          
+                          // Close dropdown immediately
+                          setEditingCampaignName(null);
+                          
+                          // Update all tasks immediately (optimistic update)
+                          sortedCampaignTasks.forEach(task => {
+                            updateTask(task.id, { campaignId: parseInt(newCampaignId) });
+                          });
+                          
+                          // Fire webhooks in background (don't await)
+                          (async () => {
+                            try {
+                              const adminEmail = currentUser?.email || '';
+                              const adminPassword = localStorage.getItem('admin_password') || '';
+                              const loginDate = localStorage.getItem('login_date') || getTodayUTC();
+                              const encoder = new TextEncoder();
+                              const codeData = encoder.encode(adminEmail + adminPassword + loginDate);
+                              const codeHash = await crypto.subtle.digest('SHA-256', codeData);
+                              const codeArray = Array.from(new Uint8Array(codeHash));
+                              const code = codeArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                              
+                              const campaignsWebhookUrl = import.meta.env.VITE_GET_CAMPAIGNS_WEBHOOK_URL;
+                              if (campaignsWebhookUrl) {
+                                sortedCampaignTasks.forEach(task => {
+                                  const url = new URL(campaignsWebhookUrl);
+                                  url.searchParams.set('code', code);
+                                  url.searchParams.set('requested_by', adminEmail);
+                                  url.searchParams.set('task_id', task.id);
+                                  url.searchParams.set('old_campaign_id', oldCampaignId);
+                                  url.searchParams.set('new_campaign_id', newCampaignId);
+                                  
+                                  fetch(url.toString(), { method: 'PATCH' }).catch(err => {
+                                    console.error('Campaign webhook error:', err);
+                                  });
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Error sending campaign webhooks:', error);
+                            }
+                          })();
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      >
+                        {campaigns.map(camp => (
+                          <option key={camp.id} value={camp.id}>
+                            {camp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   
                   {/* Collapsible Campaign Content */}
                   {isExpanded && (
