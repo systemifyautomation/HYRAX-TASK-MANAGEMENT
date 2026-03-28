@@ -14,6 +14,7 @@ import UserTasksModal from '../components/UserTasksModal';
 import ColumnManagerModal from '../components/ColumnManagerModal';
 import AddTaskModal from '../components/AddTaskModal';
 import { logUserActivity } from '../utils/activityLogger';
+import { uploadToR2WithPresignedUrl, uploadToR2 } from '../utils/r2Upload';
 
 // Global storage for active uploads - survives component re-renders
 if (!window.HYRAX_ACTIVE_UPLOADS) {
@@ -1568,8 +1569,70 @@ const Tasks = () => {
       const adNumber = Math.floor(adIndex / (isVideoEditor ? 2 : 1)) + 1;
       const path = `/${userSlug}/${campaignSlug}/ad_${adNumber}/preview`;
       
+      // ============================================================
+      // STEP 1: Upload file to R2 Storage
+      // ============================================================
+      console.log('📤 [STEP 1/2] Uploading file to R2 storage...');
+      
+      let uploadedFileUrl;
+      try {
+        // Use presigned URL method if endpoint is configured, otherwise direct upload
+        const presignedEndpoint = import.meta.env.VITE_S3_PRESIGNED_URL_ENDPOINT;
+        
+        const s3ProgressCallback = (percent) => {
+          // Update progress for S3 upload (0-95% range, save 96-100% for n8n)
+          const adjustedPercent = Math.floor(percent * 0.95);
+          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: adjustedPercent }));
+        };
+        
+        if (presignedEndpoint) {
+          console.log('Using presigned URL method (recommended)');
+          uploadedFileUrl = await uploadToR2WithPresignedUrl(file, path, s3ProgressCallback);
+        } else {
+          console.log('⚠️ Using direct R2 upload - CORS must be configured on bucket!');
+          uploadedFileUrl = await uploadToR2(file, path, s3ProgressCallback);
+        }
+        
+        console.log('✅ [STEP 1/2] R2 upload successful!');
+        console.log('📍 File URL:', uploadedFileUrl);
+        
+        // Update progress to show S3 upload complete
+        setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 96 }));
+        
+      } catch (r2Error) {
+        console.error('❌ R2 upload failed:', r2Error);
+        
+        // Check if it's a CORS error
+        const isCorsError = r2Error.message.includes('CORS') || 
+                           r2Error.message.includes('Network error') ||
+                           r2Error.message.includes('blocked');
+        
+        // Clean up upload state
+        setUploadingCreatives(prev => {
+          const newState = { ...prev };
+          delete newState[uploadKey];
+          return newState;
+        });
+        delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
+        if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
+          setHasActiveUpload(false);
+        }
+        
+        if (isCorsError) {
+          alert(`❌ R2 Upload Blocked by CORS\n\n${r2Error.message}\n\n🔧 SOLUTION:\nAsk your admin to configure CORS on the R2 bucket.\n\nIn Cloudflare Dashboard → R2 → creatives bucket → Settings → CORS Policy, add:\n\n[\n  {\n    "AllowedOrigins": ["http://localhost:5173", "https://yourdomain.com"],\n    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],\n    "AllowedHeaders": ["*"],\n    "ExposeHeaders": ["ETag"],\n    "MaxAgeSeconds": 3600\n  }\n]\n\nCheck console (F12) for more details.`);
+        } else {
+          alert(`❌ Upload to R2 Storage Failed\n\n${r2Error.message}\n\nPlease try again or contact support if this persists.`);
+        }
+        return;
+      }
+      
+      // ============================================================
+      // STEP 2: Send metadata to n8n webhook
+      // ============================================================
+      console.log('📤 [STEP 2/2] Sending metadata to n8n webhook...');
+      
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('s3Url', uploadedFileUrl);
       formData.append('taskId', taskId);
       formData.append('adIndex', adIndex);
       formData.append('path', path);
@@ -1604,16 +1667,16 @@ const Tasks = () => {
       }
       
       console.log('FormData prepared with', Array.from(formData.keys()).length, 'fields');
+      console.log('S3 URL included for n8n to download:', uploadedFileUrl);
       
-      // Use fetch with keepalive for better reliability with large files
+      // Use fetch with keepalive for better reliability
       const startTime = Date.now();
       
       // Create abort controller for timeout management
       const controller = new AbortController();
-      // Calculate timeout based on file size: 1MB/sec upload speed + 5min buffer, minimum 15 minutes
-      const estimatedUploadSeconds = (file.size / 1024 / 1024); // Assume 1MB/sec
-      const timeoutSeconds = Math.max(900, estimatedUploadSeconds + 300); // 15 min minimum, or estimated time + 5 min buffer
-      console.log('Timeout set to:', Math.round(timeoutSeconds / 60), 'minutes', `(file: ${(file.size / 1024 / 1024).toFixed(0)}MB)`);
+      // Metadata POST should be fast - 2 minute timeout is plenty
+      const timeoutSeconds = 120;
+      console.log('n8n timeout set to:', timeoutSeconds, 'seconds');
       
       const timeoutId = setTimeout(() => {
         console.error('Upload timeout reached');
@@ -1640,58 +1703,37 @@ const Tasks = () => {
           ][xhr.readyState]);
         });
         
-        // Progress tracking
+        // Progress tracking - metadata POST should be fast
         let lastLogTime = Date.now();
         let progressEventCount = 0;
         
         xhr.upload.addEventListener('loadstart', (e) => {
-          console.log('🚀 UPLOAD.loadstart event fired!');
-          console.log('Upload started at:', new Date().toLocaleTimeString());
-          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 1 }));
+          console.log('🚀 METADATA POST started');
+          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 97 }));
         });
         
         xhr.upload.addEventListener('progress', (e) => {
           progressEventCount++;
-          const now = Date.now();
-          
+          // Metadata is small, progress from 97% to 99%
           if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            const uploadedMB = (e.loaded / 1024 / 1024).toFixed(2);
-            const totalMB = (e.total / 1024 / 1024).toFixed(2);
-            
-            // Calculate speed
-            const timeDiff = (now - lastProgressTime) / 1000; // seconds
-            const bytesDiff = e.loaded - lastProgressBytes;
-            const speedMBps = timeDiff > 0 ? (bytesDiff / 1024 / 1024 / timeDiff).toFixed(2) : 0;
-            
-            // Log every 5% or every 3 seconds
-            if (percentComplete % 5 === 0 || now - lastLogTime > 3000) {
-              console.log(`📤 ${percentComplete}% (${uploadedMB}/${totalMB}MB) | Speed: ${speedMBps}MB/s`);
-              lastLogTime = now;
-            }
-            
+            const percentComplete = 97 + Math.round((e.loaded / e.total) * 2); // 97-99%
+            console.log(`📤 n8n metadata: ${percentComplete}%`);
             setUploadingCreatives(prev => ({ ...prev, [uploadKey]: Math.min(percentComplete, 99) }));
-            
-            lastProgressTime = now;
-            lastProgressBytes = e.loaded;
-          } else {
-            console.warn('⚠️ Progress event but length not computable');
           }
         });
         
         xhr.upload.addEventListener('load', () => {
-          console.log('✅ UPLOAD.load - Upload data sent completely, waiting for server response...');
+          console.log('✅ Metadata sent to n8n, waiting for response...');
           setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 99 }));
         });
         
         xhr.upload.addEventListener('error', (e) => {
-          console.error('❌ UPLOAD.error event:', e);
+          console.error('❌ n8n metadata POST error:', e);
         });
         
         xhr.upload.addEventListener('abort', (e) => {
-          console.error('❌ UPLOAD.abort event:', e);
+          console.error('❌ n8n metadata POST aborted:', e);
           console.error('Abort triggered at progress:', progressEventCount, 'events');
-          console.error('Last bytes uploaded:', lastProgressBytes);
         });
         
         xhr.addEventListener('loadstart', () => {
@@ -1744,39 +1786,22 @@ const Tasks = () => {
         xhr.addEventListener('abort', () => {
           clearTimeout(timeoutId);
           delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          console.error('❌ XHR.abort event');
+          console.error('❌ n8n metadata POST aborted');
           console.error('⚠️ ABORT DETAILS:');
           console.error('  - Ready state:', xhr.readyState);
           console.error('  - Status:', xhr.status);
-          console.error('  - Progress events received:', progressEventCount);
-          console.error('  - Bytes uploaded:', lastProgressBytes, '/', file.size);
           console.error('  - Time elapsed:', ((Date.now() - startTime) / 1000).toFixed(1), 'seconds');
-          console.error('  - Active uploads before abort:', Object.keys(window.HYRAX_ACTIVE_UPLOADS).length);
+          console.error('Note: File was already uploaded to R2 successfully at:', uploadedFileUrl);
           
-          // Try to detect what triggered the abort
-          console.error('🔍 ABORT CAUSE DETECTION:');
-          if (progressEventCount === 0) {
-            console.error('  ❌ NO progress events - upload never started');
-            console.error('  Possible causes: CORS preflight failed, network blocked, or browser canceled');
-          } else if (lastProgressBytes < file.size * 0.1) {
-            console.error('  ❌ Aborted early (< 10% uploaded)');
-            console.error('  Possible causes: Connection dropped, server rejected, or browser memory issue');
-          } else {
-            console.error('  ❌ Aborted mid-upload');
-            console.error('  Possible causes: Component re-render, HMR, or user action');
-          }
-          
-          // Check if any other code might have aborted it
-          console.trace('Abort stack trace');
-          
-          reject(new Error(`Upload aborted after ${((Date.now() - startTime) / 1000).toFixed(1)}s (${progressEventCount} progress events, ${(lastProgressBytes / 1024 / 1024).toFixed(2)}MB uploaded)`));
+          reject(new Error(`n8n metadata POST aborted (file is safe in R2: ${uploadedFileUrl})`));
         });
         
         xhr.addEventListener('timeout', () => {
           clearTimeout(timeoutId);
           delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          console.error('❌ XHR timeout');
-          reject(new Error(`Upload timeout after ${Math.round(timeoutSeconds / 60)} minutes`));
+          console.error('❌ n8n metadata POST timeout');
+          console.error('Note: File was already uploaded to R2 successfully at:', uploadedFileUrl);
+          reject(new Error(`n8n timeout (file is safe in R2: ${uploadedFileUrl})`));
         });
         
         // Build URL with query parameters for replace operation
@@ -1784,79 +1809,58 @@ const Tasks = () => {
         if (previousUrl) {
           const urlParams = new URLSearchParams();
           urlParams.append('previous_url', previousUrl);
-          // new_url will be set by the webhook after upload completes
+          urlParams.append('new_url', uploadedFileUrl);
           finalUploadUrl = `${uploadUrl}?${urlParams.toString()}`;
-          console.log('🔄 Replace mode - previous_url:', previousUrl);
+          console.log('🔄 Replace mode - previous_url:', previousUrl, '| new_url:', uploadedFileUrl);
         }
         
         xhr.open('POST', finalUploadUrl, true);
-        console.log('✅ XHR.open() called to:', finalUploadUrl, '| ready state:', xhr.readyState);
+        console.log('✅ XHR POST to n8n:', finalUploadUrl);
         
         xhr.timeout = timeoutSeconds * 1000;
-        console.log('⏱️ Timeout set to:', timeoutSeconds, 'seconds');
+        console.log('⏱️ Timeout:', timeoutSeconds, 'seconds');
         
-        console.log('📡 About to call xhr.send()...');
-        console.log('FormData size estimate:', file.size + 1000, 'bytes'); // file + metadata
-        console.log('Browser:', navigator.userAgent);
+        console.log('📡 Sending metadata to n8n (file already in R2)...');
         
         try {
           xhr.send(formData);
-          console.log('✅ xhr.send() called successfully, ready state:', xhr.readyState);
+          console.log('✅ Metadata POST sent to n8n');
         } catch (e) {
-          console.error('❌ xhr.send() threw an error:', e);
+          console.error('❌ xhr.send() error:', e);
+          console.error('Note: File is safe in R2:', uploadedFileUrl);
           reject(e);
         }
         
-        console.log('⏳ Waiting for upload to start...');
-        
-        // Safety check - if no progress after 10 seconds, something is wrong
+        // Safety check - metadata POST should be fast (5 second check)
         setTimeout(() => {
-          if (progressEventCount === 0) {
-            console.error('❌ NO PROGRESS EVENTS after 10 seconds!');
+          if (progressEventCount === 0 && xhr.readyState !== XMLHttpRequest.DONE) {
+            console.error('❌ No response from n8n after 5 seconds');
             console.error('Ready state:', xhr.readyState);
-            console.error('Status:', xhr.status);
-            console.error('This might indicate:');
-            console.error('  - Browser is buffering large file');
-            console.error('  - CORS preflight blocking');
-            console.error('  - Network issue');
-            console.error('  - File too large for browser');
-            console.error('  - Server not responding to POST');
-            
-            // Try to get network info
-            if (performance.getEntriesByType) {
-              const resources = performance.getEntriesByType('resource');
-              const recentRequests = resources.slice(-5);
-              console.log('Recent network requests:', recentRequests.map(r => ({
-                name: r.name,
-                duration: r.duration,
-                transferSize: r.transferSize
-              })));
-            }
+            console.error('This might indicate: n8n webhook down, CORS issue, or network problem');
+            console.error('Note: File is safely stored in R2:', uploadedFileUrl);
           }
-        }, 10000);
+        }, 5000);
         
-        // Monitor for unexpected re-renders during upload
+        // Monitor metadata POST
         const renderCheckInterval = setInterval(() => {
           if (xhr.readyState !== XMLHttpRequest.DONE) {
-            console.log('⏱️ Upload still active - Progress events:', progressEventCount, 
-                       '| Bytes:', (lastProgressBytes / 1024 / 1024).toFixed(2), 'MB',
-                       '| State:', xhr.readyState);
+            console.log('⏱️ Metadata POST active | State:', xhr.readyState);
             
             // Check if the XHR is still in global storage
             if (!window.HYRAX_ACTIVE_UPLOADS[uploadKey]) {
-              console.error('⚠️ WARNING: XHR removed from global storage during upload!');
+              console.error('⚠️ WARNING: XHR removed from global storage!');
             }
           } else {
             clearInterval(renderCheckInterval);
           }
-        }, 5000); // Check every 5 seconds
+        }, 3000);
       });
       
       const result = await uploadPromise;
       
       const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-      const avgSpeed = ((file.size / 1024 / 1024) / totalTime).toFixed(2);
-      console.log(`✅ UPLOAD SUCCESS in ${totalTime}s (avg ${avgSpeed}MB/s)`);
+      console.log(`✅ [STEP 2/2] n8n webhook success in ${totalTime}s`);
+      console.log('✅ COMPLETE: File in R2 + metadata sent to n8n');
       
       // Update upload progress to 100%
       setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 100 }));
@@ -1878,19 +1882,32 @@ const Tasks = () => {
       }, 2000);
       
       // Extract URL and slack permalink from n8n response
-      // n8n returns JSON body with "url" field containing the video/image URL
-      // and "slackPermalink" field containing the Slack message permalink
+      // n8n downloads from R2, processes, and returns the final creative URL
       const uploadedUrl = result.url || result.data?.url || result.viewerLink || result.data?.viewerLink;
       const slackPermalink = result.slackPermalink || result.data?.slackPermalink || '';
       
       if (uploadedUrl) {
-        console.log('✅ Received URL from n8n:', uploadedUrl);
+        console.log('✅ Received creative URL from n8n:', uploadedUrl);
         if (slackPermalink) {
           console.log('✅ Received Slack permalink:', slackPermalink);
         }
         
         // Log creative upload activity
-        logUserActivity({ action: 'ADD', entityType: 'CREATIVE', entityId: taskId, entityName: campaign?.name || '', details: { adIndex, uploadedUrl, previousUrl, fileSize: file.size, fileType: file.type, campaignId: taskData?.campaignId }, currentUser });
+        logUserActivity({ 
+          action: 'ADD', 
+          entityType: 'CREATIVE', 
+          entityId: taskId, 
+          entityName: campaign?.name || '', 
+          details: { 
+            adIndex, 
+            uploadedUrl, 
+            previousUrl, 
+            fileSize: file.size, 
+            fileType: file.type, 
+            campaignId: taskData?.campaignId
+          }, 
+          currentUser 
+        });
 
         const task = tasks.find(t => t.id === taskId);
         
@@ -1948,61 +1965,25 @@ const Tasks = () => {
           viewerLinkAt: syncedArrays.viewerLinkAt,
           status: 'Needs Review' // Auto-update task status when creative is uploaded
         }, queryParams);
-        
-        // Update modal state if it's open
-        if (userTasksModal) {
-          const updatedTasks = userTasksModal.tasks.map(t => 
-            t.id === taskId ? { 
-              ...t, 
-              viewerLink: syncedArrays.viewerLink,
-              viewerLinkApproval: syncedArrays.viewerLinkApproval,
-              viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
-              slackPermalink: syncedArrays.slackPermalink,
-              viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
-              viewerLinkAt: syncedArrays.viewerLinkAt,
-              status: 'Needs Review' // Auto-update task status when creative is uploaded
-            } : t
-          );
-          setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
-        }
-        
-        console.log('✅ Task updated with viewer link at index', adIndex, 'creative status and task status set to Needs Review');
-      } else {
-        // Empty response from n8n - workflow issue
-        console.error('❌ Empty response from n8n workflow');
-        
-        const errorMessage = `❌ Backend Processing Error
-
-The upload completed but the workflow failed to process it correctly.
-
-File: ${file?.name}
-Size: ${(file?.size / 1024 / 1024).toFixed(2)}MB
-
-📝 What to do:
-1. Please re-upload the creative
-2. If this happens repeatedly, contact Max
-
-This usually indicates a temporary workflow issue.`;
-        
-        alert(errorMessage);
-        
-        // Clean up upload state
-        setUploadingCreatives(prev => {
-          const newState = { ...prev };
-          delete newState[uploadKey];
-          return newState;
-        });
-        
-        // Remove from active uploads
-        delete activeUploads.current[uploadKey];
-        delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-        
-        // Clear active upload flag if no more uploads
-        if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
-          setHasActiveUpload(false);
-        }
-        
-        return; // Exit early, don't continue to catch block
+      
+      // Update modal state if it's open
+      if (userTasksModal) {
+        const updatedTasks = userTasksModal.tasks.map(t => 
+          t.id === taskId ? { 
+            ...t, 
+            viewerLink: syncedArrays.viewerLink,
+            viewerLinkApproval: syncedArrays.viewerLinkApproval,
+            viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+            slackPermalink: syncedArrays.slackPermalink,
+            viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+            viewerLinkAt: syncedArrays.viewerLinkAt,
+            status: 'Needs Review' // Auto-update task status when creative is uploaded
+          } : t
+        );
+        setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+      }
+      
+      console.log('✅ Task updated with viewer link at index', adIndex, 'creative status and task status set to Needs Review');
       }
       
     } catch (error) {
