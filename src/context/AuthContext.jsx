@@ -467,19 +467,7 @@ export const AppProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // Background data refresh every 5 seconds when authenticated
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) return;
 
-    // Start background refresh
-    const refreshInterval = setInterval(() => {
-      backgroundRefresh();
-    }, 5000); // 5 seconds
-
-    return () => {
-      clearInterval(refreshInterval);
-    };
-  }, [isAuthenticated, currentUser, backgroundRefresh]);
 
   // Load campaigns data from webhook
   const loadCampaignsData = async () => {
