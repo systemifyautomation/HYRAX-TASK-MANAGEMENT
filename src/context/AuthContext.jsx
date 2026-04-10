@@ -506,7 +506,9 @@ export const AppProvider = ({ children }) => {
           id: campaign.id,
           name: campaign.campaign_name,
           slackId: campaign.slack_channel_ID,
-          tasksCount: typeof campaign.tasks === 'number' ? campaign.tasks : 0
+          tasksCount: typeof campaign.tasks === 'number' ? campaign.tasks : 0,
+          videos: typeof campaign.videos === 'number' ? campaign.videos : 0,
+          images: typeof campaign.images === 'number' ? campaign.images : 0
         }));
         setCampaigns(mappedCampaigns);
         localStorage.setItem('hyrax_campaigns', JSON.stringify(mappedCampaigns));
@@ -1044,6 +1046,9 @@ export const AppProvider = ({ children }) => {
 
   const applyCreativeApprovalGuardsAndCleanup = (existingTask, incomingUpdates = {}) => {
     const sanitizedUpdates = { ...incomingUpdates };
+    // Allow callers to explicitly bypass the approval lock (e.g. Undo Approval action)
+    const bypassApprovalGuard = sanitizedUpdates._bypassApprovalGuard === true;
+    delete sanitizedUpdates._bypassApprovalGuard;
     const newlyApprovedCreativeUrls = [];
     const newlyApprovedCreativeData = []; // Store URL and index
 
@@ -1056,7 +1061,7 @@ export const AppProvider = ({ children }) => {
     const existingFeedback = Array.isArray(existingTask.viewerLinkFeedback) ? existingTask.viewerLinkFeedback : [];
     const existingSlackPermalinks = Array.isArray(existingTask.slackPermalink) ? existingTask.slackPermalink : [];
 
-    const isLockedCreative = (index) => existingApprovals[index] === 'Approved' || existingApprovals[index] === 'Uploaded';
+    const isLockedCreative = (index) => !bypassApprovalGuard && (existingApprovals[index] === 'Approved' || existingApprovals[index] === 'Uploaded');
 
     if (Array.isArray(sanitizedUpdates.viewerLink)) {
       sanitizedUpdates.viewerLink = [...sanitizedUpdates.viewerLink];

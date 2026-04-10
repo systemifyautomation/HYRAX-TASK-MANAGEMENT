@@ -14,7 +14,7 @@ import UserTasksModal from '../components/UserTasksModal';
 import ColumnManagerModal from '../components/ColumnManagerModal';
 import AddTaskModal from '../components/AddTaskModal';
 import { logUserActivity } from '../utils/activityLogger';
-import { uploadToR2WithPresignedUrl, uploadToR2 } from '../utils/r2Upload';
+import { uploadToR2 } from '../utils/r2Upload';
 
 // Global storage for active uploads - survives component re-renders
 if (!window.HYRAX_ACTIVE_UPLOADS) {
@@ -211,9 +211,15 @@ const Tasks = () => {
   // Initialize weekView based on current URL path
   const [weekView, setWeekView] = useState(() => {
     const segments = location.pathname.split('/').filter(Boolean);
-    return segments[0] === 'next-week' ? 'next-week' : 'this-week';
+    if (segments[0] === 'next-week') return 'next-week';
+    if (segments[0] === 'last-week') return 'last-week';
+    return 'this-week';
   });
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeekDateRange()); // Default to 'This week'
+  
+  // Separate state for last-week tasks to avoid overwriting this-week tasks
+  const [lastWeekTasks, setLastWeekTasks] = useState([]);
+  const [lastWeekLoading, setLastWeekLoading] = useState(false);
   
   // Load campaigns data once on mount (campaigns don't change between weeks)
   useEffect(() => {
@@ -263,6 +269,40 @@ const Tasks = () => {
       if (weekView === 'this-week') {
         localStorage.setItem('hyrax_current_week', selectedWeek);
         loadTasksFromWebhook(null, selectedWeek !== 'all' ? selectedWeek : null);
+      } else if (weekView === 'last-week') {
+        const lastWeekRange = getWeekDateRange(-1);
+        localStorage.setItem('hyrax_current_week', lastWeekRange);
+        // Load into separate state to avoid overwriting this-week tasks
+        setLastWeekLoading(true);
+        const webhookUrl = import.meta.env.VITE_TASKS_WEBHOOK_URL;
+        if (webhookUrl) {
+          const userEmail = currentUser?.email || '';
+          const adminPassword = localStorage.getItem('admin_password') || '';
+          const loginDate = localStorage.getItem('login_date') || '';
+          const hashThree = async (a, b, c) => {
+            const combined = a + b + c;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(combined);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          };
+          hashThree(userEmail, adminPassword, loginDate).then(code => {
+            const params = new URLSearchParams({ requested_by: userEmail, code, week: lastWeekRange });
+            return fetch(`${webhookUrl}?${params}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+          }).then(res => res.text()).then(text => {
+            if (!text) return [];
+            try { return JSON.parse(text); } catch { return []; }
+          }).then(data => {
+            const valid = Array.isArray(data) ? data.filter(t => t && Object.keys(t).length > 0 && t.id) : [];
+            setLastWeekTasks(valid);
+          }).catch(err => {
+            console.error('Error loading last-week tasks:', err);
+            setLastWeekTasks([]);
+          }).finally(() => setLastWeekLoading(false));
+        } else {
+          setLastWeekLoading(false);
+        }
       } else {
         // For next week, pass the next week's date range
         const nextWeekRange = getWeekDateRange(1);
@@ -478,14 +518,14 @@ const Tasks = () => {
       
       // Determine which data source to use based on current week view
       const currentPath = location.pathname;
-      const targetWeekView = currentPath.includes('next-week') ? 'next-week' : 'this-week';
-      const targetWeekOffset = targetWeekView === 'next-week' ? 1 : 0;
+      const targetWeekView = currentPath.includes('next-week') ? 'next-week' : currentPath.includes('last-week') ? 'last-week' : 'this-week';
+      const targetWeekOffset = targetWeekView === 'next-week' ? 1 : targetWeekView === 'last-week' ? -1 : 0;
       const targetWeekRange = getWeekDateRange(targetWeekOffset);
       const normalizedDepartment = (prevModal.user.department || '').trim().toUpperCase();
       
       // Get updated tasks for this user
-      const rawSourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
-      const sourceData = applyOptimisticUpdates(rawSourceData);
+      const rawSourceData = targetWeekView === 'next-week' ? scheduledTasks : targetWeekView === 'last-week' ? lastWeekTasks : tasks;
+      const sourceData = targetWeekView === 'last-week' ? rawSourceData : applyOptimisticUpdates(rawSourceData);
       const updatedModalTasks = sourceData.filter(task => {
         if (String(task.assignedTo) !== String(prevModal.user.id)) return false;
         if (task.week !== targetWeekRange) return false;
@@ -510,7 +550,7 @@ const Tasks = () => {
       
       return prevModal;
     });
-  }, [tasks, scheduledTasks, location.pathname, applyOptimisticUpdates]);
+  }, [tasks, scheduledTasks, lastWeekTasks, location.pathname, applyOptimisticUpdates]);
   
   // Debug: Log users and columns on component mount
   useEffect(() => {
@@ -661,6 +701,11 @@ const Tasks = () => {
       return true;
     }
     
+    // Check for /last-week/cards/{user_slug} format (3 segments)
+    if (segments.length === 3 && segments[0] === 'last-week' && segments[1] === 'cards') {
+      return true;
+    }
+    
     // Check for /cards/{user_slug}/campaign/{campaign_slug} format (4 segments)
     if (segments.length === 4 && segments[0] === 'cards' && segments[2] === 'campaign') {
       return true;
@@ -690,6 +735,8 @@ const Tasks = () => {
     const baseView = segments[0];
     if (baseView === 'this-week') {
       setWeekView('this-week');
+    } else if (baseView === 'last-week') {
+      setWeekView('last-week');
     } else if (baseView === 'next-week') {
       setWeekView('next-week');
     } else if (baseView === 'cards') {
@@ -762,7 +809,7 @@ const Tasks = () => {
   }, [location.pathname, navigate]);
 
   const buildFilterPath = useCallback(() => {
-    const basePath = weekView === 'this-week' ? '/this-week' : '/next-week';
+    const basePath = weekView === 'next-week' ? '/next-week' : weekView === 'last-week' ? '/last-week' : '/this-week';
     const segments = [];
 
     if (selectedUser) {
@@ -1016,6 +1063,16 @@ const Tasks = () => {
       userSlug = decodeURIComponent(segments[2]);
       targetTaskId = parseInt(segments[6]);
       targetWeekView = 'next-week';
+    }
+    // Check if path is /last-week/cards/{user_slug} (exactly 3 segments)
+    else if (segments.length === 3 && segments[0] === 'last-week' && segments[1] === 'cards') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetWeekView = 'last-week';
+    }
+    // Check if path is /last-week/cards/{user_slug}/campaign/{campaign_slug} (exactly 5 segments)
+    else if (segments.length === 5 && segments[0] === 'last-week' && segments[1] === 'cards' && segments[3] === 'campaign') {
+      userSlug = decodeURIComponent(segments[2]);
+      targetWeekView = 'last-week';
     } else {
       return;
     }
@@ -1032,13 +1089,13 @@ const Tasks = () => {
     }
 
     // Get current week range based on detected weekView from path
-    const targetWeekOffset = targetWeekView === 'next-week' ? 1 : 0;
+    const targetWeekOffset = targetWeekView === 'next-week' ? 1 : targetWeekView === 'last-week' ? -1 : 0;
     const targetWeekRange = getWeekDateRange(targetWeekOffset);
     const normalizedDepartment = (user.department || '').trim().toUpperCase();
 
     // Get all tasks for this user based on week view and apply optimistic updates
-    const rawSourceData = targetWeekView === 'this-week' ? tasks : scheduledTasks;
-    const sourceData = applyOptimisticUpdates(rawSourceData);
+    const rawSourceData = targetWeekView === 'next-week' ? scheduledTasks : targetWeekView === 'last-week' ? lastWeekTasks : tasks;
+    const sourceData = targetWeekView === 'last-week' ? rawSourceData : applyOptimisticUpdates(rawSourceData);
     const modalTasks = sourceData.filter(task => {
       if (String(task.assignedTo) !== String(user.id)) return false;
       if (task.week !== targetWeekRange) return false;
@@ -1059,7 +1116,7 @@ const Tasks = () => {
 
     setCurrentPreviewIndex(0);
     setUserTasksModal({ user, tasks: modalTasks, focusedTaskId: targetTaskId });
-  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal, applyOptimisticUpdates]);
+  }, [location.pathname, userTasksModal, closingModalRef, users, tasks, scheduledTasks, lastWeekTasks, getUserIdFromSlug, setCurrentPreviewIndex, setUserTasksModal, applyOptimisticUpdates]);
   
   // Debounce timer ref for text inputs
   const debounceTimers = useRef({});
@@ -1417,16 +1474,15 @@ const Tasks = () => {
   };
 
   const handleCreativeUpload = async (taskId, adIndex, file, taskData, assignedUser, campaign, previousUrl = null) => {
-    // Check file size first - must be under 99MB
     const fileSizeMB = file.size / 1024 / 1024;
-    if (fileSizeMB > 99) {
-      alert(`⚠️ File size limit exceeded!\n\nFile: ${file.name}\nSize: ${fileSizeMB.toFixed(2)} MB\n\nMaximum allowed: 99 MB\n\nPlease compress your video and try again.`);
+    
+    // Check for known browser limitations
+    if (fileSizeMB > 3072) {
+      alert('⚠️ File exceeds 3GB limit. Maximum supported file size is 3GB.');
       return;
     }
     
     const uploadKey = `${taskId}-${adIndex}`;
-    let lastProgressTime = Date.now();
-    let lastProgressBytes = 0;
     
     // Check if upload already in progress
     if (window.HYRAX_ACTIVE_UPLOADS[uploadKey]) {
@@ -1434,38 +1490,11 @@ const Tasks = () => {
       return;
     }
     
-    console.log('=== UPLOAD START ===');
+    console.log('=== UPLOAD START (R2 Direct) ===');
     console.log('File:', file.name);
-    console.log('Size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+    console.log('Size:', fileSizeMB.toFixed(2), 'MB');
     console.log('Type:', file.type);
-    console.log('Last Modified:', new Date(file.lastModified).toLocaleString());
-    
-    // CRITICAL: Browser/System Diagnostics
-    console.log('=== SYSTEM DIAGNOSTICS ===');
-    console.log('Browser:', navigator.userAgent);
-    console.log('Platform:', navigator.platform);
-    console.log('Memory (if available):', performance.memory ? {
-      usedJSHeapSize: (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
-      totalJSHeapSize: (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
-      jsHeapSizeLimit: (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2) + 'MB'
-    } : 'Not available');
-    console.log('Connection:', navigator.connection ? {
-      effectiveType: navigator.connection.effectiveType,
-      downlink: navigator.connection.downlink + 'Mbps',
-      rtt: navigator.connection.rtt + 'ms'
-    } : 'Not available');
     console.log('Active uploads count:', Object.keys(window.HYRAX_ACTIVE_UPLOADS).length);
-    console.log('======================');
-    
-    // Check for known browser limitations
-    if (fileSizeMB > 3072) {
-      alert('⚠️ File exceeds 3GB limit. Maximum supported file size is 3GB.');
-      return;
-    }
-
-    // All files upload directly to n8n webhook
-    const uploadUrl = import.meta.env.VITE_NEW_CREATIVE_FROM_TASKS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
-    console.log(`📊 Uploading directly to n8n (file: ${fileSizeMB.toFixed(2)}MB)`);
 
     try {
       // Mark that an upload is in progress - use global flag
@@ -1569,298 +1598,75 @@ const Tasks = () => {
       const adNumber = Math.floor(adIndex / (isVideoEditor ? 2 : 1)) + 1;
       const path = `/${userSlug}/${campaignSlug}/ad_${adNumber}/preview`;
       
-      // ============================================================
-      // STEP 1: Upload file to R2 Storage
-      // ============================================================
-      console.log('📤 [STEP 1/2] Uploading file to R2 storage...');
+      // Upload file directly to Cloudflare R2
+      window.HYRAX_ACTIVE_UPLOADS[uploadKey] = true;
+      activeUploads.current[uploadKey] = true;
       
-      let uploadedFileUrl;
-      try {
-        // Use presigned URL method if endpoint is configured, otherwise direct upload
-        const presignedEndpoint = import.meta.env.VITE_S3_PRESIGNED_URL_ENDPOINT;
-        
-        const s3ProgressCallback = (percent) => {
-          // Update progress for S3 upload (0-95% range, save 96-100% for n8n)
-          const adjustedPercent = Math.floor(percent * 0.95);
-          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: adjustedPercent }));
-        };
-        
-        if (presignedEndpoint) {
-          console.log('Using presigned URL method (recommended)');
-          uploadedFileUrl = await uploadToR2WithPresignedUrl(file, path, s3ProgressCallback);
-        } else {
-          console.log('⚠️ Using direct R2 upload - CORS must be configured on bucket!');
-          uploadedFileUrl = await uploadToR2(file, path, s3ProgressCallback);
-        }
-        
-        console.log('✅ [STEP 1/2] R2 upload successful!');
-        console.log('📍 File URL:', uploadedFileUrl);
-        
-        // Update progress to show S3 upload complete
-        setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 96 }));
-        
-      } catch (r2Error) {
-        console.error('❌ R2 upload failed:', r2Error);
-        
-        // Check if it's a CORS error
-        const isCorsError = r2Error.message.includes('CORS') || 
-                           r2Error.message.includes('Network error') ||
-                           r2Error.message.includes('blocked');
-        
-        // Clean up upload state
-        setUploadingCreatives(prev => {
-          const newState = { ...prev };
-          delete newState[uploadKey];
-          return newState;
-        });
-        delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-        if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
-          setHasActiveUpload(false);
-        }
-        
-        if (isCorsError) {
-          alert(`❌ R2 Upload Blocked by CORS\n\n${r2Error.message}\n\n🔧 SOLUTION:\nAsk your admin to configure CORS on the R2 bucket.\n\nIn Cloudflare Dashboard → R2 → creatives bucket → Settings → CORS Policy, add:\n\n[\n  {\n    "AllowedOrigins": ["http://localhost:5173", "https://yourdomain.com"],\n    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],\n    "AllowedHeaders": ["*"],\n    "ExposeHeaders": ["ETag"],\n    "MaxAgeSeconds": 3600\n  }\n]\n\nCheck console (F12) for more details.`);
-        } else {
-          alert(`❌ Upload to R2 Storage Failed\n\n${r2Error.message}\n\nPlease try again or contact support if this persists.`);
-        }
-        return;
-      }
-      
-      // ============================================================
-      // STEP 2: Send metadata to n8n webhook
-      // ============================================================
-      console.log('📤 [STEP 2/2] Sending metadata to n8n webhook...');
-      
-      const formData = new FormData();
-      formData.append('s3Url', uploadedFileUrl);
-      formData.append('taskId', taskId);
-      formData.append('adIndex', adIndex);
-      formData.append('path', path);
-      if (creativeWidth && creativeHeight) {
-        formData.append('creative_width', String(creativeWidth));
-        formData.append('creative_height', String(creativeHeight));
-      }
-      
-      // Add assigned user details (person on the card)
-      if (assignedUser) {
-        formData.append('assignedUserId', assignedUser.id);
-        formData.append('assignedUserName', assignedUser.name);
-        formData.append('assignedUserDepartment', assignedUser.department || '');
-      }
-      
-      // Add campaign details
-      if (campaign) {
-        formData.append('campaignId', campaign.id);
-        formData.append('campaignName', campaign.name);
-      }
-      
-      // Add current user details (person who uploaded)
-      formData.append('uploadedByUserId', uploaderUserId);
-      formData.append('uploadedByUserName', currentUser.name);
-      formData.append('uploadedByUserRole', currentUser.role || '');
-      
-      // Add task details
-      if (taskData) {
-        formData.append('taskTitle', taskData.title || '');
-        formData.append('taskDueDate', taskData.dueDate || '');
-        formData.append('taskQuantity', taskData.quantity || '');
-      }
-      
-      console.log('FormData prepared with', Array.from(formData.keys()).length, 'fields');
-      console.log('S3 URL included for n8n to download:', uploadedFileUrl);
-      
-      // Use fetch with keepalive for better reliability
       const startTime = Date.now();
       
-      // Create abort controller for timeout management
-      const controller = new AbortController();
-      // Metadata POST should be fast - 2 minute timeout is plenty
-      const timeoutSeconds = 120;
-      console.log('n8n timeout set to:', timeoutSeconds, 'seconds');
+      console.log('📤 Uploading directly to R2...');
+      const uploadedUrl = await uploadToR2(file, path, (percent) => {
+        setUploadingCreatives(prev => ({ ...prev, [uploadKey]: Math.min(percent, 99) }));
+      });
       
-      const timeoutId = setTimeout(() => {
-        console.error('Upload timeout reached');
-        controller.abort();
-      }, timeoutSeconds * 1000);
+      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`✅ R2 upload complete in ${totalTime}s`);
+      console.log('File URL:', uploadedUrl);
       
-      // Track progress using XHR wrapped in fetch-like API
-      const uploadPromise = new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
+      // Notify n8n webhook with metadata (no file) for Slack posting and tracking
+      let slackPermalink = '';
+      try {
+        const webhookUrl = import.meta.env.VITE_NEW_CREATIVE_FROM_TASKS_WEBHOOK_URL || 'https://workflows.wearehyrax.com/webhook/new-creative-from-tasks';
+        const metadata = {
+          taskId,
+          adIndex,
+          path,
+          url: uploadedUrl,
+          creative_width: creativeWidth ? String(creativeWidth) : undefined,
+          creative_height: creativeHeight ? String(creativeHeight) : undefined,
+          assignedUserId: assignedUser?.id,
+          assignedUserName: assignedUser?.name,
+          assignedUserDepartment: assignedUser?.department || '',
+          campaignId: campaign?.id,
+          campaignName: campaign?.name,
+          uploadedByUserId: uploaderUserId,
+          uploadedByUserName: currentUser.name,
+          uploadedByUserRole: currentUser.role || '',
+          taskTitle: taskData?.title || '',
+          taskDueDate: taskData?.dueDate || '',
+          taskQuantity: taskData?.quantity || '',
+          previousUrl: previousUrl || undefined,
+        };
         
-        console.log('🔧 Creating XHR object...');
-        console.log('XHR created, ready state:', xhr.readyState);
-        
-        // Store xhr reference GLOBALLY to prevent HMR/re-render from destroying it
-        window.HYRAX_ACTIVE_UPLOADS[uploadKey] = xhr;
-        activeUploads.current[uploadKey] = xhr;
-        
-        console.log('📝 XHR stored in global window object');
-        
-        // Monitor ALL state changes
-        xhr.addEventListener('readystatechange', () => {
-          console.log('🔄 Ready state changed:', xhr.readyState, [
-            'UNSENT', 'OPENED', 'HEADERS_RECEIVED', 'LOADING', 'DONE'
-          ][xhr.readyState]);
-        });
-        
-        // Progress tracking - metadata POST should be fast
-        let lastLogTime = Date.now();
-        let progressEventCount = 0;
-        
-        xhr.upload.addEventListener('loadstart', (e) => {
-          console.log('🚀 METADATA POST started');
-          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 97 }));
-        });
-        
-        xhr.upload.addEventListener('progress', (e) => {
-          progressEventCount++;
-          // Metadata is small, progress from 97% to 99%
-          if (e.lengthComputable) {
-            const percentComplete = 97 + Math.round((e.loaded / e.total) * 2); // 97-99%
-            console.log(`📤 n8n metadata: ${percentComplete}%`);
-            setUploadingCreatives(prev => ({ ...prev, [uploadKey]: Math.min(percentComplete, 99) }));
-          }
-        });
-        
-        xhr.upload.addEventListener('load', () => {
-          console.log('✅ Metadata sent to n8n, waiting for response...');
-          setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 99 }));
-        });
-        
-        xhr.upload.addEventListener('error', (e) => {
-          console.error('❌ n8n metadata POST error:', e);
-        });
-        
-        xhr.upload.addEventListener('abort', (e) => {
-          console.error('❌ n8n metadata POST aborted:', e);
-          console.error('Abort triggered at progress:', progressEventCount, 'events');
-        });
-        
-        xhr.addEventListener('loadstart', () => {
-          console.log('🚀 XHR.loadstart event fired');
-        });
-        
-        xhr.addEventListener('load', () => {
-          clearTimeout(timeoutId);
-          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-          console.log(`✅ Server responded in ${elapsed}s with status: ${xhr.status}`);
-          console.log('Response headers:', xhr.getAllResponseHeaders());
-          
-          // Clean up global reference
-          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          
-          if (xhr.status >= 200 && xhr.status < 300) {
-            console.log('Response:', xhr.responseText.substring(0, 500));
-            try {
-              const result = JSON.parse(xhr.responseText);
-              resolve(result);
-            } catch (e) {
-              console.warn('Response is not JSON, treating as success');
-              resolve({});
-            }
-          } else if (xhr.status === 413) {
-            // 413 Payload Too Large
-            console.error('❌ Upload failed: File too large for server');
-            console.error('Response:', xhr.responseText);
-            console.error('File size:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-            reject(new Error(`File too large for webhook server. The n8n webhook has a size limit. File: ${(file.size / 1024 / 1024).toFixed(2)}MB. Contact admin to increase webhook body size limit.`));
-          } else {
-            console.error('❌ Upload failed with status:', xhr.status);
-            console.error('Response:', xhr.responseText);
-            console.error('Response headers:', xhr.getAllResponseHeaders());
-            reject(new Error(`Server returned status ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
-          }
-        });
-        
-        xhr.addEventListener('error', (e) => {
-          clearTimeout(timeoutId);
-          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          console.error('❌ XHR.error event');
-          console.error('Event details:', e);
-          console.error('Ready state:', xhr.readyState);
-          console.error('Status:', xhr.status);
-          console.error('Status text:', xhr.statusText);
-          reject(new Error('Network error - connection lost or server unreachable'));
-        });
-        
-        xhr.addEventListener('abort', () => {
-          clearTimeout(timeoutId);
-          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          console.error('❌ n8n metadata POST aborted');
-          console.error('⚠️ ABORT DETAILS:');
-          console.error('  - Ready state:', xhr.readyState);
-          console.error('  - Status:', xhr.status);
-          console.error('  - Time elapsed:', ((Date.now() - startTime) / 1000).toFixed(1), 'seconds');
-          console.error('Note: File was already uploaded to R2 successfully at:', uploadedFileUrl);
-          
-          reject(new Error(`n8n metadata POST aborted (file is safe in R2: ${uploadedFileUrl})`));
-        });
-        
-        xhr.addEventListener('timeout', () => {
-          clearTimeout(timeoutId);
-          delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-          console.error('❌ n8n metadata POST timeout');
-          console.error('Note: File was already uploaded to R2 successfully at:', uploadedFileUrl);
-          reject(new Error(`n8n timeout (file is safe in R2: ${uploadedFileUrl})`));
-        });
-        
-        // Build URL with query parameters for replace operation
-        let finalUploadUrl = uploadUrl;
+        let finalWebhookUrl = webhookUrl;
         if (previousUrl) {
           const urlParams = new URLSearchParams();
           urlParams.append('previous_url', previousUrl);
-          urlParams.append('new_url', uploadedFileUrl);
-          finalUploadUrl = `${uploadUrl}?${urlParams.toString()}`;
-          console.log('🔄 Replace mode - previous_url:', previousUrl, '| new_url:', uploadedFileUrl);
+          finalWebhookUrl = `${webhookUrl}?${urlParams.toString()}`;
         }
         
-        xhr.open('POST', finalUploadUrl, true);
-        console.log('✅ XHR POST to n8n:', finalUploadUrl);
+        const webhookResponse = await fetch(finalWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(metadata),
+        });
         
-        xhr.timeout = timeoutSeconds * 1000;
-        console.log('⏱️ Timeout:', timeoutSeconds, 'seconds');
-        
-        console.log('📡 Sending metadata to n8n (file already in R2)...');
-        
-        try {
-          xhr.send(formData);
-          console.log('✅ Metadata POST sent to n8n');
-        } catch (e) {
-          console.error('❌ xhr.send() error:', e);
-          console.error('Note: File is safe in R2:', uploadedFileUrl);
-          reject(e);
-        }
-        
-        // Safety check - metadata POST should be fast (5 second check)
-        setTimeout(() => {
-          if (progressEventCount === 0 && xhr.readyState !== XMLHttpRequest.DONE) {
-            console.error('❌ No response from n8n after 5 seconds');
-            console.error('Ready state:', xhr.readyState);
-            console.error('This might indicate: n8n webhook down, CORS issue, or network problem');
-            console.error('Note: File is safely stored in R2:', uploadedFileUrl);
-          }
-        }, 5000);
-        
-        // Monitor metadata POST
-        const renderCheckInterval = setInterval(() => {
-          if (xhr.readyState !== XMLHttpRequest.DONE) {
-            console.log('⏱️ Metadata POST active | State:', xhr.readyState);
-            
-            // Check if the XHR is still in global storage
-            if (!window.HYRAX_ACTIVE_UPLOADS[uploadKey]) {
-              console.error('⚠️ WARNING: XHR removed from global storage!');
+        if (webhookResponse.ok) {
+          try {
+            const webhookResult = await webhookResponse.json();
+            slackPermalink = webhookResult.slackPermalink || webhookResult.data?.slackPermalink || '';
+            if (slackPermalink) {
+              console.log('✅ Received Slack permalink:', slackPermalink);
             }
-          } else {
-            clearInterval(renderCheckInterval);
+          } catch (e) {
+            console.warn('Webhook response is not JSON');
           }
-        }, 3000);
-      });
-      
-      const result = await uploadPromise;
-      
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`✅ [STEP 2/2] n8n webhook success in ${totalTime}s`);
-      console.log('✅ COMPLETE: File in R2 + metadata sent to n8n');
+        } else {
+          console.warn('Webhook notification failed:', webhookResponse.status);
+        }
+      } catch (webhookError) {
+        console.warn('Failed to notify webhook (non-critical):', webhookError.message);
+      }
       
       // Update upload progress to 100%
       setUploadingCreatives(prev => ({ ...prev, [uploadKey]: 100 }));
@@ -1872,25 +1678,15 @@ const Tasks = () => {
           delete newState[uploadKey];
           return newState;
         });
-        // Remove from active uploads
         delete activeUploads.current[uploadKey];
         delete window.HYRAX_ACTIVE_UPLOADS[uploadKey];
-        // Clear active upload flag if no more uploads
         if (Object.keys(window.HYRAX_ACTIVE_UPLOADS).length === 0) {
           setHasActiveUpload(false);
         }
       }, 2000);
       
-      // Extract URL and slack permalink from n8n response
-      // n8n downloads from R2, processes, and returns the final creative URL
-      const uploadedUrl = result.url || result.data?.url || result.viewerLink || result.data?.viewerLink;
-      const slackPermalink = result.slackPermalink || result.data?.slackPermalink || '';
-      
       if (uploadedUrl) {
-        console.log('✅ Received creative URL from n8n:', uploadedUrl);
-        if (slackPermalink) {
-          console.log('✅ Received Slack permalink:', slackPermalink);
-        }
+        console.log('✅ Creative URL:', uploadedUrl);
         
         // Log creative upload activity
         logUserActivity({ 
@@ -1995,14 +1791,14 @@ const Tasks = () => {
       console.error('==================');
       
       // Determine if it's a server issue
-      const isServerIssue = error.message.includes('status 5') || 
+      const isServerIssue = error.message.includes('R2 upload failed') || 
                            error.message.includes('timeout') || 
-                           error.message.includes('Server');
+                           error.message.includes('Missing S3');
       
       let userMessage = `❌ Upload Failed\n\n${error.message}\n\nFile: ${file?.name}\nSize: ${(file?.size / 1024 / 1024).toFixed(2)}MB`;
       
-      if (isServerIssue && file.size > 100 * 1024 * 1024) { // > 100MB
-        userMessage += '\n\n⚠️ LARGE FILE DETECTED\nThe webhook server may not support files this large.\n\nSolutions:\n1. Compress the video\n2. Use a lower resolution/bitrate\n3. Contact the webhook administrator';
+      if (isServerIssue && file.size > 500 * 1024 * 1024) { // > 500MB
+        userMessage += '\n\n⚠️ LARGE FILE DETECTED\nConsider compressing the file or using a lower resolution.';
       }
       
       userMessage += '\n\nCheck console (F12) for technical details.';
@@ -2277,8 +2073,8 @@ const Tasks = () => {
   // Filter tasks based on current view
   const filteredTasks = useMemo(() => {
     // Select data source based on week view and apply optimistic updates
-    const rawSourceData = weekView === 'this-week' ? tasks : scheduledTasks;
-    const sourceData = applyOptimisticUpdates(rawSourceData);
+    const rawSourceData = weekView === 'next-week' ? scheduledTasks : weekView === 'last-week' ? lastWeekTasks : tasks;
+    const sourceData = weekView === 'last-week' ? rawSourceData : applyOptimisticUpdates(rawSourceData);
     
     // When on a modal/deep-link path, show ALL tasks in background (no filtering)
     const isDeepLink = isModalRoutePath(location.pathname);
@@ -2323,7 +2119,7 @@ const Tasks = () => {
     }
 
     return filtered;
-  }, [tasks, scheduledTasks, weekView, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath, applyOptimisticUpdates]);
+  }, [tasks, scheduledTasks, lastWeekTasks, weekView, selectedCampaign, selectedUser, dateRangeStart, dateRangeEnd, location.pathname, isModalRoutePath, applyOptimisticUpdates]);
 
   const renderCell = (task, column, isEditing) => {
     const value = task[column.key];
@@ -2908,6 +2704,15 @@ const Tasks = () => {
           {/* Week View Toggle - This Week / Next Week */}
           <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-1 shadow-sm">
             <button
+              onClick={() => navigate('/last-week', { replace: true })}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
+                weekView === 'last-week' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Last Week</span>
+            </button>
+            <button
               onClick={() => navigate('/this-week', { replace: true })}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center space-x-2 ${
                 weekView === 'this-week' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
@@ -2941,7 +2746,7 @@ const Tasks = () => {
 
         {/* Right side - Action Buttons */}
         <div className="flex items-center space-x-3">
-          {canManageTasks && selectedTasks.size > 0 && (
+          {canManageTasks && weekView !== 'last-week' && selectedTasks.size > 0 && (
             <>
               <button
                 onClick={handleDuplicateSelectedTasks}
@@ -2973,8 +2778,17 @@ const Tasks = () => {
 
       {/* Cards View */}
       <div className="space-y-8 p-6">
+          {/* Last week loading indicator */}
+          {lastWeekLoading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <div className="w-10 h-10 border-4 border-blue-400/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-gray-500 dark:text-gray-400">Loading last week's tasks...</p>
+              </div>
+            </div>
+          )}
           {/* ALL DEPARTMENTS */}
-          {(() => {
+          {!lastWeekLoading && (() => {
             const usersWithWebhookTasks = users.filter(user =>
               filteredTasks.some(task => String(task.assignedTo) === String(user.id))
             );
@@ -3046,11 +2860,12 @@ const Tasks = () => {
                         campaigns={campaigns}
                         users={users}
                         currentUser={currentUser}
-                        updateTask={weekView === 'this-week' ? updateTaskOptimistic : updateScheduledTaskOptimistic}
-                        deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
+                        updateTask={weekView === 'next-week' ? updateScheduledTaskOptimistic : updateTaskOptimistic}
+                        deleteTask={weekView === 'next-week' ? deleteScheduledTask : deleteTask}
                         weekView={weekView}
+                        readOnly={weekView === 'last-week'}
                         onAddTaskClick={() => {
-                          if (!canManageTasks) return;
+                          if (!canManageTasks || weekView === 'last-week') return;
                           setAddTaskModal({ user });
                         }}
                         onClick={(user, tasks) => {
@@ -3058,7 +2873,12 @@ const Tasks = () => {
                           // This ensures the correct data source (tasks vs scheduledTasks) is used
                           const userSlug = getUserSlug(user.id) || 'user';
                           const isNextWeek = location.pathname.startsWith('/next-week');
-                          const cardsPath = isNextWeek ? `/next-week/cards/${userSlug}` : `/cards/${userSlug}`;
+                          const isLastWeek = location.pathname.startsWith('/last-week');
+                          const cardsPath = isNextWeek
+                            ? `/next-week/cards/${userSlug}`
+                            : isLastWeek
+                            ? `/last-week/cards/${userSlug}`
+                            : `/cards/${userSlug}`;
                           navigate(cardsPath, { replace: true });
                         }}
                       />
@@ -3098,14 +2918,15 @@ const Tasks = () => {
         setCurrentPreviewIndex={setCurrentPreviewIndex}
         uploadingCreatives={uploadingCreatives}
         setFeedbackModal={setFeedbackModal}
-        updateTask={weekView === 'this-week' ? updateTaskOptimistic : updateScheduledTaskOptimistic}
-        deleteTask={weekView === 'this-week' ? deleteTask : deleteScheduledTask}
+        updateTask={weekView === 'next-week' ? updateScheduledTaskOptimistic : updateTaskOptimistic}
+        deleteTask={weekView === 'next-week' ? deleteScheduledTask : deleteTask}
         handleCreativeUpload={handleCreativeUpload}
         handleCancelUpload={handleCancelUpload}
         onClose={handleCloseUserTasksModal}
         isFeedbackModalOpen={Boolean(feedbackModal && feedbackModal.columnKey === 'viewerLink')}
+        readOnly={weekView === 'last-week'}
         onAddTaskClick={() => {
-          if (!canManageTasks) return;
+          if (!canManageTasks || weekView === 'last-week') return;
           if (userTasksModal) {
             setAddTaskModal({ user: userTasksModal.user });
           }

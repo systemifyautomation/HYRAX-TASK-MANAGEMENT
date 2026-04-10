@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, MessageSquare, BarChart3, Plus, Pencil, Check, X } from 'lucide-react';
+import { Plus, Pencil, Check, X } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import NewCampaignChatModal from '../components/NewCampaignChatModal';
 
@@ -68,122 +68,80 @@ const Campaigns = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {campaigns.map(campaign => {
-          const campaignTasks = getTasksByCampaign(campaign.id);
-          const completedTasks = campaignTasks.filter(task => 
-            task.adStatus === 'Complete' && 
-            task.postStatus === 'Complete'
-          ).length;
-          const progress = campaignTasks.length > 0 
-            ? Math.round((completedTasks / campaignTasks.length) * 100)
-            : 0;
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead>
+            <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-xs uppercase tracking-wider">
+              <th className="px-4 py-3 font-semibold">ID</th>
+              <th className="px-4 py-3 font-semibold">Campaign Name</th>
+              <th className="px-4 py-3 font-semibold">Slack ID</th>
+              <th className="px-4 py-3 font-semibold text-center">Tasks</th>
+              <th className="px-4 py-3 font-semibold text-center">Images</th>
+              <th className="px-4 py-3 font-semibold text-center">Videos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {campaigns.map(campaign => {
+              const campaignTasks = getTasksByCampaign(campaign.id);
 
-          return (
-            <div
-              key={campaign.id}
-              onClick={() => navigate(`/campaigns/${campaign.id}`)}
-              className="card hover:shadow-lg transition-all cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-primary-50 dark:bg-primary-600 rounded-lg flex items-center justify-center text-primary-600 dark:text-white">
-                    <FolderOpen className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 dark:text-gray-100 text-lg">{campaign.name}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">ID: {campaign.id}</p>
-                  </div>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(campaignTasks.length)}`}>
-                  {campaignTasks.length === 0 ? 'No Tasks' : campaignTasks.length < 5 ? 'Active' : 'High Volume'}
-                </span>
-              </div>
-
-              <div className="space-y-3 mb-4">
-                {editingCampaignId === campaign.id ? (
-                  <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                    <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Slack:</span>
-                    <input
-                      type="text"
-                      value={editedSlackId}
-                      onChange={(e) => setEditedSlackId(e.target.value)}
-                      placeholder="Enter Slack ID"
-                      className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                    />
-                    <button
-                      onClick={(e) => handleSaveEdit(campaign, e)}
-                      className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900 rounded transition-colors"
-                      title="Save"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
-                      title="Cancel"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  campaign.slackId ? (
-                    <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                      <MessageSquare className="w-4 h-4" />
-                      <span>Slack: {campaign.slackId}</span>
-                      <button
-                        onClick={(e) => handleStartEdit(campaign, e)}
-                        className="p-1 text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all"
-                        title="Edit Slack ID"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2 text-sm text-gray-400 dark:text-gray-500 italic">
-                      <MessageSquare className="w-4 h-4" />
-                      <span>No Slack ID</span>
-                      <button
-                        onClick={(e) => handleStartEdit(campaign, e)}
-                        className="p-1 text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all"
-                        title="Add Slack ID"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )
-                )}
-                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                  <BarChart3 className="w-4 h-4" />
-                  <span>{campaignTasks.length} total tasks</span>
-                </div>
-              </div>
-
-              {campaignTasks.length > 0 && (
-                <div className="mb-2">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600 dark:text-gray-400">Progress</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">{completedTasks}/{campaignTasks.length} completed</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-primary-600 dark:bg-primary-500 h-2 rounded-full transition-all"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between text-sm pt-4 border-t border-gray-100 dark:border-gray-700">
-                <span className="text-gray-600 dark:text-gray-400">{campaignTasks.length} tasks</span>
-                <span className="text-primary-600 dark:text-primary-400 font-medium hover:text-primary-700 dark:hover:text-primary-300">View Details →</span>
-              </div>
-            </div>
-          );
-        })}
+              return (
+                <tr
+                  key={campaign.id}
+                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                  className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{campaign.id}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{campaign.name}</td>
+                  <td className="px-4 py-3">
+                    {editingCampaignId === campaign.id ? (
+                      <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editedSlackId}
+                          onChange={(e) => setEditedSlackId(e.target.value)}
+                          placeholder="Enter Slack ID"
+                          className="w-40 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                        <button
+                          onClick={(e) => handleSaveEdit(campaign, e)}
+                          className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900 rounded transition-colors"
+                          title="Save"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <span className={campaign.slackId ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500 italic'}>
+                          {campaign.slackId || '—'}
+                        </span>
+                        <button
+                          onClick={(e) => handleStartEdit(campaign, e)}
+                          className="p-1 text-gray-400 hover:text-primary-600 dark:text-gray-500 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all opacity-0 group-hover:opacity-100"
+                          title={campaign.slackId ? 'Edit Slack ID' : 'Add Slack ID'}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{campaign.tasksCount || campaignTasks.length}</td>
+                  <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{campaign.images || 0}</td>
+                  <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{campaign.videos || 0}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <NewCampaignChatModal

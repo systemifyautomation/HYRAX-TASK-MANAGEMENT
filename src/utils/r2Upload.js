@@ -51,6 +51,7 @@ export const uploadToR2 = async (file, path, onProgress) => {
         accessKeyId: accessKeyId,
         secretAccessKey: secretAccessKey,
       },
+      forcePathStyle: true, // Required for Cloudflare R2
     });
 
     // Convert file to ArrayBuffer for upload

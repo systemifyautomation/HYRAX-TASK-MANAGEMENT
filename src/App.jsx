@@ -85,6 +85,7 @@ const AppRouter = () => {
                 <Route path="/" element={<Tasks />} />
                 <Route path="/this-week/*" element={<Tasks />} />
                 <Route path="/next-week/*" element={<Tasks />} />
+                <Route path="/last-week/*" element={<Tasks />} />
                 <Route path="/cards/*" element={<Tasks />} />
                 <Route path="/campaigns" element={<CampaignsList />} />
                 <Route path="/users" element={<ManagerRoute><UserManagement /></ManagerRoute>} />

@@ -1,67 +1,89 @@
-# R2 Upload - AWS SDK Configuration
+# R2 Upload - n8n Workflow Configuration
 
-## ✅ SETUP COMPLETE
+## ✅ FINAL SOLUTION: n8n Handles R2 Upload
 
-The app now uses **AWS SDK for JavaScript** to upload files to R2 with proper AWS Signature V4 authentication.
+Due to persistent CORS issues with browser → R2 uploads, the app now sends files **directly to n8n**, and **n8n uploads to R2**.
 
 **Benefits:**
-- ✅ No CORS configuration needed (AWS SDK handles auth properly)
-- ✅ Secure - credentials properly signed
-- ✅ Works directly from browser to R2
-- ✅ Bypasses 100MB n8n webhook limit
+- ✅ No CORS configuration needed
+- ✅ Works immediately without setup
+- ✅ n8n has full control over file processing
+- ✅ More secure - credentials only on server
 
 ---
 
-## 📋 How Upload Flow Works
+## 📋 Upload Flow
 
-### Frontend → R2 → n8n (2-Step Process)
+### Frontend → n8n → R2
 
-**STEP 1 (0-95%):** Browser uploads file to R2 using AWS SDK  
-- AWS SDK creates properly signed requests
-- No CORS issues - authentication handled by SDK
-- File uploads directly to R2 storage
-
-**STEP 2 (96-100%):** Browser sends metadata + `s3Url` to n8n  
-- n8n receives S3 URL where file is stored
-- n8n can download file if needed
-- n8n returns final creative URL
+**Single Step:** Browser sends file + metadata to n8n (0-100%)
+- n8n receives the binary file
+- n8n uploads to R2 using AWS S3 node
+- n8n returns the final creative URL
 
 ---
 
-## 🔧 Configuration Used
+## 🔧 n8n Workflow Setup
 
-The app is configured with:
+### Node 1: Webhook (Trigger)
+**Path:** `/webhook/new-creative-from-tasks`
+**Method:** POST
+**Binary Property:** `creative`
 
-```javascript
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+### Node 2: AWS S3 - Upload File
 
-const s3Client = new S3Client({
-  region: 'us-east-1',
-  endpoint: 'https://f6b6e09f4e45222766970824f44d1100.r2.cloudflarestorage.com',
-  credentials: {
-    accessKeyId: '3fb61e180cc48bc49fe2c4be9181b07c',
-    secretAccessKey: 'd93348bcca2c7884f903a4fff543daf2024cf8c056e7517deb0b2b17334f04e2',
-  },
-});
+**Credentials:**
+- **Access Key ID:** `3fb61e180cc48bc49fe2c4be9181b07c`
+- **Secret Access Key:** `d93348bcca2c7884f903a4fff543daf2024cf8c056e7517deb0b2b17334f04e2`
+- **Region:** `us-east-1`
+- **Custom S3 Endpoint:** `https://f6b6e09f4e45222766970824f44d1100.r2.cloudflarestorage.com`
+
+**Parameters:**
+- **Bucket Name:** `creatives`
+- **File Name:**
+  ```javascript
+  {{ $json.body.campaignName }}_{{ $binary.creative.fileName.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9\s]/g,'').replace(/\s+/g,' ').trim().slice(0,30) }}_{{ $now.toMillis() }}
+  ```
+- **Binary Property:** `creative`
+- **Additional Options:**
+  - Force path style: `true`
+  - Content-Type: `{{ $binary.creative.mimeType }}`
+
+**Example filename output:**
+```
+042_LIZBUYSHOMES_Artboard_3jpg_1743012345678.mp4
 ```
 
-**Credentials from `.env`:**
-- `VITE_S3_ENDPOINT` - R2 account endpoint
-- `VITE_S3_REGION` - Region (us-east-1)
-- `VITE_S3_BUCKET_NAME` - Bucket name (creatives)
-- `VITE_S3_ACCESS_KEY_ID` - R2 access key
-- `VITE_S3_SECRET_ACCESS_KEY` - R2 secret key
-- `VITE_S3_PUBLIC_URL` - Public URL for accessing files
+### Node 3: Set Creative URL
 
----
+Create variable for the uploaded file URL:
 
-## 🎯 What Gets Sent to n8n
+```javascript 
+{
+  "url": "https://storage.wearehyrax.com/{{ $node["AWS S3"].json.key }}"
+}
+```
 
-After R2 upload completes, n8n webhook receives:
+### Node 4: Respond to Webhook
+
+Return the URL to the frontend:
 
 ```javascript
 {
-  s3Url: "https://storage.wearehyrax.com/leon/gold-ira/ad_1/preview/1774625089718_video.mp4",
+  "url": "{{ $json.url }}",
+  "slackPermalink": "{{ $json.slackPermalink }}" // if you have Slack integration
+}
+```
+
+---
+
+## 📁 FormData Sent from Frontend
+
+The frontend sends this data to n8n:
+
+```javascript
+{
+  creative: <Binary File>,
   taskId: "123",
   adIndex: 0,
   path: "/leon/gold-ira/ad_1/preview",
@@ -74,14 +96,12 @@ After R2 upload completes, n8n webhook receives:
   campaignName: "001_GOLD_IRA",
   uploadedByUserId: "1",
   uploadedByUserName: "Admin",
-  // ... other metadata
+  uploadedByUserRole: "SUPER_ADMIN",
+  taskTitle: "Create video ad",
+  taskDueDate: "2026-04-15",
+  taskQuantity: "2"
 }
 ```
-
-**Note:** n8n receives the `s3Url` field pointing to where the file is stored in R2. n8n can then:
-1. Download the file from R2 if needed
-2. Process it (resize, convert, etc.)
-3. Return the final creative URL to the frontend
 
 ---
 
@@ -96,25 +116,11 @@ After R2 upload completes, n8n webhook receives:
 
 ---
 
-## 🔗 File URL Pattern
-
-Uploaded files are accessible at:
-```
-https://storage.wearehyrax.com/{path}/{timestamp}_{filename}
-```
-
-**Example:**
-```
-https://storage.wearehyrax.com/leon/gold-ira/ad_1/preview/1774625089718_Facebook_Format__1_.mp4
-```
-
----
-
 ## 🚀 Ready to Use
 
-The app is now configured and ready to upload files to R2. Just upload a creative and it will:
-1. Upload to R2 (with progress 0-95%)
-2. Send metadata to n8n (96-100%)
-3. Display the final URL from n8n
+The app is now configured to send files directly to n8n. Just:
+1. Configure the n8n workflow as described above
+2. Upload a creative in the app
+3. n8n will upload it to R2 and return the URL
 
-No additional configuration needed!
+No CORS configuration needed!

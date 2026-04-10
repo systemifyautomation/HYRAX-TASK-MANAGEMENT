@@ -1,4 +1,4 @@
-import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Download, Pencil } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, Upload, XCircle, Eye, RefreshCw, MessageSquare, Check, History, ExternalLink, Plus, Trash2, Download, Pencil, RotateCcw } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { USER_ROLES, isManager, isAdmin } from '../constants/roles';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -40,7 +40,8 @@ const UserTasksModal = ({
   handleCancelUpload,
   onClose,
   isFeedbackModalOpen,
-  onAddTaskClick
+  onAddTaskClick,
+  readOnly
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,6 +77,11 @@ const UserTasksModal = ({
     // Check if we're in /next-week/cards/ context
     if (segments.length >= 2 && segments[0] === 'next-week' && segments[1] === 'cards') {
       return '/next-week/cards';
+    }
+    
+    // Check if we're in /last-week/cards/ context
+    if (segments.length >= 2 && segments[0] === 'last-week' && segments[1] === 'cards') {
+      return '/last-week/cards';
     }
     
     // Default to /cards
@@ -248,8 +254,8 @@ const UserTasksModal = ({
 
   const isVideoEditor = safeUser.department === 'VIDEO EDITING';
   const isGraphicDesigner = safeUser.department === 'GRAPHIC DESIGN';
-  const canManageTasks = isManager(currentUser?.role);
-  const isAdminUser = isAdmin(currentUser?.role);
+  const canManageTasks = !readOnly && isManager(currentUser?.role);
+  const isAdminUser = !readOnly && isAdmin(currentUser?.role);
 
   // Collect all viewer links from all tasks with proper ad numbering
   const allLinks = [];
@@ -328,11 +334,23 @@ const UserTasksModal = ({
 
       if (!targetAd) {
         const segments = location.pathname.split('/').filter(Boolean);
-        const adSegment = segments.find(segment => segment.startsWith('ad_'));
+        const adSegmentIndex = segments.findIndex(segment => segment.startsWith('ad_'));
+        const adSegment = adSegmentIndex !== -1 ? segments[adSegmentIndex] : null;
         const adNumber = parseInt((adSegment || '').replace('ad_', ''), 10);
+        const campaignSlugFromPath = adSegmentIndex > 0 ? segments[adSegmentIndex - 1] : null;
 
         if (!Number.isNaN(adNumber)) {
-          targetAd = allLinks.find(link => link.adNumber === adNumber) || null;
+          // Match by both campaign slug and adNumber to handle multiple campaigns with same ad numbers
+          if (campaignSlugFromPath) {
+            targetAd = allLinks.find(link => {
+              const linkCampaignSlug = getCampaignSlug(link.campaignId, link.campaignName);
+              return link.adNumber === adNumber && linkCampaignSlug === campaignSlugFromPath;
+            }) || null;
+          }
+          // Fall back to adNumber-only match
+          if (!targetAd) {
+            targetAd = allLinks.find(link => link.adNumber === adNumber) || null;
+          }
         }
 
         if (!targetAd) {
@@ -792,7 +810,7 @@ const UserTasksModal = ({
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex">
       {/* Left Side - Video Previews (65%) */}
-      <div className="w-[65%] bg-gray-900 p-6 overflow-hidden flex flex-col">
+      <div className={`w-[65%] p-6 overflow-hidden flex flex-col ${readOnly ? 'bg-gray-800' : 'bg-gray-900'}`}>
         {allLinks.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-gray-400">
@@ -826,6 +844,11 @@ const UserTasksModal = ({
                   )}
                 </div>
                 <div className="flex items-center gap-3">
+                  {readOnly && (
+                    <span className="px-3 py-1 rounded-full text-sm font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/50">
+                      Last Week
+                    </span>
+                  )}
                   {selectedVersionPreview && selectedVersionPreview.isCurrent && (
                     <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/50">
                       Current
@@ -972,8 +995,15 @@ const UserTasksModal = ({
       </div>
 
       {/* Right Side - Task Details (35%) */}
-      <div className="w-[35%] bg-white dark:bg-gray-800 overflow-y-auto">
+      <div className={`w-[35%] overflow-y-auto ${readOnly ? 'bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-400 dark:border-amber-600' : 'bg-white dark:bg-gray-800'}`}>
         <div className="p-8">
+          {/* Read-only banner for last week */}
+          {readOnly && (
+            <div className="mb-5 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-600 text-amber-800 dark:text-amber-300">
+              <History className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-semibold">Last Week &mdash; View Only</span>
+            </div>
+          )}
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div>
@@ -1041,7 +1071,9 @@ const UserTasksModal = ({
                   <div 
                     className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors border-b border-gray-200 dark:border-gray-700 ${
                       isExpanded 
-                        ? 'bg-green-50 hover:bg-green-100 dark:bg-green-600 dark:shadow-lg dark:shadow-green-500/30 dark:hover:bg-green-500' 
+                        ? readOnly
+                          ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 border-l-4 border-l-amber-400'
+                          : 'bg-green-50 hover:bg-green-100 dark:bg-green-600 dark:shadow-lg dark:shadow-green-500/30 dark:hover:bg-green-500' 
                         : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                     onClick={() => {
@@ -1202,6 +1234,24 @@ const UserTasksModal = ({
 
                   return (
                     <div key={task.id} className="mb-3 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                      {/* Delete button for single-task-per-campaign case (no header shown) */}
+                      {sortedCampaignTasks.length === 1 && canManageTasks && (
+                        <div className="flex justify-end mb-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Are you sure you want to delete this task set?`)) {
+                                deleteTask(task.id);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                            title="Delete task set"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete Task Set
+                          </button>
+                        </div>
+                      )}
                       {/* Task Set Header - Only show if multiple tasks in campaign */}
                       {sortedCampaignTasks.length > 1 && (
                       <div 
@@ -1235,6 +1285,21 @@ const UserTasksModal = ({
                       >
                         <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Task Set #{taskIndex + 1}</h4>
                         <div className="flex items-center gap-2">
+                          {canManageTasks && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Are you sure you want to delete Task Set #${taskIndex + 1}?`)) {
+                                  deleteTask(task.id);
+                                }
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                              title="Delete task set"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Delete
+                            </button>
+                          )}
                           {expandedTaskSets.has(task.id) ? (
                             <ChevronDown className="w-5 h-5 text-blue-600" />
                           ) : (
@@ -1250,7 +1315,7 @@ const UserTasksModal = ({
                       {/* Copy Details Section */}
                       {(() => {
                         const scriptUser = users?.find(u => u.id === parseInt(task.scriptAssigned?.[0]));
-                        const canEdit = isManager(currentUser?.role);
+                        const canEdit = !readOnly && isManager(currentUser?.role);
                         
                         const handleCopyLinkChange = async (newLink) => {
                           // Preserve existing arrays and update only the first element
@@ -1319,14 +1384,16 @@ const UserTasksModal = ({
                                   <textarea
                                     defaultValue={copyLink || ''}
                                     onBlur={(e) => {
+                                      if (readOnly) return;
                                       const newValue = e.target.value.trim();
                                       if (newValue !== (copyLink || '')) {
                                         handleCopyLinkChange(newValue);
                                       }
                                     }}
-                                    placeholder="Paste copy link here..."
+                                    readOnly={readOnly}
+                                    placeholder={readOnly ? (copyLink ? '' : 'No copy link') : 'Paste copy link here...'}
                                     rows={3}
-                                    className="flex-1 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-100 border border-blue-200 dark:border-blue-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none break-all"
+                                    className={`flex-1 px-2.5 py-1.5 text-xs text-gray-900 dark:text-gray-100 border border-blue-200 dark:border-blue-500 rounded-md resize-none break-all ${readOnly ? 'bg-gray-50 dark:bg-gray-700 cursor-default' : 'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'}`}
                                   />
                                   {copyLink && (
                                     <a
@@ -1437,7 +1504,7 @@ const UserTasksModal = ({
                                   )}
                                 </div>
                                 {/* Delete Button - Only show for non-Reel slots (for video editors, only show on Facebook format) */}
-                                {(!isVideoEditor || formatIndex === 0) && (
+                                {!readOnly && (!isVideoEditor || formatIndex === 0) && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1493,6 +1560,37 @@ const UserTasksModal = ({
                                     <Eye className="w-4 h-4" />
                                     Preview
                                   </button>
+                                  {/* Undo Approval for Uploaded-to-Facebook creatives */}
+                                  {!readOnly && (currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const updatedApprovals = Array.isArray(task.viewerLinkApproval)
+                                          ? [...task.viewerLinkApproval]
+                                          : [];
+                                        updatedApprovals[slotIndex] = 'Needs Review';
+
+                                        const updatedTasks = [...userTasksModal.tasks];
+                                        updatedTasks[actualTaskIndex] = {
+                                          ...task,
+                                          viewerLinkApproval: updatedApprovals,
+                                          status: 'Needs Review',
+                                        };
+                                        setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+
+                                        updateTask(task.id, {
+                                          viewerLinkApproval: updatedApprovals,
+                                          status: 'Needs Review',
+                                          _bypassApprovalGuard: true,
+                                        });
+                                      }}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all"
+                                      title="Undo Approval — marks creative as Needs Review again"
+                                    >
+                                      <RotateCcw className="w-4 h-4" />
+                                      Undo Approval
+                                    </button>
+                                  )}
                                 </div>
                               ) : hasUpload ? (
                                 <div className="space-y-5">
@@ -1588,6 +1686,8 @@ const UserTasksModal = ({
                                     </button>
                                     
                                     {/* Replace Button */}
+                                    {!readOnly && (
+                                    <>
                                     <input
                                       type="file"
                                       id={`replace-${task.id}-${slotIndex}`}
@@ -1626,9 +1726,11 @@ const UserTasksModal = ({
                                       <RefreshCw className="w-4 h-4" />
                                       Replace
                                     </button>
+                                    </>
+                                    )}
 
                                     {/* Feedback Button - Admins/Managers Only */}
-                                    {(currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && (
+                                    {!readOnly && (currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && (
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1658,7 +1760,7 @@ const UserTasksModal = ({
                                   </div>
                                   
                                   {/* Approve Button - Separate Row */}
-                                  {(currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && 
+                                  {!readOnly && (currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) && 
                                    (!task.viewerLinkApproval || (task.viewerLinkApproval[slotIndex] !== 'Approved' && task.viewerLinkApproval[slotIndex] !== 'Uploaded')) && (
                                     <button
                                       onClick={(e) => {
@@ -1710,6 +1812,39 @@ const UserTasksModal = ({
                                     >
                                       <Check className="w-5 h-5" />
                                       Approve Creative
+                                    </button>
+                                  )}
+
+                                  {/* Undo Approval Button */}
+                                  {!readOnly && (currentUser.role === USER_ROLES.MANAGER || currentUser.role === USER_ROLES.ADMIN || currentUser.role === USER_ROLES.SUPER_ADMIN) &&
+                                   (task.viewerLinkApproval?.[slotIndex] === 'Approved' || task.viewerLinkApproval?.[slotIndex] === 'Uploaded') && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const updatedApprovals = Array.isArray(task.viewerLinkApproval)
+                                          ? [...task.viewerLinkApproval]
+                                          : [];
+                                        updatedApprovals[slotIndex] = 'Needs Review';
+
+                                        const updatedTasks = [...userTasksModal.tasks];
+                                        updatedTasks[actualTaskIndex] = {
+                                          ...task,
+                                          viewerLinkApproval: updatedApprovals,
+                                          status: 'Needs Review',
+                                        };
+                                        setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
+
+                                        updateTask(task.id, {
+                                          viewerLinkApproval: updatedApprovals,
+                                          status: 'Needs Review',
+                                          _bypassApprovalGuard: true,
+                                        });
+                                      }}
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all"
+                                      title="Undo Approval — marks creative as Needs Review again"
+                                    >
+                                      <RotateCcw className="w-4 h-4" />
+                                      Undo Approval
                                     </button>
                                   )}
                                   
@@ -1767,7 +1902,12 @@ const UserTasksModal = ({
                                 </div>
                               ) : (
                                 <div>
-                                  {uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
+                                  {readOnly ? (
+                                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg text-gray-400 dark:text-gray-500">
+                                      <Upload className="w-8 h-8 mb-2 opacity-40" />
+                                      <span className="text-sm">No creative uploaded</span>
+                                    </div>
+                                  ) : uploadingCreatives[`${task.id}-${slotIndex}`] !== undefined ? (
                                     <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-blue-300 dark:border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-600">
                                       <div className="text-blue-600 mb-2">
                                         <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 rounded-full animate-spin"></div>

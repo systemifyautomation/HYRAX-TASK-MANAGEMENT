@@ -62,6 +62,12 @@ const CampaignsList = () => {
       } else if (sortField === 'tasks') {
         compareA = getThisWeekTasksCount(a.id);
         compareB = getThisWeekTasksCount(b.id);
+      } else if (sortField === 'images') {
+        compareA = a.images || 0;
+        compareB = b.images || 0;
+      } else if (sortField === 'videos') {
+        compareA = a.videos || 0;
+        compareB = b.videos || 0;
       }
       
       if (compareA < compareB) return sortDirection === 'asc' ? -1 : 1;
@@ -239,6 +245,16 @@ const CampaignsList = () => {
                   <th 
                     scope="col" 
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                    onClick={() => handleSort('id')}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>ID</span>
+                      {getSortIcon('id')}
+                    </div>
+                  </th>
+                  <th 
+                    scope="col" 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
                     onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center space-x-2">
@@ -246,15 +262,8 @@ const CampaignsList = () => {
                       {getSortIcon('name')}
                     </div>
                   </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
-                    onClick={() => handleSort('id')}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <span>ID</span>
-                      {getSortIcon('id')}
-                    </div>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Slack ID
                   </th>
                   <th 
                     scope="col" 
@@ -266,15 +275,32 @@ const CampaignsList = () => {
                       {getSortIcon('tasks')}
                     </div>
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Slack ID
+                  <th 
+                    scope="col" 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                    onClick={() => handleSort('images')}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>Images</span>
+                      {getSortIcon('images')}
+                    </div>
+                  </th>
+                  <th 
+                    scope="col" 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                    onClick={() => handleSort('videos')}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>Videos</span>
+                      {getSortIcon('videos')}
+                    </div>
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {campaignsLoading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       <div className="flex items-center justify-center space-x-2">
                         <svg className="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -285,7 +311,7 @@ const CampaignsList = () => {
                   </tr>
                 ) : campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       No campaigns found
                     </td>
                   </tr>
@@ -297,24 +323,13 @@ const CampaignsList = () => {
                       key={campaign.id} 
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {campaign.name}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
                           {campaign.id}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          thisWeekTasksCount === 0 
-                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' 
-                            : thisWeekTasksCount < 5 
-                            ? 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-100' 
-                            : 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-100'
-                        }`}>
-                          {thisWeekTasksCount}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {campaign.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         {editingCampaignId === campaign.id ? (
@@ -360,6 +375,23 @@ const CampaignsList = () => {
                             </button>
                           </div>
                         )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          thisWeekTasksCount === 0 
+                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' 
+                            : thisWeekTasksCount < 5 
+                            ? 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-100' 
+                            : 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-100'
+                        }`}>
+                          {thisWeekTasksCount}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        {campaign.images || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        {campaign.videos || 0}
                       </td>
                     </tr>
                   );

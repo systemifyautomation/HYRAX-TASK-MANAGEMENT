@@ -15,17 +15,18 @@ const UserTaskCard = ({
   currentUser,
   updateTask,
   deleteTask,
-  weekView
+  weekView,
+  readOnly
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { buyerColors } = useApp();
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingCampaignId, setEditingCampaignId] = useState(null);
-  const canEditStatus = currentUser && isManager(currentUser.role);
-  const canEditBuyer = currentUser && isManager(currentUser.role);
-  const canManageTasks = currentUser && isManager(currentUser.role);
-  const isAdminUser = currentUser && isAdmin(currentUser.role);
+  const canEditStatus = !readOnly && currentUser && isManager(currentUser.role);
+  const canEditBuyer = !readOnly && currentUser && isManager(currentUser.role);
+  const canManageTasks = !readOnly && currentUser && isManager(currentUser.role);
+  const isAdminUser = !readOnly && currentUser && isAdmin(currentUser.role);
   
   const getUserSlug = (userId) => {
     const u = users.find(u => u.id === parseInt(userId));
