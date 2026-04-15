@@ -1762,18 +1762,39 @@ const Tasks = () => {
           status: 'Needs Review' // Auto-update task status when creative is uploaded
         }, queryParams);
       
+      // Update local tasks state immediately so subsequent uploads to the same task
+      // read current creative data instead of stale state (prevents other slots being overwritten)
+      const updatedCreativeFields = {
+        viewerLink: syncedArrays.viewerLink,
+        viewerLinkApproval: syncedArrays.viewerLinkApproval,
+        viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
+        slackPermalink: syncedArrays.slackPermalink,
+        viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
+        viewerLinkAt: syncedArrays.viewerLinkAt,
+        status: 'Needs Review'
+      };
+
+      if (weekView === 'this-week') {
+        setTasks(prevTasks => prevTasks.map(t =>
+          t.id === taskId ? { ...t, ...updatedCreativeFields } : t
+        ));
+      } else if (weekView === 'next-week') {
+        setScheduledTasks(prevTasks => prevTasks.map(t =>
+          t.id === taskId ? { ...t, ...updatedCreativeFields } : t
+        ));
+      } else {
+        // last-week
+        setLastWeekTasks(prevTasks => prevTasks.map(t =>
+          t.id === taskId ? { ...t, ...updatedCreativeFields } : t
+        ));
+      }
+
       // Update modal state if it's open
       if (userTasksModal) {
         const updatedTasks = userTasksModal.tasks.map(t => 
           t.id === taskId ? { 
             ...t, 
-            viewerLink: syncedArrays.viewerLink,
-            viewerLinkApproval: syncedArrays.viewerLinkApproval,
-            viewerLinkFeedback: syncedArrays.viewerLinkFeedback,
-            slackPermalink: syncedArrays.slackPermalink,
-            viewerLinkApprovalAt: syncedArrays.viewerLinkApprovalAt,
-            viewerLinkAt: syncedArrays.viewerLinkAt,
-            status: 'Needs Review' // Auto-update task status when creative is uploaded
+            ...updatedCreativeFields
           } : t
         );
         setUserTasksModal({ ...userTasksModal, tasks: updatedTasks });
